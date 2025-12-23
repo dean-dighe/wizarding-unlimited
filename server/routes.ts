@@ -81,6 +81,7 @@ export async function registerRoutes(
         house: house || null,
         health: 100,
         inventory: ["Wand", "Hogwarts Robes"],
+        spells: [], // Start with no known spells - will learn them during the adventure
         location: "Platform 9¾",
         gameTime: "September 1st, 1991 - 10:30 AM",
         characterDescription,
@@ -141,7 +142,30 @@ CRITICAL REQUIREMENTS:
    [Choice 3: Description]
    [Choice 4: Description]
 
+5. If the story involves ANY changes to the player's state, include state change tags BEFORE the choices:
+   - For health changes: [HEALTH: +10] or [HEALTH: -15] (relative change, can be positive or negative)
+   - For new items: [ITEM_ADD: Item Name] (one tag per item)
+   - For lost/used items: [ITEM_REMOVE: Item Name] (one tag per item)
+   - For learning new spells: [SPELL_LEARN: Spell Name] (one tag per spell)
+   - For location changes: [LOCATION: New Location Name]
+   
+   Examples:
+   [HEALTH: -10]
+   [ITEM_ADD: Chocolate Frog]
+   [SPELL_LEARN: Lumos]
+   [LOCATION: Hogwarts Express - Compartment 7]
+
 Make choices meaningful - some safe, some risky, some social, some exploratory. At least one choice should relate to the current chapter objective.
+
+PLAYER STATE TRACKING:
+You are responsible for tracking the player's current state. When narrative events affect the player:
+- Taking damage or getting healed affects HEALTH (range 0-100)
+- Finding, buying, or receiving items adds to INVENTORY
+- Losing, using, or giving away items removes from INVENTORY  
+- Learning new spells in classes or from books adds to KNOWN SPELLS
+- Moving to new locations updates LOCATION
+
+Be generous with spell learning during classes and tutoring scenes. Be realistic about item usage and health effects.
       `;
 
       await chatStorage.createMessage(conversation.id, "system", systemPrompt);
@@ -191,6 +215,7 @@ You've done it. You've actually made it. The Hogwarts Express awaits, and with i
     }
 
     res.json({
+      playerName: state.playerName,
       house: state.house,
       health: state.health ?? 100,
       inventory: (state.inventory as string[]) ?? [],

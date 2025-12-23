@@ -28,6 +28,7 @@ export const game_states = pgTable("game_states", {
   house: text("house"), // Gryffindor, Slytherin, etc.
   health: integer("health").default(100),
   inventory: jsonb("inventory").default([]),
+  spells: jsonb("spells").default([]), // Known spells learned throughout the adventure
   location: text("location").default("Great Hall"),
   gameTime: text("game_time").default("September 1st, 1991 - 10:30 AM"), // In-game date and time
   characterDescription: text("character_description"), // Verbose visual description for consistent image generation
