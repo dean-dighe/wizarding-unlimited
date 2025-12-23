@@ -67,7 +67,7 @@ export default function Landing() {
               <Wand2 className="w-8 h-8 text-yellow-400 animate-float" />
             </div>
             <h1 className="text-4xl font-serif font-bold text-transparent bg-clip-text bg-gradient-to-b from-yellow-200 to-yellow-600 mb-2">
-              Hogwarts Kinda
+              Wizarding Sagas
             </h1>
             <p className="text-purple-200/80 font-serif text-sm max-w-xs mx-auto">Begin your third year at Hogwarts. Board the Hogwarts Express at Platform 9¾ and uncover mysteries that await within the castle walls.</p>
           </div>
