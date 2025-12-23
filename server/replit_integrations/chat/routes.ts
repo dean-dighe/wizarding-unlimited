@@ -19,6 +19,41 @@ const XAI_API_URL = "https://api.x.ai/v1/images/generations";
 
 const MAX_PROMPT_LENGTH = 1000; // xAI limit is 1024, leave buffer
 
+// Simple in-memory rate limiter
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 20; // 20 requests per minute per IP
+
+function checkRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
+  const now = Date.now();
+  const record = rateLimitMap.get(ip);
+  
+  if (!record || now > record.resetTime) {
+    // New window
+    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+    return { allowed: true };
+  }
+  
+  if (record.count >= RATE_LIMIT_MAX_REQUESTS) {
+    const retryAfter = Math.ceil((record.resetTime - now) / 1000);
+    return { allowed: false, retryAfter };
+  }
+  
+  record.count++;
+  return { allowed: true };
+}
+
+// Cleanup old rate limit entries periodically
+setInterval(() => {
+  const now = Date.now();
+  const entries = Array.from(rateLimitMap.entries());
+  for (const [ip, record] of entries) {
+    if (now > record.resetTime) {
+      rateLimitMap.delete(ip);
+    }
+  }
+}, 60000);
+
 interface StateChanges {
   hasChanges: boolean;
   healthChange: number;
@@ -280,13 +315,37 @@ export function registerChatRoutes(app: Express): void {
   // Send message and get AI response (streaming)
   app.post("/api/conversations/:id/messages", async (req: Request, res: Response) => {
     try {
+      // Rate limiting
+      const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+      const rateCheck = checkRateLimit(clientIp);
+      if (!rateCheck.allowed) {
+        res.setHeader('Retry-After', rateCheck.retryAfter || 60);
+        return res.status(429).json({ error: "Too many requests. Please slow down." });
+      }
+
       const conversationId = parseInt(req.params.id);
       const { content } = req.body;
 
-      console.log(`[Chat] Received message for conversation ${conversationId}: "${content.slice(0, 50)}..."`);
+      // Input validation
+      if (!content || typeof content !== 'string') {
+        return res.status(400).json({ error: "Message content is required" });
+      }
+      
+      const trimmedContent = content.trim();
+      if (trimmedContent.length === 0) {
+        return res.status(400).json({ error: "Message cannot be empty" });
+      }
+      
+      // Length limit to prevent DoS (player choices are typically short)
+      const MAX_MESSAGE_LENGTH = 500;
+      if (trimmedContent.length > MAX_MESSAGE_LENGTH) {
+        return res.status(400).json({ error: `Message too long (max ${MAX_MESSAGE_LENGTH} characters)` });
+      }
+
+      console.log(`[Chat] Received message for conversation ${conversationId}: "${trimmedContent.slice(0, 50)}..."`);
 
       // Save user message
-      await chatStorage.createMessage(conversationId, "user", content);
+      await chatStorage.createMessage(conversationId, "user", trimmedContent);
 
       // Get game state for character description and story context
       const gameState = await storage.getGameState(conversationId);
@@ -426,31 +485,51 @@ export function registerChatRoutes(app: Express): void {
         const currentHealth = gameState.health ?? 100;
         const currentLocation = gameState.location || "Unknown";
 
-        // Apply inventory changes
+        // Apply inventory changes (validate item names)
         let newInventory = [...currentInventory];
         for (const item of stateChanges.itemsAdded) {
-          if (!newInventory.includes(item)) {
-            newInventory.push(item);
+          const cleanItem = item.trim();
+          // Validate: non-empty, reasonable length, not already in inventory
+          if (cleanItem.length > 0 && cleanItem.length <= 100 && !newInventory.includes(cleanItem)) {
+            newInventory.push(cleanItem);
+            console.log(`[State] Added item: ${cleanItem}`);
           }
         }
         for (const item of stateChanges.itemsRemoved) {
-          newInventory = newInventory.filter(i => i.toLowerCase() !== item.toLowerCase());
-        }
-
-        // Apply spell changes
-        let newSpells = [...currentSpells];
-        for (const spell of stateChanges.spellsLearned) {
-          if (!newSpells.includes(spell)) {
-            newSpells.push(spell);
+          const cleanItem = item.trim();
+          if (cleanItem.length > 0) {
+            newInventory = newInventory.filter(i => i.toLowerCase() !== cleanItem.toLowerCase());
+            console.log(`[State] Removed item: ${cleanItem}`);
           }
         }
 
-        // Apply health changes
-        let newHealth = currentHealth + stateChanges.healthChange;
-        newHealth = Math.max(0, Math.min(100, newHealth)); // Clamp to 0-100
+        // Apply spell changes (validate spell names)
+        let newSpells = [...currentSpells];
+        for (const spell of stateChanges.spellsLearned) {
+          const cleanSpell = spell.trim();
+          // Validate: non-empty, reasonable length, not already known
+          if (cleanSpell.length > 0 && cleanSpell.length <= 50 && !newSpells.includes(cleanSpell)) {
+            newSpells.push(cleanSpell);
+            console.log(`[State] Learned new spell: ${cleanSpell}`);
+          }
+        }
 
-        // Apply location change
-        const newLocation = stateChanges.newLocation || currentLocation;
+        // Apply health changes (already clamped to 0-100)
+        let newHealth = currentHealth + stateChanges.healthChange;
+        newHealth = Math.max(0, Math.min(100, newHealth));
+        if (stateChanges.healthChange !== 0) {
+          console.log(`[State] Health changed by ${stateChanges.healthChange}: ${currentHealth} -> ${newHealth}`);
+        }
+
+        // Apply location change (validate location name)
+        let newLocation = currentLocation;
+        if (stateChanges.newLocation) {
+          const cleanLocation = stateChanges.newLocation.trim();
+          if (cleanLocation.length > 0 && cleanLocation.length <= 100) {
+            newLocation = cleanLocation;
+            console.log(`[State] Location changed: ${currentLocation} -> ${newLocation}`);
+          }
+        }
 
         // Update game state
         await storage.updateGameState(conversationId, {
