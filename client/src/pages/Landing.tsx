@@ -6,6 +6,18 @@ import { MagicalButton } from "@/components/ui/magical-button";
 import { useInitGame } from "@/hooks/use-game";
 import { useToast } from "@/hooks/use-toast";
 
+import gryffindorIcon from "@assets/generated_images/gryffindor_lion_crest_icon.png";
+import slytherinIcon from "@assets/generated_images/slytherin_snake_crest_icon.png";
+import ravenclawIcon from "@assets/generated_images/ravenclaw_eagle_crest_icon.png";
+import hufflepuffIcon from "@assets/generated_images/hufflepuff_badger_crest_icon.png";
+
+const houseIcons: Record<string, string> = {
+  Gryffindor: gryffindorIcon,
+  Slytherin: slytherinIcon,
+  Ravenclaw: ravenclawIcon,
+  Hufflepuff: hufflepuffIcon,
+};
+
 export default function Landing() {
   const [name, setName] = useState("");
   const [house, setHouse] = useState<string | undefined>(undefined);
@@ -85,13 +97,19 @@ export default function Landing() {
                     key={h}
                     type="button"
                     onClick={() => setHouse(house === h ? undefined : h)}
+                    data-testid={`button-house-${h.toLowerCase()}`}
                     className={`
-                      px-3 py-2 rounded border text-sm font-serif transition-all
+                      px-3 py-2 rounded border text-sm font-serif transition-all flex items-center justify-center gap-2
                       ${house === h 
                         ? 'bg-primary/40 border-yellow-500 text-yellow-200 shadow-[0_0_10px_rgba(234,179,8,0.2)]' 
                         : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:border-white/20'}
                     `}
                   >
+                    <img 
+                      src={houseIcons[h]} 
+                      alt={`${h} crest`} 
+                      className="w-5 h-5 object-contain"
+                    />
                     {h}
                   </button>
                 ))}
