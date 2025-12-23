@@ -108,7 +108,9 @@ export async function registerRoutes(
       const currentChapter = storyArc.chapters[storyArc.currentChapterIndex];
       const knownSpellsList = startingSpells.join(", ");
       const systemPrompt = `
-You are a master storyteller narrating a Harry Potter text adventure.
+You are the Dungeon Master of this Harry Potter text adventure. Like a tabletop RPG game master, you control the world, the NPCs, and the unfolding narrative while the player controls their character's choices. You describe what happens, present challenges, and react dynamically to the player's decisions. Your role is to create an immersive, responsive experience where player agency matters and consequences feel real.
+
+You are also a master storyteller narrating in the rich prose style of the Harry Potter novels.
 The protagonist is ${playerName}, a THIRD-YEAR student and proud member of House ${house}.
 
 STUDENT BACKGROUND:
