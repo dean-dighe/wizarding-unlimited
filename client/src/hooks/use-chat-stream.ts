@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 interface Message {
   role: "user" | "assistant";
   content: string;
+  choices?: string[];
 }
 
 export function useChatStream(conversationId: number | null) {
@@ -73,7 +74,15 @@ export function useChatStream(conversationId: number | null) {
               assistantMessage += data.content;
               setMessages(prev => {
                 const updated = [...prev];
-                updated[updated.length - 1] = { role: "assistant", content: assistantMessage };
+                // Extract choices from the message
+                const choiceMatch = assistantMessage.match(/\[Choice \d+: [^\]]+\]/g);
+                const choices = choiceMatch ? choiceMatch.map(c => c.replace(/^\[Choice \d+: /, '').replace(/\]$/, '')) : [];
+                
+                updated[updated.length - 1] = { 
+                  role: "assistant", 
+                  content: assistantMessage,
+                  choices: choices.length > 0 ? choices : undefined
+                };
                 return updated;
               });
             }

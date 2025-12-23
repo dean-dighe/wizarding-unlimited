@@ -42,7 +42,14 @@ Current location: Hogwarts Express.
 Your goal is to lead the player on a magical adventure. 
 Keep responses immersive, descriptive, but concise (under 3 paragraphs).
 Use typical RPG elements.
-End each response with "What do you do?" or options for the user.
+
+IMPORTANT: Always end your response with exactly 4 numbered choices in this format:
+[Choice 1: Description of first action]
+[Choice 2: Description of second action]
+[Choice 3: Description of third action]
+[Choice 4: Description of fourth action]
+
+Make choices thematic, engaging, and relevant to the current situation.
       `;
 
       await chatStorage.createMessage(conversation.id, "system", systemPrompt);
@@ -53,7 +60,12 @@ End each response with "What do you do?" or options for the user.
       // Ideally we'd call OpenAI here, but for speed, let's just insert a hardcoded intro or let the client trigger the first generation.
       // Let's Insert a hardcoded intro to be safe and fast.
       
-      const introText = `Welcome, ${playerName}, to the Wizarding World! The Hogwarts Express whistle blows, steam filling the platform. You find a compartment. The journey begins. What would you like to do?`;
+      const introText = `Welcome, ${playerName}, to the Wizarding World! The Hogwarts Express whistle blows, steam filling the platform. You find a compartment.
+
+[Choice 1: Explore the corridor to meet other students]
+[Choice 2: Settle into the compartment and wait for it to depart]
+[Choice 3: Visit the food cart in the next car over]
+[Choice 4: Gaze out the window at Diagon Alley]`;
       await chatStorage.createMessage(conversation.id, "assistant", introText);
 
       res.status(201).json({

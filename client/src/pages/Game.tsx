@@ -6,7 +6,6 @@ import {
   Heart, 
   MapPin, 
   Backpack, 
-  Send, 
   Sparkles,
 } from "lucide-react";
 import { useGameState } from "@/hooks/use-game";
@@ -20,7 +19,6 @@ export default function Game() {
   
   const { data: state, isLoading: stateLoading } = useGameState(conversationId);
   const { messages, sendMessage, isStreaming } = useChatStream(conversationId);
-  const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -29,12 +27,13 @@ export default function Game() {
     }
   }, [messages]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || isStreaming) return;
-    sendMessage(input);
-    setInput("");
+  const handleChoiceClick = (choice: string) => {
+    sendMessage(choice);
   };
+
+  // Get the last assistant message with choices
+  const lastAssistantMessage = messages.filter(m => m.role === "assistant").pop();
+  const currentChoices = lastAssistantMessage?.choices || [];
 
   if (stateLoading) {
     return (
@@ -113,7 +112,7 @@ export default function Game() {
         <div className="h-16 border-b border-white/5 bg-[#1a0b2e]/95 backdrop-blur flex items-center px-6 justify-between z-10 flex-shrink-0">
           <h1 className="font-serif text-lg text-yellow-100/80 flex items-center gap-2">
             <ScrollText className="w-4 h-4 text-yellow-500" />
-            Your Adventure
+            Wizarding Sagas
           </h1>
         </div>
 
@@ -162,35 +161,42 @@ export default function Game() {
           </AnimatePresence>
         </div>
 
+        {/* Choices Area */}
         <div className="flex-shrink-0 p-4 md:p-6 bg-gradient-to-t from-[#0d0415] to-[#1a0b2e] border-t border-white/5">
-          <form 
-            onSubmit={handleSubmit}
-            className="max-w-4xl mx-auto relative flex items-end gap-2 bg-[#25123d] border border-purple-500/20 rounded-xl p-2 shadow-2xl shadow-purple-950/50 focus-within:ring-2 focus-within:ring-yellow-500/30 transition-all"
-          >
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSubmit(e);
-                }
-              }}
-              placeholder="What do you do?"
-              className="flex-1 bg-transparent border-none text-purple-100 placeholder-purple-400/30 focus:ring-0 resize-none max-h-32 min-h-[50px] p-3 font-serif"
-              rows={1}
-            />
-            <button
-              type="submit"
-              disabled={!input.trim() || isStreaming}
-              className="p-3 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-yellow-950 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <Send className="w-5 h-5" />
-            </button>
-          </form>
-          <p className="text-center text-xs text-white/20 mt-3 font-serif italic">
-            Magic awaits your command...
-          </p>
+          {currentChoices.length > 0 ? (
+            <div className="max-w-4xl mx-auto space-y-3">
+              <p className="text-xs text-white/40 uppercase tracking-widest font-serif text-center mb-4">
+                What is your next move?
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {currentChoices.map((choice, idx) => (
+                  <motion.button
+                    key={idx}
+                    onClick={() => handleChoiceClick(choice)}
+                    disabled={isStreaming}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className={cn(
+                      "p-4 rounded-lg border-2 border-yellow-600/50 bg-[#25123d] hover:bg-[#2d1847] text-purple-100 font-serif text-sm transition-all",
+                      "disabled:opacity-50 disabled:cursor-not-allowed",
+                      "hover:border-yellow-500 hover:shadow-lg hover:shadow-yellow-500/20"
+                    )}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="text-yellow-500 font-bold text-lg mt-0.5">
+                        {idx + 1}
+                      </div>
+                      <div className="text-left">{choice}</div>
+                    </div>
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center text-white/30 font-serif italic text-sm">
+              Awaiting the next turn...
+            </div>
+          )}
         </div>
       </div>
     </div>
