@@ -212,7 +212,7 @@ export default function Game() {
                       <div className="text-yellow-500 font-bold text-sm md:text-lg shrink-0">
                         {idx + 1}
                       </div>
-                      <div className="text-left line-clamp-3 md:line-clamp-none">{choice}</div>
+                      <div className="text-left">{choice}</div>
                     </div>
                   </motion.button>
                 ))}
