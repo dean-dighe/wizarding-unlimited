@@ -56,6 +56,10 @@ Preferred communication style: Simple, everyday language.
   - Mute toggle with localStorage persistence
   - Atomic locking prevents duplicate TTS calls during React re-renders
 - **Character Descriptions**: Generated on game init (80-100 words) for consistent character appearance across images
+- **NPC Character Tracking**: AI uses [CHARACTER: Name | Description] tags to describe new non-canon characters
+  - Descriptions stored in `game_states.npcDescriptions` (JSONB)
+  - `findRelevantNPCs()` matches NPCs by full name, first name, or newly-introduced status
+  - Image prompts include protagonist + relevant NPCs (max 2, 80 chars each) for visual consistency
 - **Streaming**: Server-sent events for buffered AI response delivery
   - Error handling with automatic rollback on AI failures
   - Structured SSE error events with retry capability
