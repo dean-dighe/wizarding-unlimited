@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import WebSocket from "ws";
 
 const XAI_REALTIME_URL = "wss://api.x.ai/v1/realtime";
-const MAX_TTS_TEXT_LENGTH = 2000; // Max characters for TTS to prevent abuse
+const MAX_TTS_TEXT_LENGTH = 4000; // Max characters for TTS to prevent abuse
 const TTS_RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
 const TTS_RATE_LIMIT_MAX = 10; // 10 TTS requests per minute per IP
 

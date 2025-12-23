@@ -397,8 +397,12 @@ export default function Game() {
       body: JSON.stringify({ text: textToRead }),
       signal: abortController.signal,
     })
-      .then(res => {
-        if (!res.ok) throw new Error("TTS failed");
+      .then(async res => {
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}));
+          console.error('TTS API error:', res.status, errorData);
+          throw new Error(errorData.error || `TTS failed with status ${res.status}`);
+        }
         return res.blob();
       })
       .then(blob => {
@@ -454,7 +458,8 @@ export default function Game() {
             setProcessingTrigger(prev => prev + 1);
           };
           
-          audio.play().catch(() => {
+          audio.play().catch((playError) => {
+            console.error('Audio play failed (mobile autoplay restriction?):', playError);
             if (audioBlobUrlRef.current) {
               URL.revokeObjectURL(audioBlobUrlRef.current);
               audioBlobUrlRef.current = null;
