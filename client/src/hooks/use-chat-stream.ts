@@ -9,10 +9,19 @@ interface Message {
   imageUrl?: string;
 }
 
+interface StoryProgress {
+  chapter: string;
+  chapterIndex: number;
+  totalChapters: number;
+  decisionCount: number;
+}
+
 export function useChatStream(conversationId: number | null) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [storyProgress, setStoryProgress] = useState<StoryProgress | null>(null);
+  const [chapterAdvance, setChapterAdvance] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -123,6 +132,18 @@ export function useChatStream(conversationId: number | null) {
                 setIsGeneratingImage(false);
               }
 
+              // Handle story progress updates
+              if (data.storyProgress) {
+                setStoryProgress(data.storyProgress);
+              }
+
+              // Handle chapter advancement notification
+              if (data.chapterAdvance) {
+                setChapterAdvance(data.chapter);
+                // Clear after 5 seconds
+                setTimeout(() => setChapterAdvance(null), 5000);
+              }
+
               // When completely done
               if (data.done) {
                 setIsGeneratingImage(false);
@@ -146,5 +167,15 @@ export function useChatStream(conversationId: number | null) {
     }
   };
 
-  return { messages, sendMessage, isStreaming, isGeneratingImage };
+  const clearChapterAdvance = () => setChapterAdvance(null);
+
+  return { 
+    messages, 
+    sendMessage, 
+    isStreaming, 
+    isGeneratingImage, 
+    storyProgress, 
+    chapterAdvance,
+    clearChapterAdvance 
+  };
 }

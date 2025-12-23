@@ -10,6 +10,7 @@ import {
   Clock,
   Volume2,
   VolumeX,
+  BookOpen,
 } from "lucide-react";
 import { useGameState } from "@/hooks/use-game";
 import { useChatStream } from "@/hooks/use-chat-stream";
@@ -22,7 +23,7 @@ export default function Game() {
   const conversationId = params?.id ? parseInt(params.id) : null;
   
   const { data: state, isLoading: stateLoading } = useGameState(conversationId);
-  const { messages, sendMessage, isStreaming, isGeneratingImage } = useChatStream(conversationId);
+  const { messages, sendMessage, isStreaming, isGeneratingImage, storyProgress, chapterAdvance } = useChatStream(conversationId);
   const scrollRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
@@ -260,6 +261,33 @@ export default function Game() {
               )) || <span className="text-xs text-white/30 italic">Empty...</span>}
             </div>
           </div>
+
+          {/* Story Progress */}
+          {storyProgress && (
+            <div className="space-y-2 mt-4 pt-4 border-t border-white/10">
+              <div className="flex items-center gap-2 text-yellow-400">
+                <BookOpen className="w-4 h-4" />
+                <span className="font-serif uppercase tracking-wider text-xs">Story Arc</span>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-purple-200 font-serif">{storyProgress.chapter}</p>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-yellow-500 to-yellow-400 transition-all duration-500"
+                      style={{ width: `${(storyProgress.chapterIndex / storyProgress.totalChapters) * 100}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] text-white/50">
+                    {storyProgress.chapterIndex}/{storyProgress.totalChapters}
+                  </span>
+                </div>
+                <p className="text-[10px] text-white/40 mt-1">
+                  Decisions: {storyProgress.decisionCount}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </motion.div>
 
@@ -305,6 +333,28 @@ export default function Game() {
             </Button>
           </div>
         </div>
+
+        {/* Chapter Advancement Toast */}
+        <AnimatePresence>
+          {chapterAdvance && (
+            <motion.div
+              initial={{ opacity: 0, y: -50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -50 }}
+              className="absolute top-16 left-1/2 transform -translate-x-1/2 z-40"
+            >
+              <div className="bg-gradient-to-r from-yellow-600/90 to-yellow-500/90 backdrop-blur-sm text-yellow-950 px-6 py-3 rounded-lg shadow-xl border border-yellow-400/50">
+                <div className="flex items-center gap-3">
+                  <BookOpen className="w-5 h-5" />
+                  <div>
+                    <p className="font-serif font-bold text-sm">Chapter Complete!</p>
+                    <p className="font-serif text-xs opacity-80">Now entering: {chapterAdvance}</p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Story Area - Scrollable container below sticky header */}
         <div 
