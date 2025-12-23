@@ -7,6 +7,53 @@ const openai = new OpenAI({
   baseURL: process.env.OLLAMA_BASE_URL || "https://gpt.netsuite.tech/v1",
 });
 
+const XAI_API_URL = "https://api.x.ai/v1/images/generations";
+
+async function generateSceneImage(storyContent: string): Promise<string | null> {
+  try {
+    const apiKey = process.env.XAI_API_KEY;
+    if (!apiKey) {
+      console.log("XAI_API_KEY not configured, skipping image generation");
+      return null;
+    }
+
+    // Extract key visual elements from the story for the image prompt
+    // Strip out the metadata and choices
+    const cleanContent = storyContent
+      .replace(/\[TIME: [^\]]+\]\n?/g, '')
+      .replace(/\[Choice \d+: [^\]]+\]\n?/g, '')
+      .trim();
+
+    // Create a focused image prompt based on the story content
+    const imagePrompt = `Harry Potter wizarding world illustration: ${cleanContent.slice(0, 300)}. Atmospheric, magical, painterly style with warm lighting, detailed environment, no text or words in image.`;
+
+    const response = await fetch(XAI_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "grok-2-image-1212",
+        prompt: imagePrompt,
+        n: 1,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("xAI image generation error:", errorText);
+      return null;
+    }
+
+    const data = await response.json();
+    return data.data?.[0]?.url || null;
+  } catch (error) {
+    console.error("Error generating scene image:", error);
+    return null;
+  }
+}
+
 export function registerChatRoutes(app: Express): void {
   // Get all conversations
   app.get("/api/conversations", async (req: Request, res: Response) => {
@@ -97,8 +144,21 @@ export function registerChatRoutes(app: Express): void {
         }
       }
 
-      // Save assistant message
-      await chatStorage.createMessage(conversationId, "assistant", fullResponse);
+      // Text streaming complete - signal that image generation is starting
+      res.write(`data: ${JSON.stringify({ textDone: true, imagePending: true })}\n\n`);
+
+      // Generate scene image based on story content
+      const imageUrl = await generateSceneImage(fullResponse);
+      
+      // Embed image URL in the message content for persistence
+      let finalContent = fullResponse;
+      if (imageUrl) {
+        finalContent = `[IMAGE: ${imageUrl}]\n${fullResponse}`;
+        res.write(`data: ${JSON.stringify({ imageUrl })}\n\n`);
+      }
+
+      // Save assistant message with embedded image URL
+      await chatStorage.createMessage(conversationId, "assistant", finalContent);
 
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
       res.end();

@@ -6,11 +6,13 @@ interface Message {
   content: string;
   choices?: string[];
   gameTime?: string;
+  imageUrl?: string;
 }
 
 export function useChatStream(conversationId: number | null) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const queryClient = useQueryClient();
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -29,11 +31,15 @@ export function useChatStream(conversationId: number | null) {
               const choices = choiceMatch ? choiceMatch.map((c: string) => c.replace(/^\[Choice \d+: /, '').replace(/\]$/, '')) : [];
               const timeMatch = m.content.match(/\[TIME: ([^\]]+)\]/);
               const gameTime = timeMatch ? timeMatch[1] : undefined;
+              // Extract image URL from persisted content
+              const imageMatch = m.content.match(/\[IMAGE: ([^\]]+)\]/);
+              const imageUrl = imageMatch ? imageMatch[1] : undefined;
               return { 
                 role: m.role, 
                 content: m.content,
                 choices: choices.length > 0 ? choices : undefined,
-                gameTime
+                gameTime,
+                imageUrl
               };
             });
           setMessages(formatted);
@@ -67,6 +73,7 @@ export function useChatStream(conversationId: number | null) {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let assistantMessage = "";
+      let currentImageUrl: string | undefined;
 
       // Add placeholder for assistant
       setMessages(prev => [...prev, { role: "assistant", content: "" }]);
@@ -80,26 +87,55 @@ export function useChatStream(conversationId: number | null) {
 
         for (const line of lines) {
           if (line.startsWith("data: ")) {
-            const data = JSON.parse(line.slice(6));
-            
-            if (data.content) {
-              assistantMessage += data.content;
-              setMessages(prev => {
-                const updated = [...prev];
-                // Extract choices and time from the message
-                const choiceMatch = assistantMessage.match(/\[Choice \d+: [^\]]+\]/g);
-                const choices = choiceMatch ? choiceMatch.map(c => c.replace(/^\[Choice \d+: /, '').replace(/\]$/, '')) : [];
-                const timeMatch = assistantMessage.match(/\[TIME: ([^\]]+)\]/);
-                const gameTime = timeMatch ? timeMatch[1] : undefined;
-                
-                updated[updated.length - 1] = { 
-                  role: "assistant", 
-                  content: assistantMessage,
-                  choices: choices.length > 0 ? choices : undefined,
-                  gameTime
-                };
-                return updated;
-              });
+            try {
+              const data = JSON.parse(line.slice(6));
+              
+              if (data.content) {
+                assistantMessage += data.content;
+                setMessages(prev => {
+                  const updated = [...prev];
+                  // Extract choices and time from the message
+                  const choiceMatch = assistantMessage.match(/\[Choice \d+: [^\]]+\]/g);
+                  const choices = choiceMatch ? choiceMatch.map(c => c.replace(/^\[Choice \d+: /, '').replace(/\]$/, '')) : [];
+                  const timeMatch = assistantMessage.match(/\[TIME: ([^\]]+)\]/);
+                  const gameTime = timeMatch ? timeMatch[1] : undefined;
+                  
+                  updated[updated.length - 1] = { 
+                    role: "assistant", 
+                    content: assistantMessage,
+                    choices: choices.length > 0 ? choices : undefined,
+                    gameTime,
+                    imageUrl: currentImageUrl
+                  };
+                  return updated;
+                });
+              }
+
+              // Handle imagePending event - text is done, image generation starting
+              if (data.imagePending) {
+                setIsGeneratingImage(true);
+              }
+
+              // Handle image URL from the stream
+              if (data.imageUrl) {
+                currentImageUrl = data.imageUrl;
+                setMessages(prev => {
+                  const updated = [...prev];
+                  updated[updated.length - 1] = { 
+                    ...updated[updated.length - 1],
+                    imageUrl: data.imageUrl
+                  };
+                  return updated;
+                });
+                setIsGeneratingImage(false);
+              }
+
+              // When completely done
+              if (data.done) {
+                setIsGeneratingImage(false);
+              }
+            } catch (e) {
+              // Skip malformed JSON lines
             }
           }
         }
@@ -107,15 +143,15 @@ export function useChatStream(conversationId: number | null) {
     } catch (error: any) {
       if (error.name !== 'AbortError') {
         console.error("Stream error:", error);
-        // Optionally add error feedback to UI
       }
     } finally {
       setIsStreaming(false);
+      setIsGeneratingImage(false);
       abortControllerRef.current = null;
       // Invalidate game state to pick up any state changes from the backend action
       queryClient.invalidateQueries({ queryKey: [`/api/game/${conversationId}/state`] });
     }
   };
 
-  return { messages, sendMessage, isStreaming };
+  return { messages, sendMessage, isStreaming, isGeneratingImage };
 }

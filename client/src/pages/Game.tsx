@@ -19,7 +19,7 @@ export default function Game() {
   const conversationId = params?.id ? parseInt(params.id) : null;
   
   const { data: state, isLoading: stateLoading } = useGameState(conversationId);
-  const { messages, sendMessage, isStreaming } = useChatStream(conversationId);
+  const { messages, sendMessage, isStreaming, isGeneratingImage } = useChatStream(conversationId);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -40,6 +40,7 @@ export default function Game() {
   // Helper to strip metadata from content for display
   const stripMetadata = (content: string) => {
     return content
+      .replace(/\[IMAGE: [^\]]+\]\n?/g, '')
       .replace(/\[TIME: [^\]]+\]\n?/g, '')
       .replace(/\[Choice \d+: [^\]]+\]\n?/g, '')
       .trim();
@@ -158,7 +159,17 @@ export default function Game() {
                 )}
               >
                 {msg.role === "assistant" ? (
-                  <div className="max-w-3xl w-full">
+                  <div className="max-w-3xl w-full space-y-3">
+                    {msg.imageUrl && (
+                      <div className="rounded-lg overflow-hidden shadow-xl border border-yellow-600/30">
+                        <img 
+                          src={msg.imageUrl} 
+                          alt="Scene illustration" 
+                          className="w-full h-auto object-cover"
+                          data-testid={`img-scene-${idx}`}
+                        />
+                      </div>
+                    )}
                     <ParchmentCard className="shadow-xl p-4 md:p-6">
                       <div 
                         className="whitespace-pre-wrap text-amber-950 leading-relaxed text-base md:text-lg"
@@ -185,6 +196,18 @@ export default function Game() {
                   <span className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
                   <span className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
                   <span className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                </div>
+              </motion.div>
+            )}
+            {isGeneratingImage && (
+              <motion.div 
+                initial={{ opacity: 0 }} 
+                animate={{ opacity: 1 }}
+                className="flex justify-start w-full"
+              >
+                <div className="text-purple-400/70 flex gap-2 items-center p-4 font-serif text-sm italic">
+                  <Sparkles className="w-4 h-4 animate-pulse" />
+                  <span>Conjuring scene illustration...</span>
                 </div>
               </motion.div>
             )}
