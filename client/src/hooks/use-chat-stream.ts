@@ -83,6 +83,7 @@ export function useChatStream(conversationId: number | null) {
       const decoder = new TextDecoder();
       let assistantMessage = "";
       let currentImageUrl: string | undefined;
+      let assistantMessageAdded = false; // Track if we've added the assistant message
 
       while (true) {
         const { done, value } = await reader.read();
@@ -96,7 +97,7 @@ export function useChatStream(conversationId: number | null) {
             try {
               const data = JSON.parse(line.slice(6));
               
-              // Handle full content (text complete - render once)
+              // Handle full content (text complete)
               if (data.fullContent) {
                 assistantMessage = data.fullContent;
                 const choiceMatch = assistantMessage.match(/\[Choice \d+: [^\]]+\]/g);
@@ -104,13 +105,29 @@ export function useChatStream(conversationId: number | null) {
                 const timeMatch = assistantMessage.match(/\[TIME: ([^\]]+)\]/);
                 const gameTime = timeMatch ? timeMatch[1] : undefined;
                 
-                setMessages(prev => [...prev, { 
-                  role: "assistant", 
-                  content: assistantMessage,
-                  choices: choices.length > 0 ? choices : undefined,
-                  gameTime,
-                  imageUrl: currentImageUrl
-                }]);
+                if (!assistantMessageAdded) {
+                  // First fullContent - add new message
+                  assistantMessageAdded = true;
+                  setMessages(prev => [...prev, { 
+                    role: "assistant", 
+                    content: assistantMessage,
+                    choices: choices.length > 0 ? choices : undefined,
+                    gameTime,
+                    imageUrl: currentImageUrl
+                  }]);
+                } else {
+                  // Subsequent fullContent - update existing message
+                  setMessages(prev => {
+                    const updated = [...prev];
+                    updated[updated.length - 1] = { 
+                      ...updated[updated.length - 1],
+                      content: assistantMessage,
+                      choices: choices.length > 0 ? choices : undefined,
+                      gameTime,
+                    };
+                    return updated;
+                  });
+                }
               }
 
               // Handle imagePending event - text is done, image generation starting
@@ -123,10 +140,12 @@ export function useChatStream(conversationId: number | null) {
                 currentImageUrl = data.imageUrl;
                 setMessages(prev => {
                   const updated = [...prev];
-                  updated[updated.length - 1] = { 
-                    ...updated[updated.length - 1],
-                    imageUrl: data.imageUrl
-                  };
+                  if (updated.length > 0) {
+                    updated[updated.length - 1] = { 
+                      ...updated[updated.length - 1],
+                      imageUrl: data.imageUrl
+                    };
+                  }
                   return updated;
                 });
                 setIsGeneratingImage(false);
