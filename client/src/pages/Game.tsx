@@ -126,77 +126,77 @@ export default function Game() {
             ref={scrollRef}
             className="flex-1 min-h-0 overflow-y-auto p-4 md:p-8 space-y-6 scroll-smooth"
           >
-          <AnimatePresence initial={false}>
-            {messages.map((msg, idx) => (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
-                className={cn(
-                  "flex w-full",
-                  msg.role === "user" ? "justify-end" : "justify-start"
-                )}
-              >
-                {msg.role === "assistant" ? (
-                  <div className="max-w-3xl w-full">
-                    <ParchmentCard className="prose prose-p:font-serif prose-p:leading-relaxed prose-headings:font-serif prose-strong:text-amber-900 text-amber-950 shadow-xl">
-                      <div className="whitespace-pre-wrap">{msg.content}</div>
-                    </ParchmentCard>
+            <AnimatePresence initial={false}>
+              {messages.map((msg, idx) => (
+                <motion.div
+                  key={idx}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4 }}
+                  className={cn(
+                    "flex w-full",
+                    msg.role === "user" ? "justify-end" : "justify-start"
+                  )}
+                >
+                  {msg.role === "assistant" ? (
+                    <div className="max-w-3xl w-full">
+                      <ParchmentCard className="prose prose-p:font-serif prose-p:leading-relaxed prose-headings:font-serif prose-strong:text-amber-900 text-amber-950 shadow-xl">
+                        <div className="whitespace-pre-wrap">{msg.content}</div>
+                      </ParchmentCard>
+                    </div>
+                  ) : (
+                    <div className="bg-purple-900/50 backdrop-blur-sm border border-purple-700/50 text-purple-100 rounded-2xl rounded-tr-sm px-6 py-4 max-w-xl shadow-lg">
+                      <p className="font-sans leading-relaxed">{msg.content}</p>
+                    </div>
+                  )}
+                </motion.div>
+              ))}
+              {isStreaming && (
+                <motion.div 
+                  initial={{ opacity: 0 }} 
+                  animate={{ opacity: 1 }}
+                  className="flex justify-start w-full"
+                >
+                  <div className="text-yellow-500/50 flex gap-1 items-center p-4">
+                    <span className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <span className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                    <span className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                   </div>
-                ) : (
-                  <div className="bg-purple-900/50 backdrop-blur-sm border border-purple-700/50 text-purple-100 rounded-2xl rounded-tr-sm px-6 py-4 max-w-xl shadow-lg">
-                    <p className="font-sans leading-relaxed">{msg.content}</p>
-                  </div>
-                )}
-              </motion.div>
-            ))}
-            {isStreaming && (
-              <motion.div 
-                initial={{ opacity: 0 }} 
-                animate={{ opacity: 1 }}
-                className="flex justify-start w-full"
-              >
-                <div className="text-yellow-500/50 flex gap-1 items-center p-4">
-                  <span className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <span className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <span className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* Input Area */}
           <div className="flex-shrink-0 p-4 md:p-6 bg-gradient-to-t from-[#0d0415] to-[#1a0b2e] border-t border-white/5">
-          <form 
-            onSubmit={handleSubmit}
-            className="max-w-4xl mx-auto relative flex items-end gap-2 bg-[#25123d] border border-purple-500/20 rounded-xl p-2 shadow-2xl shadow-purple-950/50 focus-within:ring-2 focus-within:ring-yellow-500/30 transition-all"
-          >
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSubmit(e);
-                }
-              }}
-              placeholder="What do you do?"
-              className="flex-1 bg-transparent border-none text-purple-100 placeholder-purple-400/30 focus:ring-0 resize-none max-h-32 min-h-[50px] p-3 font-serif"
-              rows={1}
-            />
-            <button
-              type="submit"
-              disabled={!input.trim() || isStreaming}
-              className="p-3 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-yellow-950 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            <form 
+              onSubmit={handleSubmit}
+              className="max-w-4xl mx-auto relative flex items-end gap-2 bg-[#25123d] border border-purple-500/20 rounded-xl p-2 shadow-2xl shadow-purple-950/50 focus-within:ring-2 focus-within:ring-yellow-500/30 transition-all"
             >
-              <Send className="w-5 h-5" />
-            </button>
-          </form>
-          <p className="text-center text-xs text-white/20 mt-3 font-serif italic">
-            Magic awaits your command...
-          </p>
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSubmit(e);
+                  }
+                }}
+                placeholder="What do you do?"
+                className="flex-1 bg-transparent border-none text-purple-100 placeholder-purple-400/30 focus:ring-0 resize-none max-h-32 min-h-[50px] p-3 font-serif"
+                rows={1}
+              />
+              <button
+                type="submit"
+                disabled={!input.trim() || isStreaming}
+                className="p-3 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-yellow-950 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <Send className="w-5 h-5" />
+              </button>
+            </form>
+            <p className="text-center text-xs text-white/20 mt-3 font-serif italic">
+              Magic awaits your command...
+            </p>
           </div>
         </div>
       </div>
