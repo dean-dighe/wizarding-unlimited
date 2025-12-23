@@ -46,6 +46,9 @@ export default function Game() {
   // Track processed messages by content hash to prevent any duplicates
   const processedContentRef = useRef<Set<string>>(new Set());
   const currentlyProcessingRef = useRef<string | null>(null);
+  const ttsAbortRef = useRef<AbortController | null>(null);
+  // Global flag: is narrator currently speaking or preparing to speak?
+  const narratorActiveRef = useRef<boolean>(false);
   
   // Mute state with localStorage persistence
   const [isMuted, setIsMuted] = useState(() => {
@@ -106,30 +109,34 @@ export default function Game() {
     // Don't process while streaming
     if (isStreaming) return;
     if (messages.length === 0) return;
+    // Already processing something - wait
+    if (currentlyProcessingRef.current !== null) return;
+    // Don't start new TTS if narrator is already active (speaking or preparing)
+    if (narratorActiveRef.current) return;
     
     // Find the next unprocessed message by content
     let nextMessage: typeof messages[0] | null = null;
-    let nextIndex = -1;
     
     for (let i = 0; i < messages.length; i++) {
       const key = getMessageKey(messages[i]);
-      if (!processedContentRef.current.has(key) && currentlyProcessingRef.current !== key) {
+      // Check if already processed OR currently being claimed
+      if (!processedContentRef.current.has(key)) {
         nextMessage = messages[i];
-        nextIndex = i;
         break;
       }
     }
     
-    if (!nextMessage || nextIndex === -1) return;
+    if (!nextMessage) return;
     
     const messageKey = getMessageKey(nextMessage);
     
-    // Mark as currently processing IMMEDIATELY
+    // ATOMIC: Mark as processing AND add to processed set immediately
+    // This prevents race conditions where effect runs twice before async completes
     currentlyProcessingRef.current = messageKey;
+    processedContentRef.current.add(messageKey);
     
     // User messages are ready immediately
     if (nextMessage.role === "user") {
-      processedContentRef.current.add(messageKey);
       currentlyProcessingRef.current = null;
       setReadyMessages(prev => [...prev, { ...nextMessage! }]);
       return;
@@ -140,7 +147,6 @@ export default function Game() {
     
     // If muted or no text, show immediately without audio
     if (isMutedRef.current || !textToRead || textToRead.length <= 20) {
-      processedContentRef.current.add(messageKey);
       currentlyProcessingRef.current = null;
       setReadyMessages(prev => [...prev, { ...nextMessage! }]);
       return;
@@ -149,6 +155,13 @@ export default function Game() {
     // Capture message for async closure
     const messageToAdd = { ...nextMessage };
     
+    // Create abort controller for this request
+    const abortController = new AbortController();
+    ttsAbortRef.current = abortController;
+    
+    // Mark narrator as active BEFORE starting TTS
+    narratorActiveRef.current = true;
+    
     // Fetch TTS audio, then show message and play
     setIsPreparingAudio(true);
     
@@ -156,15 +169,15 @@ export default function Game() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: textToRead }),
+      signal: abortController.signal,
     })
       .then(res => {
         if (!res.ok) throw new Error("TTS failed");
         return res.blob();
       })
       .then(blob => {
-        // Mark as processed BEFORE any state updates
-        processedContentRef.current.add(messageKey);
         currentlyProcessingRef.current = null;
+        ttsAbortRef.current = null;
         setIsPreparingAudio(false);
         
         // Add message to ready queue
@@ -183,27 +196,44 @@ export default function Game() {
             URL.revokeObjectURL(audioUrl);
             setIsNarrating(false);
             audioRef.current = null;
+            narratorActiveRef.current = false;
           };
           
           audio.onerror = () => {
             URL.revokeObjectURL(audioUrl);
             setIsNarrating(false);
             audioRef.current = null;
+            narratorActiveRef.current = false;
           };
           
           audio.play().catch(() => {
             URL.revokeObjectURL(audioUrl);
             setIsNarrating(false);
             audioRef.current = null;
+            narratorActiveRef.current = false;
           });
+        } else {
+          // Muted during fetch - mark narrator as inactive
+          narratorActiveRef.current = false;
         }
       })
       .catch(err => {
+        // Ignore abort errors
+        if (err.name === 'AbortError') {
+          currentlyProcessingRef.current = null;
+          ttsAbortRef.current = null;
+          setIsPreparingAudio(false);
+          narratorActiveRef.current = false;
+          // Still show the message even if TTS was aborted
+          setReadyMessages(prev => [...prev, messageToAdd]);
+          return;
+        }
         console.error('TTS error:', err);
         // Show message anyway on error
-        processedContentRef.current.add(messageKey);
         currentlyProcessingRef.current = null;
+        ttsAbortRef.current = null;
         setIsPreparingAudio(false);
+        narratorActiveRef.current = false;
         setReadyMessages(prev => [...prev, messageToAdd]);
       });
       
@@ -217,6 +247,15 @@ export default function Game() {
   }, [readyMessages]);
 
   const handleChoiceClick = (choice: string) => {
+    // Stop any current narration when user makes a selection
+    cleanupAudio();
+    // Mark narrator as inactive
+    narratorActiveRef.current = false;
+    // Abort any pending TTS request
+    if (ttsAbortRef.current) {
+      ttsAbortRef.current.abort();
+      ttsAbortRef.current = null;
+    }
     sendMessage(choice);
   };
 
