@@ -17,15 +17,24 @@ async function generateSceneImage(storyContent: string): Promise<string | null> 
       return null;
     }
 
-    // Extract key visual elements from the story for the image prompt
-    // Strip out the metadata and choices
-    const cleanContent = storyContent
-      .replace(/\[TIME: [^\]]+\]\n?/g, '')
-      .replace(/\[Choice \d+: [^\]]+\]\n?/g, '')
-      .trim();
+    // Extract the [SCENE: ...] tag from the story content for the image prompt
+    const sceneMatch = storyContent.match(/\[SCENE: ([^\]]+)\]/);
+    let sceneDescription: string;
+    
+    if (sceneMatch) {
+      // Use the explicit scene description from the AI
+      sceneDescription = sceneMatch[1];
+    } else {
+      // Fallback: extract key visual elements from the story
+      const cleanContent = storyContent
+        .replace(/\[TIME: [^\]]+\]\n?/g, '')
+        .replace(/\[Choice \d+: [^\]]+\]\n?/g, '')
+        .trim();
+      sceneDescription = cleanContent.slice(0, 200);
+    }
 
-    // Create a focused image prompt based on the story content
-    const imagePrompt = `Harry Potter wizarding world illustration: ${cleanContent.slice(0, 300)}. Atmospheric, magical, painterly style with warm lighting, detailed environment, no text or words in image.`;
+    // Create a focused image prompt for Harry Potter style illustration
+    const imagePrompt = `Harry Potter wizarding world illustration, 1990s British magical setting: ${sceneDescription}. Painterly fantasy art style, atmospheric lighting, rich colors, detailed magical environment. No text, words, or writing in the image.`;
 
     const response = await fetch(XAI_API_URL, {
       method: "POST",

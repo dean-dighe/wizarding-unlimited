@@ -54,7 +54,19 @@ CRITICAL REQUIREMENTS:
    
 2. Time should progress logically based on the player's actions (minutes or hours passing)
 
-3. ALWAYS end with exactly 4 choices in this format:
+3. IMMEDIATELY after the time tag, include a scene description for illustration in this format:
+   [SCENE: A detailed visual description of the current scene for an illustrator]
+   
+   The SCENE description must:
+   - Be 30-50 words describing the visual setting
+   - Include specific details: location, lighting, atmosphere, key objects
+   - Describe character positions and expressions if relevant
+   - Use vivid visual language (colors, textures, mood)
+   - Be in third person describing what an artist should paint
+   
+   Example: [SCENE: A young wizard in dark robes stands on a misty train platform, the scarlet Hogwarts Express billowing steam behind them. Warm golden lamplight filters through the fog. Owls in cages and stacked trunks surround excited students.]
+
+4. ALWAYS end with exactly 4 choices in this format:
    [Choice 1: Description]
    [Choice 2: Description]
    [Choice 3: Description]
@@ -72,6 +84,7 @@ Make choices meaningful - some safe, some risky, some social, some exploratory.
       // Let's Insert a hardcoded intro to be safe and fast.
       
       const introText = `[TIME: September 1st, 1991 - 10:30 AM]
+[SCENE: A young first-year wizard in new black robes stands on the bustling Platform 9¾, the magnificent scarlet Hogwarts Express billowing white steam behind them. Golden morning light filters through the station's Victorian ironwork. Owls hoot from brass cages, trunks are stacked high, and excited students in robes embrace tearful parents amid the magical chaos.]
 
 The scarlet steam engine gleams before you, wisps of white smoke curling into the grey London sky. Platform 9¾ buzzes with the chaos of departure—owls hooting from their cages, parents calling last-minute advice, and trunks scraping along the ancient stone. You clutch your ticket tightly, heart hammering with a mixture of terror and wonder.
 

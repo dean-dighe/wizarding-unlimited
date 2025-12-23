@@ -42,6 +42,7 @@ export default function Game() {
     return content
       .replace(/\[IMAGE: [^\]]+\]\n?/g, '')
       .replace(/\[TIME: [^\]]+\]\n?/g, '')
+      .replace(/\[SCENE: [^\]]+\]\n?/g, '')
       .replace(/\[Choice \d+: [^\]]+\]\n?/g, '')
       .trim();
   };
