@@ -1,6 +1,6 @@
 import { useGameState } from "@/hooks/use-game";
 import { useChatStream } from "@/hooks/use-chat-stream";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useRoute } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
@@ -23,6 +23,50 @@ import {
 import { ParchmentCard } from "@/components/ui/parchment-card";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+
+import gryffindorIcon from "@assets/generated_images/gryffindor_lion_crest_icon.png";
+import slytherinIcon from "@assets/generated_images/slytherin_snake_crest_icon.png";
+import ravenclawIcon from "@assets/generated_images/ravenclaw_eagle_crest_icon.png";
+import hufflepuffIcon from "@assets/generated_images/hufflepuff_badger_crest_icon.png";
+
+const houseIcons: Record<string, string> = {
+  Gryffindor: gryffindorIcon,
+  Slytherin: slytherinIcon,
+  Ravenclaw: ravenclawIcon,
+  Hufflepuff: hufflepuffIcon,
+};
+
+const houseNames = ["Gryffindor", "Slytherin", "Ravenclaw", "Hufflepuff"];
+
+// Render text with house icons inline
+function TextWithHouseIcons({ text, className }: { text: string; className?: string }) {
+  const parts = useMemo(() => {
+    // Split text by house names, keeping the house names
+    const regex = new RegExp(`(${houseNames.join('|')})`, 'gi');
+    return text.split(regex);
+  }, [text]);
+
+  return (
+    <span className={className}>
+      {parts.map((part, i) => {
+        const houseName = houseNames.find(h => h.toLowerCase() === part.toLowerCase());
+        if (houseName) {
+          return (
+            <span key={i} className="inline-flex items-center gap-0.5">
+              <img 
+                src={houseIcons[houseName]} 
+                alt="" 
+                className="w-4 h-4 inline-block align-text-bottom" 
+              />
+              <span>{part}</span>
+            </span>
+          );
+        }
+        return <span key={i}>{part}</span>;
+      })}
+    </span>
+  );
+}
 
 interface ReadyMessage {
   role: "user" | "assistant";
@@ -87,7 +131,7 @@ function CollapsibleParagraph({ text, testId }: { text: string; testId: string }
           !isExpanded && "line-clamp-1 sm:line-clamp-none"
         )}
       >
-        {text}
+        <TextWithHouseIcons text={text} />
       </p>
       {/* Mobile-only hint - sm:hidden ensures it's invisible on desktop */}
       {!isExpanded && (
@@ -1008,7 +1052,7 @@ export default function Game() {
                     ) : (
                       <span className="text-yellow-500 mr-2 flex-shrink-0">{i + 1}.</span>
                     )}
-                    <span className="flex-1">{choice}</span>
+                    <span className="flex-1"><TextWithHouseIcons text={choice} /></span>
                     {isSpellChoice && (
                       <Sparkles className="w-3 h-3 ml-2 flex-shrink-0 text-blue-300/60" />
                     )}
