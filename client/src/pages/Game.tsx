@@ -25,7 +25,6 @@ interface ReadyMessage {
   choices?: string[];
   gameTime?: string;
   imageUrl?: string;
-  audioUrl?: string;
 }
 
 export default function Game() {
@@ -44,9 +43,9 @@ export default function Game() {
   const [readyMessages, setReadyMessages] = useState<ReadyMessage[]>([]);
   const [isPreparingAudio, setIsPreparingAudio] = useState(false);
   
-  // Track which message indices we've processed to prevent duplicates
-  const processedIndicesRef = useRef<Set<number>>(new Set());
-  const processingIndexRef = useRef<number | null>(null);
+  // Track processed messages by content hash to prevent any duplicates
+  const processedContentRef = useRef<Set<string>>(new Set());
+  const currentlyProcessingRef = useRef<string | null>(null);
   
   // Mute state with localStorage persistence
   const [isMuted, setIsMuted] = useState(() => {
@@ -97,37 +96,10 @@ export default function Game() {
       .trim();
   }, []);
 
-  // Play audio and handle cleanup
-  const playAudio = useCallback((audioUrl: string) => {
-    if (isMutedRef.current) {
-      URL.revokeObjectURL(audioUrl);
-      return;
-    }
-    
-    cleanupAudio();
-    
-    const audio = new Audio(audioUrl);
-    audioRef.current = audio;
-    setIsNarrating(true);
-    
-    audio.onended = () => {
-      URL.revokeObjectURL(audioUrl);
-      setIsNarrating(false);
-      audioRef.current = null;
-    };
-    
-    audio.onerror = () => {
-      URL.revokeObjectURL(audioUrl);
-      setIsNarrating(false);
-      audioRef.current = null;
-    };
-    
-    audio.play().catch(() => {
-      URL.revokeObjectURL(audioUrl);
-      setIsNarrating(false);
-      audioRef.current = null;
-    });
-  }, [cleanupAudio]);
+  // Generate a simple hash of message content for dedup
+  const getMessageKey = useCallback((msg: { role: string; content: string }) => {
+    return `${msg.role}:${msg.content.slice(0, 100)}`;
+  }, []);
 
   // Process messages: prepare TTS and only show when ready
   useEffect(() => {
@@ -135,40 +107,47 @@ export default function Game() {
     if (isStreaming) return;
     if (messages.length === 0) return;
     
-    // Find the next unprocessed message
+    // Find the next unprocessed message by content
+    let nextMessage: typeof messages[0] | null = null;
     let nextIndex = -1;
+    
     for (let i = 0; i < messages.length; i++) {
-      if (!processedIndicesRef.current.has(i) && processingIndexRef.current !== i) {
+      const key = getMessageKey(messages[i]);
+      if (!processedContentRef.current.has(key) && currentlyProcessingRef.current !== key) {
+        nextMessage = messages[i];
         nextIndex = i;
         break;
       }
     }
     
-    if (nextIndex === -1) return;
+    if (!nextMessage || nextIndex === -1) return;
     
-    const message = messages[nextIndex];
+    const messageKey = getMessageKey(nextMessage);
     
-    // Mark as being processed
-    processingIndexRef.current = nextIndex;
+    // Mark as currently processing IMMEDIATELY
+    currentlyProcessingRef.current = messageKey;
     
     // User messages are ready immediately
-    if (message.role === "user") {
-      processedIndicesRef.current.add(nextIndex);
-      processingIndexRef.current = null;
-      setReadyMessages(prev => [...prev, { ...message }]);
+    if (nextMessage.role === "user") {
+      processedContentRef.current.add(messageKey);
+      currentlyProcessingRef.current = null;
+      setReadyMessages(prev => [...prev, { ...nextMessage! }]);
       return;
     }
     
     // Assistant messages need TTS preparation
-    const textToRead = stripMetadata(message.content);
+    const textToRead = stripMetadata(nextMessage.content);
     
     // If muted or no text, show immediately without audio
     if (isMutedRef.current || !textToRead || textToRead.length <= 20) {
-      processedIndicesRef.current.add(nextIndex);
-      processingIndexRef.current = null;
-      setReadyMessages(prev => [...prev, { ...message }]);
+      processedContentRef.current.add(messageKey);
+      currentlyProcessingRef.current = null;
+      setReadyMessages(prev => [...prev, { ...nextMessage! }]);
       return;
     }
+    
+    // Capture message for async closure
+    const messageToAdd = { ...nextMessage };
     
     // Fetch TTS audio, then show message and play
     setIsPreparingAudio(true);
@@ -183,33 +162,52 @@ export default function Game() {
         return res.blob();
       })
       .then(blob => {
-        const audioUrl = URL.createObjectURL(blob);
-        
-        // Mark as processed
-        processedIndicesRef.current.add(nextIndex);
-        processingIndexRef.current = null;
+        // Mark as processed BEFORE any state updates
+        processedContentRef.current.add(messageKey);
+        currentlyProcessingRef.current = null;
         setIsPreparingAudio(false);
         
         // Add message to ready queue
-        setReadyMessages(prev => [...prev, { ...message, audioUrl }]);
+        setReadyMessages(prev => [...prev, messageToAdd]);
         
         // Play audio immediately (unless muted during fetch)
         if (!isMutedRef.current) {
-          playAudio(audioUrl);
-        } else {
-          URL.revokeObjectURL(audioUrl);
+          const audioUrl = URL.createObjectURL(blob);
+          cleanupAudio();
+          
+          const audio = new Audio(audioUrl);
+          audioRef.current = audio;
+          setIsNarrating(true);
+          
+          audio.onended = () => {
+            URL.revokeObjectURL(audioUrl);
+            setIsNarrating(false);
+            audioRef.current = null;
+          };
+          
+          audio.onerror = () => {
+            URL.revokeObjectURL(audioUrl);
+            setIsNarrating(false);
+            audioRef.current = null;
+          };
+          
+          audio.play().catch(() => {
+            URL.revokeObjectURL(audioUrl);
+            setIsNarrating(false);
+            audioRef.current = null;
+          });
         }
       })
       .catch(err => {
         console.error('TTS error:', err);
         // Show message anyway on error
-        processedIndicesRef.current.add(nextIndex);
-        processingIndexRef.current = null;
+        processedContentRef.current.add(messageKey);
+        currentlyProcessingRef.current = null;
         setIsPreparingAudio(false);
-        setReadyMessages(prev => [...prev, { ...message }]);
+        setReadyMessages(prev => [...prev, messageToAdd]);
       });
       
-  }, [messages, isStreaming, stripMetadata, playAudio]);
+  }, [messages, isStreaming, stripMetadata, getMessageKey, cleanupAudio]);
 
   // Scroll to bottom when new ready messages appear
   useEffect(() => {
@@ -369,27 +367,27 @@ export default function Game() {
       </motion.div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col relative overflow-hidden">
+      <div className="flex-1 flex flex-col relative overflow-hidden min-w-0">
         {/* Unified Header Bar - Sticky at top */}
-        <div className="sticky top-0 bg-[#120521] border-b border-white/5 px-3 py-2 flex items-center justify-between flex-shrink-0 z-50">
-          <div className="flex items-center gap-2">
+        <div className="sticky top-0 bg-[#120521] border-b border-white/5 px-2 sm:px-3 py-2 flex items-center justify-between gap-2 flex-shrink-0 z-50">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <ScrollText className="w-4 h-4 text-yellow-500" />
             <span className="font-serif text-sm text-yellow-100/80 hidden sm:inline">Wizarding Sagas</span>
           </div>
-          <div className="flex items-center gap-2 sm:gap-4 text-xs">
-            <div className="flex items-center gap-1 text-yellow-400">
-              <Clock className="w-3 h-3" />
-              <span className="font-serif">{currentGameTime.split(' - ')[1] || currentGameTime}</span>
+          <div className="flex items-center gap-2 sm:gap-3 text-xs flex-shrink min-w-0">
+            <div className="hidden sm:flex items-center gap-1 text-yellow-400">
+              <Clock className="w-3 h-3 flex-shrink-0" />
+              <span className="font-serif truncate">{currentGameTime.split(' - ')[1] || currentGameTime}</span>
             </div>
             <div className="hidden sm:flex items-center gap-1 text-red-400">
-              <Heart className="w-3 h-3" />
+              <Heart className="w-3 h-3 flex-shrink-0" />
               <span>{state?.health ?? 100}%</span>
             </div>
-            <div className="flex items-center gap-1 text-emerald-400">
-              <MapPin className="w-3 h-3" />
-              <span className="truncate max-w-[100px]">{state?.location || "Unknown"}</span>
+            <div className="flex items-center gap-1 text-emerald-400 min-w-0">
+              <MapPin className="w-3 h-3 flex-shrink-0" />
+              <span className="truncate max-w-[80px] sm:max-w-[100px]">{state?.location || "Unknown"}</span>
             </div>
-            <div className="sm:hidden flex items-center gap-1 text-red-400">
+            <div className="sm:hidden flex items-center gap-1 text-red-400 flex-shrink-0">
               <Heart className="w-3 h-3 fill-current" />
               <span>{state?.health ?? 100}</span>
             </div>
@@ -399,7 +397,7 @@ export default function Game() {
               variant="ghost"
               onClick={toggleMute}
               className={cn(
-                "h-7 w-7 transition-colors",
+                "h-7 w-7 flex-shrink-0 transition-colors",
                 isMuted ? "text-white/40" : "text-purple-400",
                 isNarrating && !isMuted && "text-yellow-400 animate-pulse"
               )}
@@ -414,7 +412,7 @@ export default function Game() {
         {/* Story Content - Scrollable area */}
         <div 
           ref={scrollRef}
-          className="flex-1 overflow-y-auto p-4 space-y-6"
+          className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 sm:space-y-6"
         >
           {readyMessages.map((message, i) => (
             <motion.div
@@ -424,7 +422,7 @@ export default function Game() {
               transition={{ duration: 0.5 }}
             >
               {message.role === "assistant" ? (
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {message.imageUrl && (
                     <div className="relative w-full max-w-md mx-auto aspect-[4/3] rounded-lg overflow-hidden border border-white/10">
                       <img 
@@ -436,9 +434,9 @@ export default function Game() {
                     </div>
                   )}
                   <ParchmentCard className="relative">
-                    <div className="prose prose-invert prose-sm max-w-none font-serif">
+                    <div className="font-serif space-y-3">
                       {stripMetadata(message.content).split('\n\n').map((para, j) => (
-                        <p key={j} className="text-[#e8dcc8] leading-relaxed mb-3 last:mb-0">
+                        <p key={j} className="text-[#3d2914] text-sm sm:text-base leading-relaxed">
                           {para}
                         </p>
                       ))}
@@ -447,7 +445,7 @@ export default function Game() {
                 </div>
               ) : (
                 <div className="flex justify-end">
-                  <div className="bg-purple-900/40 border border-purple-500/20 rounded-lg px-4 py-2 max-w-[80%]">
+                  <div className="bg-purple-900/40 border border-purple-500/20 rounded-lg px-3 py-2 max-w-[85%]">
                     <p className="text-purple-100 font-serif text-sm">{message.content}</p>
                   </div>
                 </div>
@@ -473,19 +471,19 @@ export default function Game() {
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="border-t border-white/10 bg-[#1a0b2e]/95 backdrop-blur p-4"
+            className="border-t border-white/10 bg-[#1a0b2e]/95 backdrop-blur p-2 sm:p-4 flex-shrink-0"
           >
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-2xl mx-auto">
+            <div className="flex flex-col gap-2 max-w-2xl mx-auto">
               {currentChoices.map((choice, i) => (
                 <Button
                   key={i}
                   variant="outline"
                   onClick={() => handleChoiceClick(choice)}
-                  className="text-left h-auto py-3 px-4 border-purple-500/30 bg-purple-900/20 text-purple-100 font-serif text-sm leading-snug"
+                  className="w-full text-left justify-start h-auto min-h-[44px] py-2 px-3 border-purple-500/30 bg-purple-900/20 text-purple-100 font-serif text-sm leading-normal whitespace-normal"
                   data-testid={`button-choice-${i}`}
                 >
-                  <span className="text-yellow-500 mr-2">{i + 1}.</span>
-                  {choice}
+                  <span className="text-yellow-500 mr-2 flex-shrink-0">{i + 1}.</span>
+                  <span className="flex-1">{choice}</span>
                 </Button>
               ))}
             </div>
@@ -504,7 +502,7 @@ function StatItem({ icon: Icon, label, value, color }: {
 }) {
   return (
     <div className="flex items-center gap-3">
-      <Icon className={cn("w-4 h-4", color)} />
+      <Icon className={cn("w-4 h-4 flex-shrink-0", color)} />
       <div className="flex-1 min-w-0">
         <p className="text-[10px] text-white/40 uppercase tracking-wider">{label}</p>
         <p className="text-sm text-white/90 truncate font-serif" title={value}>{value}</p>
