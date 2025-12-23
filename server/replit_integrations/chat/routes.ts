@@ -10,6 +10,8 @@ const openai = new OpenAI({
 
 const XAI_API_URL = "https://api.x.ai/v1/images/generations";
 
+const MAX_PROMPT_LENGTH = 1000; // xAI limit is 1024, leave buffer
+
 async function generateSceneImage(storyContent: string, characterDescription?: string): Promise<string | null> {
   try {
     const apiKey = process.env.XAI_API_KEY;
@@ -24,31 +26,34 @@ async function generateSceneImage(storyContent: string, characterDescription?: s
     
     if (sceneMatch) {
       // Use the explicit scene description from the AI
-      sceneDescription = sceneMatch[1];
+      sceneDescription = sceneMatch[1].slice(0, 150);
     } else {
       // Fallback: extract key visual elements from the story
       const cleanContent = storyContent
         .replace(/\[TIME: [^\]]+\]\n?/g, '')
         .replace(/\[Choice \d+: [^\]]+\]\n?/g, '')
         .trim();
-      sceneDescription = cleanContent.slice(0, 200);
+      sceneDescription = cleanContent.slice(0, 150);
     }
 
-    // Include character description for consistency if available
-    const characterContext = characterDescription 
-      ? `\nPROTAGONIST: ${characterDescription}` 
+    // Condensed character description (max 100 chars)
+    const characterBrief = characterDescription 
+      ? ` Protagonist: ${characterDescription.slice(0, 100)}` 
       : '';
 
-    // Create a focused image prompt for Harry Potter style illustration
-    const imagePrompt = `Wizarding world illustration in the style of classic fantasy book covers and concept art, 1990s British magical setting: ${sceneDescription}${characterContext}
-STYLE: Painterly digital illustration blending pre-Raphaelite romanticism with contemporary fantasy art. Rich oil-painting textures, visible brushwork in backgrounds, smooth rendering on focal subjects. Inspired by the golden age of book illustration (Arthur Rackham, Alan Lee, John Howe).
-LIGHTING: Warm candlelight and cool moonlight interplay, god rays through gothic windows, magical luminescence with soft bloom effects, dramatic chiaroscuro with deep shadows preserving detail.
-COLOR PALETTE: Autumnal golds, deep burgundies, forest greens, midnight blues, and warm amber highlights. Desaturated backgrounds pushing saturated focal points. Aged parchment undertones throughout.
-ENVIRONMENT: Gothic Victorian architecture, weathered stone textures, ornate wood carvings, stained glass, floating dust particles, subtle magical particles, cobwebs in corners, brass fixtures with patina, leather-bound books, flickering flames.
-ATMOSPHERE: Cozy yet mysterious, sense of ancient history, lived-in magical spaces, tangible warmth against cold stone, nostalgia and wonder.
-COMPOSITION: Cinematic framing, strong focal hierarchy, environmental storytelling through background details, depth through atmospheric perspective.
-TECHNICAL: High detail, professional illustration quality, cohesive color grading, intentional negative space.
-AVOID: Text, words, letters, writing, logos, watermarks, signatures, modern elements, anachronistic objects, flat lighting, oversaturation, anime style, photorealistic rendering.`;
+    // Compact image prompt optimized for 1024 char limit
+    // Base style (~550 chars) + scene (~150) + character (~100) = ~800 chars
+    const imagePrompt = `Fantasy book illustration, 1990s British wizarding world: ${sceneDescription}${characterBrief}
+
+STYLE: Painterly digital art, Arthur Rackham/Alan Lee inspired, oil-painting textures, romantic fantasy.
+LIGHTING: Warm candlelight, cool moonlight, god rays, magical glow, dramatic shadows.
+COLORS: Autumnal golds, burgundy, forest green, midnight blue, amber highlights, parchment tones.
+SETTING: Gothic Victorian, stone textures, stained glass, floating dust, brass fixtures, leather books.
+MOOD: Cozy yet mysterious, ancient wonder, lived-in magical spaces.
+AVOID: Text, words, logos, modern elements, anime, photorealism.`;
+
+    // Final safety truncation
+    const finalPrompt = imagePrompt.slice(0, MAX_PROMPT_LENGTH);
 
     const response = await fetch(XAI_API_URL, {
       method: "POST",
@@ -58,7 +63,7 @@ AVOID: Text, words, letters, writing, logos, watermarks, signatures, modern elem
       },
       body: JSON.stringify({
         model: "grok-2-image-1212",
-        prompt: imagePrompt,
+        prompt: finalPrompt,
         n: 1,
       }),
     });
