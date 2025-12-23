@@ -257,21 +257,53 @@ export function registerChatRoutes(app: Express): void {
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
-      // Get response from Ollama (non-streaming to buffer complete text)
-      const stream = await openai.chat.completions.create({
-        model: process.env.OLLAMA_MODEL || "qwen3-coder:30b",
-        messages: chatMessages,
-        stream: true,
-      });
+      // Signal to client that we're starting AI generation
+      res.write(`data: ${JSON.stringify({ generating: true })}\n\n`);
 
       let fullResponse = "";
+      
+      try {
+        // Get response from Ollama with timeout protection
+        const stream = await openai.chat.completions.create({
+          model: process.env.OLLAMA_MODEL || "qwen3-coder:30b",
+          messages: chatMessages,
+          stream: true,
+        });
 
-      // Accumulate all chunks without sending to client
-      for await (const chunk of stream) {
-        const chunkContent = chunk.choices[0]?.delta?.content || "";
-        if (chunkContent) {
-          fullResponse += chunkContent;
+        // Accumulate all chunks
+        for await (const chunk of stream) {
+          const chunkContent = chunk.choices[0]?.delta?.content || "";
+          if (chunkContent) {
+            fullResponse += chunkContent;
+          }
         }
+
+        // Validate we got a meaningful response
+        if (!fullResponse || fullResponse.trim().length < 20) {
+          throw new Error("AI returned empty or invalid response");
+        }
+      } catch (aiError: any) {
+        console.error("AI generation error:", aiError);
+        
+        // Delete the user message since AI failed (rollback)
+        const allMsgs = await chatStorage.getMessagesByConversation(conversationId);
+        const lastUserMsg = allMsgs.filter(m => m.role === "user").pop();
+        if (lastUserMsg) {
+          await chatStorage.deleteMessage(lastUserMsg.id);
+        }
+        
+        // Rollback decision count
+        await storage.updateGameState(conversationId, { decisionCount: currentDecisionCount - 1 });
+        
+        // Send error to client with retry info
+        res.write(`data: ${JSON.stringify({ 
+          error: true, 
+          errorMessage: "The story enchantment fizzled! The magical narrator seems to have wandered off momentarily.",
+          errorType: "ai_generation",
+          canRetry: true
+        })}\n\n`);
+        res.end();
+        return;
       }
 
       // Text complete - send full content in one event, then signal image generation starting

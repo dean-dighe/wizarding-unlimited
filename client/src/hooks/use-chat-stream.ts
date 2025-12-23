@@ -16,14 +16,22 @@ interface StoryProgress {
   decisionCount: number;
 }
 
+interface StreamError {
+  message: string;
+  canRetry: boolean;
+  lastUserMessage?: string;
+}
+
 export function useChatStream(conversationId: number | null) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [storyProgress, setStoryProgress] = useState<StoryProgress | null>(null);
   const [chapterAdvance, setChapterAdvance] = useState<string | null>(null);
+  const [streamError, setStreamError] = useState<StreamError | null>(null);
   const queryClient = useQueryClient();
   const abortControllerRef = useRef<AbortController | null>(null);
+  const lastSentMessageRef = useRef<string>("");
 
   // Load initial history
   useEffect(() => {
@@ -60,6 +68,10 @@ export function useChatStream(conversationId: number | null) {
   const sendMessage = async (content: string) => {
     if (!conversationId || !content.trim()) return;
 
+    // Clear any previous error
+    setStreamError(null);
+    lastSentMessageRef.current = content;
+
     // Add user message immediately
     const newMessages = [...messages, { role: "user" as const, content }];
     setMessages(newMessages);
@@ -76,7 +88,11 @@ export function useChatStream(conversationId: number | null) {
         credentials: "include",
       });
 
-      if (!res.ok) throw new Error("Failed to send message");
+      if (!res.ok) {
+        // Remove the optimistically added user message
+        setMessages(messages);
+        throw new Error("Failed to send message");
+      }
       if (!res.body) throw new Error("No response body");
 
       const reader = res.body.getReader();
@@ -163,6 +179,18 @@ export function useChatStream(conversationId: number | null) {
                 setTimeout(() => setChapterAdvance(null), 5000);
               }
 
+              // Handle error from server (AI generation failed)
+              if (data.error) {
+                // Remove the optimistically added user message since it was rolled back on server
+                setMessages(prev => prev.slice(0, -1));
+                setStreamError({
+                  message: data.errorMessage || "Something went wrong with the magical narrator.",
+                  canRetry: data.canRetry ?? true,
+                  lastUserMessage: lastSentMessageRef.current
+                });
+                return;
+              }
+
               // When completely done
               if (data.done) {
                 setIsGeneratingImage(false);
@@ -176,6 +204,13 @@ export function useChatStream(conversationId: number | null) {
     } catch (error: any) {
       if (error.name !== 'AbortError') {
         console.error("Stream error:", error);
+        // Remove the optimistically added user message on network errors
+        setMessages(prev => prev.slice(0, -1));
+        setStreamError({
+          message: "Connection to the magical realm was lost. Please try again.",
+          canRetry: true,
+          lastUserMessage: lastSentMessageRef.current
+        });
       }
     } finally {
       setIsStreaming(false);
@@ -187,6 +222,13 @@ export function useChatStream(conversationId: number | null) {
   };
 
   const clearChapterAdvance = () => setChapterAdvance(null);
+  const clearError = () => setStreamError(null);
+  
+  const retryLastMessage = () => {
+    if (streamError?.lastUserMessage) {
+      sendMessage(streamError.lastUserMessage);
+    }
+  };
 
   return { 
     messages, 
@@ -195,6 +237,9 @@ export function useChatStream(conversationId: number | null) {
     isGeneratingImage, 
     storyProgress, 
     chapterAdvance,
-    clearChapterAdvance 
+    clearChapterAdvance,
+    streamError,
+    clearError,
+    retryLastMessage
   };
 }

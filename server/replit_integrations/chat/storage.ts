@@ -9,6 +9,7 @@ export interface IChatStorage {
   deleteConversation(id: number): Promise<void>;
   getMessagesByConversation(conversationId: number): Promise<(typeof messages.$inferSelect)[]>;
   createMessage(conversationId: number, role: string, content: string): Promise<typeof messages.$inferSelect>;
+  deleteMessage(id: number): Promise<void>;
 }
 
 export const chatStorage: IChatStorage = {
@@ -38,6 +39,10 @@ export const chatStorage: IChatStorage = {
   async createMessage(conversationId: number, role: string, content: string) {
     const [message] = await db.insert(messages).values({ conversationId, role, content }).returning();
     return message;
+  },
+
+  async deleteMessage(id: number) {
+    await db.delete(messages).where(eq(messages.id, id));
   },
 };
 

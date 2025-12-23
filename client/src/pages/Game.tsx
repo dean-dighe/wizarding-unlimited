@@ -17,6 +17,8 @@ import {
   ChevronDown,
   ChevronUp,
   Star,
+  AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 import { ParchmentCard } from "@/components/ui/parchment-card";
 import { cn } from "@/lib/utils";
@@ -73,7 +75,7 @@ export default function Game() {
   const conversationId = params?.id ? parseInt(params.id) : null;
   
   const { data: state, isLoading: stateLoading } = useGameState(conversationId);
-  const { messages, sendMessage, isStreaming, isGeneratingImage, storyProgress, chapterAdvance } = useChatStream(conversationId);
+  const { messages, sendMessage, isStreaming, isGeneratingImage, storyProgress, chapterAdvance, streamError, clearError, retryLastMessage } = useChatStream(conversationId);
   const scrollRef = useRef<HTMLDivElement>(null);
   
   // Audio state
@@ -428,6 +430,26 @@ export default function Game() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [readyMessages]);
+
+  // Sync readyMessages when an error occurs and messages array shrinks
+  // This handles the case where user message is rolled back on AI failure
+  useEffect(() => {
+    if (streamError && readyMessages.length > messages.length) {
+      // Trim readyMessages to match messages length
+      setReadyMessages(prev => prev.slice(0, messages.length));
+      // Also clear the processed set for the removed message
+      if (conversationId) {
+        const processedSet = getProcessedSet(conversationId);
+        // Remove any keys from processed set that no longer have corresponding messages
+        const messageKeys = messages.map(m => `${m.role}:${m.content.slice(0, 100)}`);
+        processedSet.forEach(key => {
+          if (!messageKeys.some(mk => mk === key)) {
+            processedSet.delete(key);
+          }
+        });
+      }
+    }
+  }, [streamError, messages, readyMessages.length, conversationId]);
 
   const handleChoiceClick = (choice: string) => {
     // Stop any current narration when user makes a selection
@@ -852,6 +874,47 @@ export default function Game() {
                  "Processing..."}
               </span>
             </div>
+          )}
+          
+          {/* Error State with Retry */}
+          {streamError && !isStreaming && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-red-900/30 border border-red-500/30 rounded-lg p-4"
+            >
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-red-200 font-serif text-sm mb-3">
+                    {streamError.message}
+                  </p>
+                  {streamError.canRetry && (
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={retryLastMessage}
+                        className="border-red-500/30 text-red-200"
+                        data-testid="button-retry"
+                      >
+                        <RefreshCw className="w-3 h-3 mr-1" />
+                        Try Again
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={clearError}
+                        className="text-red-200/60"
+                        data-testid="button-dismiss-error"
+                      >
+                        Dismiss
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
           )}
         </div>
 
