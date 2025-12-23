@@ -27,6 +27,31 @@ interface ReadyMessage {
   imageUrl?: string;
 }
 
+// MODULE-LEVEL GLOBALS - persist across hot reloads and component remounts
+// This prevents duplicate TTS calls that happen when React re-renders
+// Keyed by conversationId to prevent cross-conversation issues
+let globalNarratorActive = false;
+let globalProcessedContent = new Map<number, Set<string>>();
+let globalCurrentlyProcessing: string | null = null;
+let globalActiveConversationId: number | null = null;
+
+// Helper to get processed set for a conversation
+function getProcessedSet(conversationId: number): Set<string> {
+  if (!globalProcessedContent.has(conversationId)) {
+    globalProcessedContent.set(conversationId, new Set<string>());
+  }
+  return globalProcessedContent.get(conversationId)!;
+}
+
+// Reset state when switching conversations
+function resetForNewConversation(conversationId: number) {
+  if (globalActiveConversationId !== conversationId) {
+    globalNarratorActive = false;
+    globalCurrentlyProcessing = null;
+    globalActiveConversationId = conversationId;
+  }
+}
+
 export default function Game() {
   const [, params] = useRoute("/game/:id");
   const conversationId = params?.id ? parseInt(params.id) : null;
@@ -43,12 +68,8 @@ export default function Game() {
   const [readyMessages, setReadyMessages] = useState<ReadyMessage[]>([]);
   const [isPreparingAudio, setIsPreparingAudio] = useState(false);
   
-  // Track processed messages by content hash to prevent any duplicates
-  const processedContentRef = useRef<Set<string>>(new Set());
-  const currentlyProcessingRef = useRef<string | null>(null);
+  // TTS abort controller (component-level since it needs cleanup)
   const ttsAbortRef = useRef<AbortController | null>(null);
-  // Global flag: is narrator currently speaking or preparing to speak?
-  const narratorActiveRef = useRef<boolean>(false);
   
   // Mute state with localStorage persistence
   const [isMuted, setIsMuted] = useState(() => {
@@ -104,23 +125,42 @@ export default function Game() {
     return `${msg.role}:${msg.content.slice(0, 100)}`;
   }, []);
 
+  // Reset global state when conversation changes
+  useEffect(() => {
+    if (conversationId) {
+      resetForNewConversation(conversationId);
+    }
+  }, [conversationId]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      globalNarratorActive = false;
+      globalCurrentlyProcessing = null;
+    };
+  }, []);
+
   // Process messages: prepare TTS and only show when ready
   useEffect(() => {
-    // Don't process while streaming
+    // Don't process while streaming or without conversationId
     if (isStreaming) return;
     if (messages.length === 0) return;
-    // Already processing something - wait
-    if (currentlyProcessingRef.current !== null) return;
+    if (!conversationId) return;
+    // Already processing something - wait (using module-level global)
+    if (globalCurrentlyProcessing !== null) return;
     // Don't start new TTS if narrator is already active (speaking or preparing)
-    if (narratorActiveRef.current) return;
+    if (globalNarratorActive) return;
+    
+    // Get the processed set for this conversation
+    const processedSet = getProcessedSet(conversationId);
     
     // Find the next unprocessed message by content
     let nextMessage: typeof messages[0] | null = null;
     
     for (let i = 0; i < messages.length; i++) {
       const key = getMessageKey(messages[i]);
-      // Check if already processed OR currently being claimed
-      if (!processedContentRef.current.has(key)) {
+      // Check if already processed (using conversation-scoped set)
+      if (!processedSet.has(key)) {
         nextMessage = messages[i];
         break;
       }
@@ -131,13 +171,13 @@ export default function Game() {
     const messageKey = getMessageKey(nextMessage);
     
     // ATOMIC: Mark as processing AND add to processed set immediately
-    // This prevents race conditions where effect runs twice before async completes
-    currentlyProcessingRef.current = messageKey;
-    processedContentRef.current.add(messageKey);
+    // Using module-level globals that persist across hot reloads
+    globalCurrentlyProcessing = messageKey;
+    processedSet.add(messageKey);
     
     // User messages are ready immediately
     if (nextMessage.role === "user") {
-      currentlyProcessingRef.current = null;
+      globalCurrentlyProcessing = null;
       setReadyMessages(prev => [...prev, { ...nextMessage! }]);
       return;
     }
@@ -147,7 +187,7 @@ export default function Game() {
     
     // If muted or no text, show immediately without audio
     if (isMutedRef.current || !textToRead || textToRead.length <= 20) {
-      currentlyProcessingRef.current = null;
+      globalCurrentlyProcessing = null;
       setReadyMessages(prev => [...prev, { ...nextMessage! }]);
       return;
     }
@@ -159,8 +199,8 @@ export default function Game() {
     const abortController = new AbortController();
     ttsAbortRef.current = abortController;
     
-    // Mark narrator as active BEFORE starting TTS
-    narratorActiveRef.current = true;
+    // Mark narrator as active BEFORE starting TTS (module-level global)
+    globalNarratorActive = true;
     
     // Fetch TTS audio, then show message and play
     setIsPreparingAudio(true);
@@ -176,7 +216,7 @@ export default function Game() {
         return res.blob();
       })
       .then(blob => {
-        currentlyProcessingRef.current = null;
+        globalCurrentlyProcessing = null;
         ttsAbortRef.current = null;
         setIsPreparingAudio(false);
         
@@ -196,48 +236,48 @@ export default function Game() {
             URL.revokeObjectURL(audioUrl);
             setIsNarrating(false);
             audioRef.current = null;
-            narratorActiveRef.current = false;
+            globalNarratorActive = false;
           };
           
           audio.onerror = () => {
             URL.revokeObjectURL(audioUrl);
             setIsNarrating(false);
             audioRef.current = null;
-            narratorActiveRef.current = false;
+            globalNarratorActive = false;
           };
           
           audio.play().catch(() => {
             URL.revokeObjectURL(audioUrl);
             setIsNarrating(false);
             audioRef.current = null;
-            narratorActiveRef.current = false;
+            globalNarratorActive = false;
           });
         } else {
           // Muted during fetch - mark narrator as inactive
-          narratorActiveRef.current = false;
+          globalNarratorActive = false;
         }
       })
       .catch(err => {
         // Ignore abort errors
         if (err.name === 'AbortError') {
-          currentlyProcessingRef.current = null;
+          globalCurrentlyProcessing = null;
           ttsAbortRef.current = null;
           setIsPreparingAudio(false);
-          narratorActiveRef.current = false;
+          globalNarratorActive = false;
           // Still show the message even if TTS was aborted
           setReadyMessages(prev => [...prev, messageToAdd]);
           return;
         }
         console.error('TTS error:', err);
         // Show message anyway on error
-        currentlyProcessingRef.current = null;
+        globalCurrentlyProcessing = null;
         ttsAbortRef.current = null;
         setIsPreparingAudio(false);
-        narratorActiveRef.current = false;
+        globalNarratorActive = false;
         setReadyMessages(prev => [...prev, messageToAdd]);
       });
       
-  }, [messages, isStreaming, stripMetadata, getMessageKey, cleanupAudio]);
+  }, [messages, isStreaming, stripMetadata, getMessageKey, cleanupAudio, conversationId]);
 
   // Scroll to bottom when new ready messages appear
   useEffect(() => {
@@ -249,8 +289,8 @@ export default function Game() {
   const handleChoiceClick = (choice: string) => {
     // Stop any current narration when user makes a selection
     cleanupAudio();
-    // Mark narrator as inactive
-    narratorActiveRef.current = false;
+    // Mark narrator as inactive (module-level global)
+    globalNarratorActive = false;
     // Abort any pending TTS request
     if (ttsAbortRef.current) {
       ttsAbortRef.current.abort();
