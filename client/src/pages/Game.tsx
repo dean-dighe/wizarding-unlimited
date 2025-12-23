@@ -48,70 +48,84 @@ export default function Game() {
   }
 
   return (
-    <div className="h-screen flex flex-col md:flex-row bg-[#1a0b2e] text-[#fdfbf7] overflow-hidden">
+    <div className="h-screen flex flex-col bg-[#1a0b2e] text-[#fdfbf7] overflow-hidden">
       
-      {/* Sidebar - Stats */}
-      <motion.div 
-        initial={{ x: -100, opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
-        className="w-full md:w-80 md:h-full bg-[#120521] border-r border-white/5 flex flex-col p-6 z-20 shadow-2xl overflow-y-auto md:overflow-y-auto max-h-[40vh] md:max-h-full flex-shrink-0 md:flex-shrink-1"
-      >
-        <div className="mb-8 text-center">
-          <h2 className="text-2xl font-serif font-bold text-yellow-500 tracking-widest uppercase mb-1">
-            {state?.house || "Unsorted"}
-          </h2>
-          <div className="h-0.5 w-16 bg-gradient-to-r from-transparent via-yellow-500 to-transparent mx-auto" />
+      {/* Mobile Stats Bar */}
+      <div className="md:hidden h-20 bg-[#120521] border-b border-white/5 p-4 flex items-center gap-4 overflow-x-auto flex-shrink-0">
+        <div className="flex items-center gap-2 whitespace-nowrap">
+          <Heart className="w-4 h-4 text-red-400" />
+          <span className="text-xs font-serif uppercase">HP: {state?.health ?? 100}%</span>
         </div>
+        <div className="w-px h-4 bg-white/10" />
+        <div className="flex items-center gap-2 whitespace-nowrap">
+          <MapPin className="w-4 h-4 text-emerald-400" />
+          <span className="text-xs font-serif uppercase truncate">{state?.location || "Unknown"}</span>
+        </div>
+      </div>
 
-        <div className="space-y-6 flex-1">
-          <StatItem 
-            icon={Heart} 
-            label="Health" 
-            value={`${state?.health ?? 100}%`} 
-            color="text-red-400" 
-          />
-          <StatItem 
-            icon={MapPin} 
-            label="Location" 
-            value={state?.location || "Unknown"} 
-            color="text-emerald-400" 
-          />
-          
-          <div className="space-y-3">
-            <div className="flex items-center gap-3 text-purple-300">
-              <Backpack className="w-5 h-5" />
-              <span className="font-serif uppercase tracking-wider text-sm">Inventory</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {state?.inventory?.map((item, i) => (
-                <div 
-                  key={i}
-                  className="bg-white/5 border border-white/5 rounded px-3 py-2 text-sm text-purple-100/80 truncate"
-                  title={item}
-                >
-                  {item}
-                </div>
-              )) || <span className="text-xs text-white/30 italic col-span-2">Empty...</span>}
+      <div className="hidden md:flex md:flex-row flex-1 overflow-hidden">
+        {/* Desktop Sidebar */}
+        <motion.div 
+          initial={{ x: -100, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          className="w-80 h-full bg-[#120521] border-r border-white/5 flex flex-col p-6 z-20 shadow-2xl overflow-y-auto flex-shrink-0"
+        >
+          <div className="mb-8 text-center">
+            <h2 className="text-2xl font-serif font-bold text-yellow-500 tracking-widest uppercase mb-1">
+              {state?.house || "Unsorted"}
+            </h2>
+            <div className="h-0.5 w-16 bg-gradient-to-r from-transparent via-yellow-500 to-transparent mx-auto" />
+          </div>
+
+          <div className="space-y-6 flex-1">
+            <StatItem 
+              icon={Heart} 
+              label="Health" 
+              value={`${state?.health ?? 100}%`} 
+              color="text-red-400" 
+            />
+            <StatItem 
+              icon={MapPin} 
+              label="Location" 
+              value={state?.location || "Unknown"} 
+              color="text-emerald-400" 
+            />
+            
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 text-purple-300">
+                <Backpack className="w-5 h-5" />
+                <span className="font-serif uppercase tracking-wider text-sm">Inventory</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {state?.inventory?.map((item, i) => (
+                  <div 
+                    key={i}
+                    className="bg-white/5 border border-white/5 rounded px-3 py-2 text-sm text-purple-100/80 truncate"
+                    title={item}
+                  >
+                    {item}
+                  </div>
+                )) || <span className="text-xs text-white/30 italic col-span-2">Empty...</span>}
+              </div>
             </div>
           </div>
-        </div>
-      </motion.div>
+        </motion.div>
 
-      {/* Main Area - Chat */}
-      <div className="flex-1 flex flex-col relative h-full">
-        {/* Header */}
-        <div className="h-16 border-b border-white/5 bg-[#1a0b2e]/95 backdrop-blur flex items-center px-6 justify-between z-10">
-          <h1 className="font-serif text-lg text-yellow-100/80 flex items-center gap-2">
-            <ScrollText className="w-4 h-4 text-yellow-500" />
-            Your Adventure
-          </h1>
-        </div>
+        {/* Desktop Chat Area */}
+        <div className="flex-1 flex flex-col relative overflow-hidden">
+          {/* Header */}
+          <div className="h-16 border-b border-white/5 bg-[#1a0b2e]/95 backdrop-blur flex items-center px-6 justify-between z-10 flex-shrink-0">
+            <h1 className="font-serif text-lg text-yellow-100/80 flex items-center gap-2">
+              <ScrollText className="w-4 h-4 text-yellow-500" />
+              Your Adventure
+            </h1>
+          </div>
 
-        {/* Messages */}
-        <div 
-          ref={scrollRef}
-          className="flex-1 min-h-0 overflow-y-auto p-4 md:p-8 space-y-6 scroll-smooth"
-        >
+          {/* Messages */}
+          <div 
+            ref={scrollRef}
+            className="flex-1 min-h-0 overflow-y-auto p-4 md:p-8 space-y-6 scroll-smooth"
+          >
           <AnimatePresence initial={false}>
             {messages.map((msg, idx) => (
               <motion.div
@@ -151,10 +165,10 @@ export default function Game() {
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
+          </div>
 
-        {/* Input Area */}
-        <div className="flex-shrink-0 p-4 md:p-6 bg-gradient-to-t from-[#0d0415] to-[#1a0b2e] border-t border-white/5">
+          {/* Input Area */}
+          <div className="flex-shrink-0 p-4 md:p-6 bg-gradient-to-t from-[#0d0415] to-[#1a0b2e] border-t border-white/5">
           <form 
             onSubmit={handleSubmit}
             className="max-w-4xl mx-auto relative flex items-end gap-2 bg-[#25123d] border border-purple-500/20 rounded-xl p-2 shadow-2xl shadow-purple-950/50 focus-within:ring-2 focus-within:ring-yellow-500/30 transition-all"
@@ -183,6 +197,7 @@ export default function Game() {
           <p className="text-center text-xs text-white/20 mt-3 font-serif italic">
             Magic awaits your command...
           </p>
+          </div>
         </div>
       </div>
     </div>
