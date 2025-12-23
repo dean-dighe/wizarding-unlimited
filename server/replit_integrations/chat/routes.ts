@@ -185,15 +185,15 @@ async function generateSceneImage(
     }
 
     // Compact image prompt optimized for 1024 char limit
-    // Base style (~450 chars) + scene (~150) + protagonist (~100) + NPCs (~160) = ~860 chars
-    const imagePrompt = `Fantasy book illustration, 1990s British wizarding world: ${sceneDescription}${characterBrief}${npcBrief}
+    // Base style (~550 chars) + scene (~150) + protagonist (~100) + NPCs (~160) = ~960 chars
+    const imagePrompt = `Classic fantasy book cover art, 1990s British wizarding world: ${sceneDescription}${characterBrief}${npcBrief}
 
-STYLE: Painterly digital art, Arthur Rackham/Alan Lee inspired, oil-painting textures, romantic fantasy.
-LIGHTING: Warm candlelight, cool moonlight, god rays, magical glow, dramatic shadows.
-COLORS: Autumnal golds, burgundy, forest green, midnight blue, amber highlights, parchment tones.
-SETTING: Gothic Victorian, stone textures, stained glass, floating dust, brass fixtures, leather books.
-MOOD: Cozy yet mysterious, ancient wonder, lived-in magical spaces.
-AVOID: Text, words, logos, modern elements, anime, photorealism.`;
+ART STYLE: Rich oil painting aesthetic like classic fantasy book covers. Soft, painterly brushstrokes with visible texture. NOT photorealistic, NOT anime, NOT cartoon. Think John Howe, Alan Lee, or vintage Harry Potter illustrated editions.
+FIGURES: Characters have naturalistic proportions, expressive faces with clear emotions, period-accurate 1990s British school uniforms under wizard robes. Children look age-appropriate (13 years old). Robes flow naturally with fabric weight.
+MAGIC: Spells manifest as warm golden light, silvery wisps, or colored sparks. Magic glows softly from wand tips. Enchanted objects shimmer subtly. No over-the-top VFX.
+ENVIRONMENT: Gothic stone architecture, warm candlelit interiors, misty Scottish highlands, autumn forests. Rich textures in wood, stone, brass, leather.
+PALETTE: Warm ambers, deep burgundy, forest greens, midnight blues. Golden highlights, soft shadows.
+AVOID: Text, logos, modern items, harsh lighting, plastic textures, exaggerated features.`;
 
     // Final safety truncation
     const finalPrompt = imagePrompt.slice(0, MAX_PROMPT_LENGTH);
