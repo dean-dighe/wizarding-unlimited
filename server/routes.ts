@@ -70,15 +70,15 @@ export async function registerRoutes(
 
       // 2. Generate story arc and character description in parallel
       const [storyArc, characterDescription] = await Promise.all([
-        generateStoryArc(playerName, house || null),
-        generateCharacterDescription(playerName, house || null)
+        generateStoryArc(playerName, house),
+        generateCharacterDescription(playerName, house)
       ]);
 
       // 3. Initialize Game State with character description and story arc
       await storage.createGameState({
         conversationId: conversation.id,
         playerName,
-        house: house || null,
+        house,
         health: 100,
         inventory: ["Wand", "Hogwarts Robes"],
         spells: [], // Start with no known spells - will learn them during the adventure
@@ -95,7 +95,15 @@ export async function registerRoutes(
       const currentChapter = storyArc.chapters[storyArc.currentChapterIndex];
       const systemPrompt = `
 You are a master storyteller narrating a Harry Potter text adventure.
-The protagonist is ${playerName}${house ? `, a proud member of House ${house}` : ''}.
+The protagonist is ${playerName}, a proud member of House ${house}.
+
+HOUSE IDENTITY - ${house.toUpperCase()}:
+${house === "Gryffindor" ? "As a Gryffindor, " + playerName + " values bravery, courage, and chivalry. They're drawn to heroic actions, standing up for the underdog, and facing danger head-on. Other characters may expect boldness from them." :
+  house === "Slytherin" ? "As a Slytherin, " + playerName + " values ambition, cunning, and resourcefulness. They're drawn to strategic thinking, making powerful connections, and achieving their goals through clever means. Other characters may view them with suspicion or respect." :
+  house === "Ravenclaw" ? "As a Ravenclaw, " + playerName + " values wisdom, wit, and learning. They're drawn to solving puzzles, uncovering secrets, and understanding the deeper mysteries of magic. Other characters may seek their insight or knowledge." :
+  "As a Hufflepuff, " + playerName + " values loyalty, patience, and fair play. They're drawn to helping others, building friendships, and doing what's right regardless of recognition. Other characters may trust them implicitly."}
+
+Weave the player's house identity into the narrative - let NPCs react to their house, present choices that test their house values, and give them opportunities to embody (or challenge) their house traits.
 
 SETTING: It is September 1st, 1991. ${playerName} has just arrived at Platform 9¾ and is boarding the Hogwarts Express for their first year at Hogwarts School of Witchcraft and Wizardry.
 

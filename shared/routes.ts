@@ -7,7 +7,7 @@ export const api = {
       path: '/api/game/init',
       input: z.object({
         playerName: z.string().min(1),
-        house: z.string().optional(), // Optional, if not provided, Sorting Hat decides
+        house: z.string().min(1), // Required - player must choose their house
       }),
       responses: {
         201: z.object({

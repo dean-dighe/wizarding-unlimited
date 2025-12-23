@@ -16,6 +16,14 @@ export default function Landing() {
   const handleStart = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
+    if (!house) {
+      toast({
+        title: "Choose Your House",
+        description: "Please select a Hogwarts house to begin your journey.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
       const result = await initGame.mutateAsync({ playerName: name, house });
@@ -49,7 +57,7 @@ export default function Landing() {
             <h1 className="text-4xl font-serif font-bold text-transparent bg-clip-text bg-gradient-to-b from-yellow-200 to-yellow-600 mb-2">
               Hogwarts Unlimited
             </h1>
-            <p className="text-purple-200/80 font-serif">Begin your magical journey</p>
+            <p className="text-purple-200/80 font-serif">Stumble across multiple paths</p>
           </div>
 
           <form onSubmit={handleStart} className="space-y-6">
@@ -69,7 +77,7 @@ export default function Landing() {
 
             <div className="space-y-2">
               <label className="block text-sm font-medium text-purple-200/60 uppercase tracking-wider">
-                House (Optional)
+                Choose Your House
               </label>
               <div className="grid grid-cols-2 gap-2">
                 {["Gryffindor", "Slytherin", "Ravenclaw", "Hufflepuff"].map((h) => (
