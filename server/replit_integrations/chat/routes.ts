@@ -248,8 +248,9 @@ export function registerChatRoutes(app: Express): void {
         
         console.log(`[Story] Summary updated at decision ${currentDecisionCount}`);
 
-        // Check for chapter progression
-        const { shouldAdvance, updatedArc } = await checkChapterProgress(storyArc, fullResponse);
+        // Check for chapter progression with summary context
+        const progressContext = `STORY SUMMARY:\n${newSummary}\n\nLATEST EVENTS:\n${fullResponse}`;
+        const { shouldAdvance, updatedArc } = await checkChapterProgress(storyArc, progressContext);
         if (shouldAdvance) {
           await storage.updateGameState(conversationId, { storyArc: updatedArc });
           const newChapter = updatedArc.chapters[updatedArc.currentChapterIndex];

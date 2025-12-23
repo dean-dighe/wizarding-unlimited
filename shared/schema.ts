@@ -24,6 +24,7 @@ export interface Chapter {
 export const game_states = pgTable("game_states", {
   id: serial("id").primaryKey(),
   conversationId: integer("conversation_id").notNull(), // Links to the chat conversation
+  playerName: text("player_name"), // The player's character name
   house: text("house"), // Gryffindor, Slytherin, etc.
   health: integer("health").default(100),
   inventory: jsonb("inventory").default([]),

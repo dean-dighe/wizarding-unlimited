@@ -77,6 +77,7 @@ export async function registerRoutes(
       // 3. Initialize Game State with character description and story arc
       await storage.createGameState({
         conversationId: conversation.id,
+        playerName,
         house: house || null,
         health: 100,
         inventory: ["Wand", "Hogwarts Robes"],

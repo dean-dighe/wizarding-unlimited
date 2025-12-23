@@ -220,6 +220,9 @@ export default function Game() {
         className="hidden lg:flex w-64 h-full bg-[#120521] border-r border-white/5 flex-col p-4 z-20 shadow-2xl overflow-y-auto flex-shrink-0"
       >
         <div className="mb-4 text-center">
+          {state?.playerName && (
+            <p className="text-sm text-purple-200/80 font-serif mb-1">{state.playerName}</p>
+          )}
           <h2 className="text-xl font-serif font-bold text-yellow-500 tracking-widest uppercase mb-1">
             {state?.house || "Unsorted"}
           </h2>
