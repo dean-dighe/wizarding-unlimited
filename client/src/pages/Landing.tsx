@@ -47,7 +47,7 @@ export default function Landing() {
               <Wand2 className="w-8 h-8 text-yellow-400 animate-float" />
             </div>
             <h1 className="text-4xl font-serif font-bold text-transparent bg-clip-text bg-gradient-to-b from-yellow-200 to-yellow-600 mb-2">
-              Hogwarts AI
+              Hogwarts Unlimited
             </h1>
             <p className="text-purple-200/80 font-serif">Begin your magical journey</p>
           </div>
