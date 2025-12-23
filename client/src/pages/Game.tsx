@@ -1,3 +1,5 @@
+import { useGameState } from "@/hooks/use-game";
+import { useChatStream } from "@/hooks/use-chat-stream";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRoute } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
@@ -13,11 +15,18 @@ import {
   BookOpen,
   Wand2,
 } from "lucide-react";
-import { useGameState } from "@/hooks/use-game";
-import { useChatStream } from "@/hooks/use-chat-stream";
 import { ParchmentCard } from "@/components/ui/parchment-card";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+
+interface ReadyMessage {
+  role: "user" | "assistant";
+  content: string;
+  choices?: string[];
+  gameTime?: string;
+  imageUrl?: string;
+  audioUrl?: string;
+}
 
 export default function Game() {
   const [, params] = useRoute("/game/:id");
@@ -26,13 +35,20 @@ export default function Game() {
   const { data: state, isLoading: stateLoading } = useGameState(conversationId);
   const { messages, sendMessage, isStreaming, isGeneratingImage, storyProgress, chapterAdvance } = useChatStream(conversationId);
   const scrollRef = useRef<HTMLDivElement>(null);
+  
+  // Audio state
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const audioUrlRef = useRef<string | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const lastReadMessageRef = useRef<number>(0);
   const [isNarrating, setIsNarrating] = useState(false);
   
-  // Mute state with localStorage persistence - use ref to track current value across async calls
+  // Ready messages - only these are displayed
+  const [readyMessages, setReadyMessages] = useState<ReadyMessage[]>([]);
+  const [isPreparingAudio, setIsPreparingAudio] = useState(false);
+  
+  // Track which message indices we've processed to prevent duplicates
+  const processedIndicesRef = useRef<Set<number>>(new Set());
+  const processingIndexRef = useRef<number | null>(null);
+  
+  // Mute state with localStorage persistence
   const [isMuted, setIsMuted] = useState(() => {
     const stored = localStorage.getItem("hogwarts-muted");
     return stored === "true";
@@ -44,21 +60,12 @@ export default function Game() {
     isMutedRef.current = isMuted;
   }, [isMuted]);
 
+  // Cleanup audio resources
   const cleanupAudio = useCallback(() => {
-    // Abort any in-flight request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-    // Stop and cleanup audio
     if (audioRef.current) {
       audioRef.current.pause();
+      audioRef.current.src = "";
       audioRef.current = null;
-    }
-    // Revoke object URL to prevent memory leaks
-    if (audioUrlRef.current) {
-      URL.revokeObjectURL(audioUrlRef.current);
-      audioUrlRef.current = null;
     }
     setIsNarrating(false);
   }, []);
@@ -68,7 +75,6 @@ export default function Game() {
       const newValue = !prev;
       localStorage.setItem("hogwarts-muted", String(newValue));
       isMutedRef.current = newValue;
-      // Stop current audio and abort pending requests if muting
       if (newValue) {
         cleanupAudio();
       }
@@ -76,8 +82,8 @@ export default function Game() {
     });
   }, [cleanupAudio]);
 
-  // Extract full content for narration (all story text, no metadata tags)
-  const extractNarrationText = useCallback((content: string): string => {
+  // Strip metadata tags from content
+  const stripMetadata = useCallback((content: string): string => {
     return content
       .replace(/\[IMAGE: [^\]]+\]\n?/g, '')
       .replace(/\[TIME: [^\]]+\]\n?/g, '')
@@ -91,130 +97,146 @@ export default function Game() {
       .trim();
   }, []);
 
-  // Narrate new assistant messages
+  // Play audio and handle cleanup
+  const playAudio = useCallback((audioUrl: string) => {
+    if (isMutedRef.current) {
+      URL.revokeObjectURL(audioUrl);
+      return;
+    }
+    
+    cleanupAudio();
+    
+    const audio = new Audio(audioUrl);
+    audioRef.current = audio;
+    setIsNarrating(true);
+    
+    audio.onended = () => {
+      URL.revokeObjectURL(audioUrl);
+      setIsNarrating(false);
+      audioRef.current = null;
+    };
+    
+    audio.onerror = () => {
+      URL.revokeObjectURL(audioUrl);
+      setIsNarrating(false);
+      audioRef.current = null;
+    };
+    
+    audio.play().catch(() => {
+      URL.revokeObjectURL(audioUrl);
+      setIsNarrating(false);
+      audioRef.current = null;
+    });
+  }, [cleanupAudio]);
+
+  // Process messages: prepare TTS and only show when ready
   useEffect(() => {
-    if (isMuted || isStreaming || messages.length === 0) return;
+    // Don't process while streaming
+    if (isStreaming) return;
+    if (messages.length === 0) return;
     
-    const assistantMessages = messages.filter(m => m.role === "assistant");
-    if (assistantMessages.length === 0) return;
-    
-    const currentCount = assistantMessages.length;
-    
-    // Only narrate if we have a new message
-    if (currentCount > lastReadMessageRef.current) {
-      // Update ref IMMEDIATELY to prevent duplicate calls during re-renders
-      lastReadMessageRef.current = currentCount;
-      
-      const latestMessage = assistantMessages[assistantMessages.length - 1];
-      const textToRead = extractNarrationText(latestMessage.content);
-      
-      if (textToRead && textToRead.length > 20) {
-        // Create abort controller for this request
-        const abortController = new AbortController();
-        abortControllerRef.current = abortController;
-        
-        setIsNarrating(true);
-        
-        fetch("/api/tts/speak", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: textToRead }),
-          signal: abortController.signal,
-        })
-          .then(res => {
-            // Check if muted during request
-            if (isMutedRef.current) {
-              cleanupAudio();
-              return null;
-            }
-            if (res.ok) return res.blob();
-            throw new Error("TTS failed");
-          })
-          .then(blob => {
-            // Check if muted or aborted before playing
-            if (!blob || isMutedRef.current) {
-              setIsNarrating(false);
-              return;
-            }
-            
-            const url = URL.createObjectURL(blob);
-            audioUrlRef.current = url;
-            
-            // Final mute check before creating audio
-            if (isMutedRef.current) {
-              URL.revokeObjectURL(url);
-              audioUrlRef.current = null;
-              setIsNarrating(false);
-              return;
-            }
-            
-            const audio = new Audio(url);
-            audioRef.current = audio;
-            audio.onended = () => {
-              if (audioUrlRef.current) {
-                URL.revokeObjectURL(audioUrlRef.current);
-                audioUrlRef.current = null;
-              }
-              setIsNarrating(false);
-              audioRef.current = null;
-            };
-            audio.onerror = () => {
-              if (audioUrlRef.current) {
-                URL.revokeObjectURL(audioUrlRef.current);
-                audioUrlRef.current = null;
-              }
-              setIsNarrating(false);
-              audioRef.current = null;
-            };
-            audio.play().catch(() => {
-              cleanupAudio();
-            });
-          })
-          .catch((err) => {
-            if (err.name !== 'AbortError') {
-              console.error('TTS error:', err);
-            }
-            setIsNarrating(false);
-          });
+    // Find the next unprocessed message
+    let nextIndex = -1;
+    for (let i = 0; i < messages.length; i++) {
+      if (!processedIndicesRef.current.has(i) && processingIndexRef.current !== i) {
+        nextIndex = i;
+        break;
       }
     }
-  }, [messages, isMuted, isStreaming, extractNarrationText, cleanupAudio]);
+    
+    if (nextIndex === -1) return;
+    
+    const message = messages[nextIndex];
+    
+    // Mark as being processed
+    processingIndexRef.current = nextIndex;
+    
+    // User messages are ready immediately
+    if (message.role === "user") {
+      processedIndicesRef.current.add(nextIndex);
+      processingIndexRef.current = null;
+      setReadyMessages(prev => [...prev, { ...message }]);
+      return;
+    }
+    
+    // Assistant messages need TTS preparation
+    const textToRead = stripMetadata(message.content);
+    
+    // If muted or no text, show immediately without audio
+    if (isMutedRef.current || !textToRead || textToRead.length <= 20) {
+      processedIndicesRef.current.add(nextIndex);
+      processingIndexRef.current = null;
+      setReadyMessages(prev => [...prev, { ...message }]);
+      return;
+    }
+    
+    // Fetch TTS audio, then show message and play
+    setIsPreparingAudio(true);
+    
+    fetch("/api/tts/speak", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: textToRead }),
+    })
+      .then(res => {
+        if (!res.ok) throw new Error("TTS failed");
+        return res.blob();
+      })
+      .then(blob => {
+        const audioUrl = URL.createObjectURL(blob);
+        
+        // Mark as processed
+        processedIndicesRef.current.add(nextIndex);
+        processingIndexRef.current = null;
+        setIsPreparingAudio(false);
+        
+        // Add message to ready queue
+        setReadyMessages(prev => [...prev, { ...message, audioUrl }]);
+        
+        // Play audio immediately (unless muted during fetch)
+        if (!isMutedRef.current) {
+          playAudio(audioUrl);
+        } else {
+          URL.revokeObjectURL(audioUrl);
+        }
+      })
+      .catch(err => {
+        console.error('TTS error:', err);
+        // Show message anyway on error
+        processedIndicesRef.current.add(nextIndex);
+        processingIndexRef.current = null;
+        setIsPreparingAudio(false);
+        setReadyMessages(prev => [...prev, { ...message }]);
+      });
+      
+  }, [messages, isStreaming, stripMetadata, playAudio]);
 
+  // Scroll to bottom when new ready messages appear
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [readyMessages]);
 
   const handleChoiceClick = (choice: string) => {
     sendMessage(choice);
   };
 
-  // Get the last assistant message with choices and time
-  const lastAssistantMessage = messages.filter(m => m.role === "assistant").pop();
+  // Get the last ready assistant message with choices and time
+  const lastAssistantMessage = readyMessages.filter(m => m.role === "assistant").pop();
   const currentChoices = lastAssistantMessage?.choices || [];
   const currentGameTime = lastAssistantMessage?.gameTime || state?.gameTime || "Unknown";
 
-  // Helper to strip metadata from content for display
-  const stripMetadata = (content: string) => {
-    return content
-      .replace(/\[IMAGE: [^\]]+\]\n?/g, '')
-      .replace(/\[TIME: [^\]]+\]\n?/g, '')
-      .replace(/\[SCENE: [^\]]+\]\n?/g, '')
-      .replace(/\[Choice \d+: [^\]]+\]\n?/g, '')
-      .replace(/\[HEALTH: [^\]]+\]\n?/g, '')
-      .replace(/\[ITEM_ADD: [^\]]+\]\n?/g, '')
-      .replace(/\[ITEM_REMOVE: [^\]]+\]\n?/g, '')
-      .replace(/\[SPELL_LEARN: [^\]]+\]\n?/g, '')
-      .replace(/\[LOCATION: [^\]]+\]\n?/g, '')
-      .trim();
-  };
+  // Determine if we're in initial loading state (no ready messages yet)
+  const isInitialLoading = stateLoading || (messages.length > 0 && readyMessages.length === 0);
 
-  if (stateLoading) {
+  if (isInitialLoading) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-[#1a0b2e]">
         <Sparkles className="w-12 h-12 animate-spin mb-4 text-yellow-500" />
-        <p className="font-serif text-xl animate-pulse text-purple-200">Consulting the oracles...</p>
+        <p className="font-serif text-xl animate-pulse text-purple-200">
+          {isPreparingAudio ? "Preparing narration..." : "Consulting the oracles..."}
+        </p>
       </div>
     );
   }
@@ -228,14 +250,37 @@ export default function Game() {
         animate={{ x: 0, opacity: 1 }}
         className="hidden lg:flex w-64 h-full bg-[#120521] border-r border-white/5 flex-col p-4 z-20 shadow-2xl overflow-y-auto flex-shrink-0"
       >
-        <div className="mb-4 text-center">
-          {state?.playerName && (
-            <p className="text-sm text-purple-200/80 font-serif mb-1">{state.playerName}</p>
+        {/* Chapter Advance Notification */}
+        <AnimatePresence>
+          {chapterAdvance && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="mb-4 p-3 bg-yellow-500/20 border border-yellow-500/50 rounded text-center"
+            >
+              <p className="text-yellow-300 font-serif text-sm">New Chapter!</p>
+              <p className="text-yellow-100 text-xs mt-1">{chapterAdvance}</p>
+            </motion.div>
           )}
-          <h2 className="text-xl font-serif font-bold text-yellow-500 tracking-widest uppercase mb-1">
-            {state?.house || "Unsorted"}
+        </AnimatePresence>
+
+        {/* Character Header */}
+        <div className="text-center border-b border-white/10 pb-4 mb-4">
+          <h2 className="font-serif text-lg text-yellow-100 truncate" data-testid="text-player-name">
+            {state?.playerName || "Wizard"}
           </h2>
-          <div className="h-0.5 w-12 bg-gradient-to-r from-transparent via-yellow-500 to-transparent mx-auto mb-3" />
+          {state?.house && (
+            <span className={cn(
+              "text-xs font-medium uppercase tracking-wider",
+              state.house === "Gryffindor" && "text-red-400",
+              state.house === "Slytherin" && "text-green-400",
+              state.house === "Ravenclaw" && "text-blue-400",
+              state.house === "Hufflepuff" && "text-yellow-400",
+            )} data-testid="text-house">
+              {state.house}
+            </span>
+          )}
           <div className="flex items-center justify-center gap-1.5 text-yellow-300/80">
             <Clock className="w-3 h-3" />
             <span className="text-xs font-serif">{currentGameTime}</span>
@@ -366,152 +411,103 @@ export default function Game() {
           </div>
         </div>
 
-        {/* Chapter Advancement Toast */}
-        <AnimatePresence>
-          {chapterAdvance && (
-            <motion.div
-              initial={{ opacity: 0, y: -50 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -50 }}
-              className="absolute top-16 left-1/2 transform -translate-x-1/2 z-40"
-            >
-              <div className="bg-gradient-to-r from-yellow-600/90 to-yellow-500/90 backdrop-blur-sm text-yellow-950 px-6 py-3 rounded-lg shadow-xl border border-yellow-400/50">
-                <div className="flex items-center gap-3">
-                  <BookOpen className="w-5 h-5" />
-                  <div>
-                    <p className="font-serif font-bold text-sm">Chapter Complete!</p>
-                    <p className="font-serif text-xs opacity-80">Now entering: {chapterAdvance}</p>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Story Area - Scrollable container below sticky header */}
+        {/* Story Content - Scrollable area */}
         <div 
           ref={scrollRef}
-          className="flex-1 min-h-0 overflow-y-auto scroll-smooth"
+          className="flex-1 overflow-y-auto p-4 space-y-6"
         >
-          <div className="max-w-5xl mx-auto p-2 sm:p-4 lg:p-6 space-y-4">
-            <AnimatePresence initial={false}>
-              {messages.map((msg, idx) => (
-                <motion.div
-                  key={idx}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className={cn(
-                    "flex w-full",
-                    msg.role === "user" ? "justify-end" : "justify-start"
-                  )}
-                >
-                  {msg.role === "assistant" ? (
-                    <div className="w-full space-y-3">
-                      {/* Story Text First */}
-                      <ParchmentCard className="shadow-lg">
-                        <div 
-                          className="whitespace-pre-wrap text-amber-950 leading-relaxed text-sm sm:text-base lg:text-lg"
-                          style={{ fontFamily: "var(--font-book)" }}
-                        >
-                          {stripMetadata(msg.content)}
-                        </div>
-                      </ParchmentCard>
-                      {/* Scene Image Below Text */}
-                      {msg.imageUrl && (
-                        <div className="relative rounded-lg overflow-hidden border border-yellow-600/20 shadow-lg">
-                          <img 
-                            src={msg.imageUrl} 
-                            alt="Scene illustration" 
-                            className="w-full max-h-[50vh] object-contain bg-black/20"
-                            data-testid={`img-scene-${idx}`}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="bg-purple-900/50 backdrop-blur-sm border border-purple-700/50 text-purple-100 rounded-xl rounded-tr-sm px-3 py-2 sm:px-4 sm:py-3 max-w-md shadow-lg">
-                      <p className="font-sans leading-relaxed text-sm">{msg.content}</p>
+          {readyMessages.map((message, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              {message.role === "assistant" ? (
+                <div className="space-y-4">
+                  {message.imageUrl && (
+                    <div className="relative w-full max-w-md mx-auto aspect-[4/3] rounded-lg overflow-hidden border border-white/10">
+                      <img 
+                        src={message.imageUrl} 
+                        alt="Scene illustration" 
+                        className="w-full h-full object-cover"
+                        data-testid={`img-scene-${i}`}
+                      />
                     </div>
                   )}
-                </motion.div>
-              ))}
-              {isStreaming && (
-                <motion.div 
-                  initial={{ opacity: 0 }} 
-                  animate={{ opacity: 1 }}
-                  className="flex justify-start w-full"
-                >
-                  <div className="text-yellow-500/50 flex gap-1 items-center p-3">
-                    <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                    <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                    <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-                  </div>
-                </motion.div>
-              )}
-              {isGeneratingImage && (
-                <motion.div 
-                  initial={{ opacity: 0 }} 
-                  animate={{ opacity: 1 }}
-                  className="flex justify-start w-full"
-                >
-                  <div className="text-purple-400/70 flex gap-2 items-center p-3 font-serif text-sm italic">
-                    <Sparkles className="w-4 h-4 animate-pulse" />
-                    <span>Conjuring scene illustration...</span>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-
-        {/* Choices Area - Sticky Footer */}
-        <div className="flex-shrink-0 p-2 sm:p-3 bg-gradient-to-t from-[#0d0415] via-[#120521] to-transparent border-t border-white/5">
-          {currentChoices.length > 0 ? (
-            <div className="max-w-5xl mx-auto">
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-1.5 sm:gap-2">
-                {currentChoices.map((choice, idx) => (
-                  <motion.button
-                    key={idx}
-                    onClick={() => handleChoiceClick(choice)}
-                    disabled={isStreaming || isGeneratingImage}
-                    whileTap={{ scale: 0.98 }}
-                    className={cn(
-                      "p-2 sm:p-3 rounded-md border border-yellow-600/40 bg-[#25123d]/80 active:bg-[#2d1847] text-purple-100 font-serif text-xs sm:text-sm transition-all",
-                      "disabled:opacity-50 disabled:cursor-not-allowed",
-                      "hover:bg-[#2d1847] hover:border-yellow-500/60"
-                    )}
-                  >
-                    <div className="flex items-start gap-1.5">
-                      <div className="text-yellow-500 font-bold text-xs sm:text-sm shrink-0">
-                        {idx + 1}.
-                      </div>
-                      <div className="text-left leading-snug">{choice}</div>
+                  <ParchmentCard className="relative">
+                    <div className="prose prose-invert prose-sm max-w-none font-serif">
+                      {stripMetadata(message.content).split('\n\n').map((para, j) => (
+                        <p key={j} className="text-[#e8dcc8] leading-relaxed mb-3 last:mb-0">
+                          {para}
+                        </p>
+                      ))}
                     </div>
-                  </motion.button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="text-center text-white/30 font-serif italic text-xs py-1">
-              Awaiting the next turn...
+                  </ParchmentCard>
+                </div>
+              ) : (
+                <div className="flex justify-end">
+                  <div className="bg-purple-900/40 border border-purple-500/20 rounded-lg px-4 py-2 max-w-[80%]">
+                    <p className="text-purple-100 font-serif text-sm">{message.content}</p>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          ))}
+          
+          {/* Streaming/Loading indicator */}
+          {(isStreaming || isGeneratingImage || isPreparingAudio) && (
+            <div className="flex items-center gap-2 text-purple-300">
+              <Sparkles className="w-4 h-4 animate-spin" />
+              <span className="font-serif text-sm animate-pulse">
+                {isGeneratingImage ? "Painting the scene..." : 
+                 isPreparingAudio ? "Preparing narration..." :
+                 "The story unfolds..."}
+              </span>
             </div>
           )}
         </div>
+
+        {/* Choice Buttons - Fixed at bottom */}
+        {currentChoices.length > 0 && !isStreaming && !isPreparingAudio && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="border-t border-white/10 bg-[#1a0b2e]/95 backdrop-blur p-4"
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-2xl mx-auto">
+              {currentChoices.map((choice, i) => (
+                <Button
+                  key={i}
+                  variant="outline"
+                  onClick={() => handleChoiceClick(choice)}
+                  className="text-left h-auto py-3 px-4 border-purple-500/30 bg-purple-900/20 text-purple-100 font-serif text-sm leading-snug"
+                  data-testid={`button-choice-${i}`}
+                >
+                  <span className="text-yellow-500 mr-2">{i + 1}.</span>
+                  {choice}
+                </Button>
+              ))}
+            </div>
+          </motion.div>
+        )}
       </div>
     </div>
   );
 }
 
-function StatItem({ icon: Icon, label, value, color }: { icon: any, label: string, value: string | number, color: string }) {
+function StatItem({ icon: Icon, label, value, color }: { 
+  icon: any; 
+  label: string; 
+  value: string; 
+  color: string;
+}) {
   return (
-    <div className="flex items-center gap-3 group">
-      <div className={cn("p-1.5 rounded-md bg-white/5 border border-white/5", color)}>
-        <Icon className="w-4 h-4" />
-      </div>
-      <div>
-        <p className="text-[10px] text-white/40 uppercase tracking-wider font-serif">{label}</p>
-        <p className="text-sm font-serif text-white/90">{value}</p>
+    <div className="flex items-center gap-3">
+      <Icon className={cn("w-4 h-4", color)} />
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] text-white/40 uppercase tracking-wider">{label}</p>
+        <p className="text-sm text-white/90 truncate font-serif" title={value}>{value}</p>
       </div>
     </div>
   );
