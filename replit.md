@@ -41,8 +41,15 @@ Preferred communication style: Simple, everyday language.
 
 ### AI Integration
 - **Chat**: OpenAI-compatible API (configured via `OLLAMA_API_KEY` and `OLLAMA_BASE_URL`)
-- **Image Generation**: Replit AI Integrations with `gpt-image-1` model (via `AI_INTEGRATIONS_OPENAI_API_KEY` and `AI_INTEGRATIONS_OPENAI_BASE_URL`)
-- **Streaming**: Server-sent events for real-time AI response streaming
+- **Image Generation**: xAI Grok Aurora (`grok-2-image-1212`) via `XAI_API_KEY` - generates fantasy book-style scene illustrations
+  - Prompts capped at 1000 chars to stay under API limit
+  - Includes character description for visual consistency
+- **Text-to-Speech**: xAI Grok Voice Agent API (Ara voice) via WebSocket for narration
+  - Route: `/api/tts/speak` - converts text to WAV audio
+  - Frontend auto-plays final paragraph after story renders
+  - Mute toggle with localStorage persistence
+- **Character Descriptions**: Generated on game init (80-100 words) for consistent character appearance across images
+- **Streaming**: Server-sent events for buffered AI response delivery
 - **Batch Processing**: Utility module for rate-limited parallel API calls with retries
 
 ### Project Structure
@@ -76,8 +83,8 @@ migrations/       # Drizzle migrations
 ### AI Services
 - **OpenAI-compatible Chat API** - Story generation and game narration
   - Environment: `OLLAMA_API_KEY`, `OLLAMA_BASE_URL`
-- **Replit AI Integrations** - Image generation
-  - Environment: `AI_INTEGRATIONS_OPENAI_API_KEY`, `AI_INTEGRATIONS_OPENAI_BASE_URL`
+- **xAI Grok** - Image generation (grok-2-image-1212) and TTS (Voice Agent API with Ara voice)
+  - Environment: `XAI_API_KEY`
 
 ### Third-Party Libraries
 - **Drizzle ORM** + **drizzle-zod** - Database ORM with Zod schema generation
