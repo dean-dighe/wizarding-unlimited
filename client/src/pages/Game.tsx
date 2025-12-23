@@ -431,12 +431,23 @@ export default function Game() {
     }
   }, [readyMessages]);
 
-  // Sync readyMessages when an error occurs and messages array shrinks
+  // Track previous messages length to detect rollbacks
+  const prevMessagesLengthRef = useRef(messages.length);
+  
+  // Sync readyMessages when messages array shrinks (rollback scenario)
   // This handles the case where user message is rolled back on AI failure
   useEffect(() => {
-    if (streamError && readyMessages.length > messages.length) {
+    const prevLength = prevMessagesLengthRef.current;
+    const currentLength = messages.length;
+    
+    // Update ref for next comparison
+    prevMessagesLengthRef.current = currentLength;
+    
+    // If messages got shorter, we need to sync readyMessages
+    if (currentLength < prevLength && readyMessages.length > currentLength) {
       // Trim readyMessages to match messages length
-      setReadyMessages(prev => prev.slice(0, messages.length));
+      setReadyMessages(prev => prev.slice(0, currentLength));
+      
       // Also clear the processed set for the removed message
       if (conversationId) {
         const processedSet = getProcessedSet(conversationId);
@@ -449,7 +460,7 @@ export default function Game() {
         });
       }
     }
-  }, [streamError, messages, readyMessages.length, conversationId]);
+  }, [messages, readyMessages.length, conversationId]);
 
   const handleChoiceClick = (choice: string) => {
     // Stop any current narration when user makes a selection
