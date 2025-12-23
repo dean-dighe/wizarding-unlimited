@@ -514,6 +514,20 @@ export default function Game() {
   const currentChoices = lastAssistantMessage?.choices || [];
   const currentGameTime = lastAssistantMessage?.gameTime || state?.gameTime || "Unknown";
 
+  // Check if a choice contains a known spell
+  const findSpellInChoice = useCallback((choice: string): string | null => {
+    const knownSpells = state?.spells || [];
+    // Check if any known spell appears in the choice text (case-insensitive)
+    for (const spell of knownSpells) {
+      // Use word boundary matching to avoid partial matches
+      const regex = new RegExp(`\\b${spell}\\b`, 'i');
+      if (regex.test(choice)) {
+        return spell;
+      }
+    }
+    return null;
+  }, [state?.spells]);
+
   // Check if all messages have been processed - don't show choices if there are pending messages
   const hasPendingMessages = messages.length > readyMessages.length;
 
@@ -972,18 +986,35 @@ export default function Game() {
             className="border-t border-white/10 bg-[#1a0b2e]/95 backdrop-blur p-2 sm:p-4 flex-shrink-0"
           >
             <div className="flex flex-col gap-2 max-w-2xl mx-auto">
-              {currentChoices.map((choice, i) => (
-                <Button
-                  key={i}
-                  variant="outline"
-                  onClick={() => handleChoiceClick(choice)}
-                  className="w-full text-left justify-start h-auto min-h-[44px] py-2 px-3 border-purple-500/30 bg-purple-900/20 text-purple-100 font-serif text-sm leading-normal whitespace-normal"
-                  data-testid={`button-choice-${i}`}
-                >
-                  <span className="text-yellow-500 mr-2 flex-shrink-0">{i + 1}.</span>
-                  <span className="flex-1">{choice}</span>
-                </Button>
-              ))}
+              {currentChoices.map((choice, i) => {
+                const spellMatch = findSpellInChoice(choice);
+                const isSpellChoice = !!spellMatch;
+                
+                return (
+                  <Button
+                    key={i}
+                    variant="outline"
+                    onClick={() => handleChoiceClick(choice)}
+                    className={cn(
+                      "w-full text-left justify-start h-auto min-h-[44px] py-2 px-3 font-serif text-sm leading-normal whitespace-normal",
+                      isSpellChoice 
+                        ? "border-blue-400/50 bg-gradient-to-r from-blue-900/40 to-purple-900/40 text-blue-100 shadow-[0_0_15px_rgba(59,130,246,0.3)]" 
+                        : "border-purple-500/30 bg-purple-900/20 text-purple-100"
+                    )}
+                    data-testid={`button-choice-${i}`}
+                  >
+                    {isSpellChoice ? (
+                      <Wand2 className="w-4 h-4 mr-2 flex-shrink-0 text-blue-300" />
+                    ) : (
+                      <span className="text-yellow-500 mr-2 flex-shrink-0">{i + 1}.</span>
+                    )}
+                    <span className="flex-1">{choice}</span>
+                    {isSpellChoice && (
+                      <Sparkles className="w-3 h-3 ml-2 flex-shrink-0 text-blue-300/60" />
+                    )}
+                  </Button>
+                );
+              })}
             </div>
           </motion.div>
         )}

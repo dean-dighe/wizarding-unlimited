@@ -8,6 +8,8 @@ A Harry Potter-themed text adventure game built as a full-stack web application.
 - Players start with 9 spells learned from Years 1-2 (Lumos, Nox, Wingardium Leviosa, Alohomora, Reparo, Incendio, Flipendo, Expelliarmus, Rictusempra)
 - Starting inventory includes: Wand, Hogwarts Robes, Spellbook Collection, Cauldron, Broomstick, Signed Hogsmeade Permission Slip
 - Narrative reflects established student with existing friendships, knowledge of castle, and Year 3 privileges (electives, Hogsmeade)
+- **Spell restriction**: AI only offers spells from player's known spells list in choices
+- **Spell styling**: Choices containing known spells are highlighted with wand icon, blue gradient, and magical glow effect
 
 ## User Preferences
 

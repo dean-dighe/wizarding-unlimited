@@ -192,6 +192,13 @@ CRITICAL REQUIREMENTS:
    [Choice 2: Description]
    [Choice 3: Description]
    [Choice 4: Description]
+   
+   SPELL USAGE IN CHOICES:
+   - When a choice involves casting a spell, the player can ONLY use spells from their KNOWN SPELLS list
+   - Format spell choices with the spell name in the description, e.g.: [Choice 2: Cast Lumos to light your wand and explore the dark passage]
+   - Include at least one spell-casting option when situations allow for magic
+   - NEVER offer spells the player hasn't learned yet - they are a third-year, not an advanced wizard
+   - Known spells: ${knownSpellsList}
 
 5. If the story involves ANY changes to the player's state, include state change tags BEFORE the choices:
    - For health changes: [HEALTH: +10] or [HEALTH: -15] (relative change, can be positive or negative)
