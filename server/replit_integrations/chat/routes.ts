@@ -2,6 +2,13 @@ import type { Express, Request, Response } from "express";
 import OpenAI from "openai";
 import { chatStorage } from "./storage";
 import { storage } from "../../storage";
+import { 
+  shouldSummarize, 
+  summarizeStory, 
+  checkChapterProgress,
+  buildContextWithSummary 
+} from "../story/engine";
+import type { StoryArc } from "@shared/schema";
 
 const openai = new OpenAI({
   apiKey: process.env.OLLAMA_API_KEY || "ollama",
@@ -143,16 +150,46 @@ export function registerChatRoutes(app: Express): void {
       // Save user message
       await chatStorage.createMessage(conversationId, "user", content);
 
-      // Get game state for character description
+      // Get game state for character description and story context
       const gameState = await storage.getGameState(conversationId);
       const characterDescription = gameState?.characterDescription || undefined;
+      const storyArc = gameState?.storyArc as StoryArc | undefined;
+      const currentDecisionCount = (gameState?.decisionCount || 0) + 1;
+      const storySummary = gameState?.storySummary || null;
+      const lastSummarizedAt = gameState?.lastSummarizedAt || 0;
+
+      // Update decision count immediately
+      await storage.updateGameState(conversationId, { decisionCount: currentDecisionCount });
 
       // Get conversation history for context
       const messages = await chatStorage.getMessagesByConversation(conversationId);
-      const chatMessages = messages.map((m) => ({
-        role: m.role as "user" | "assistant",
-        content: m.content,
-      }));
+      
+      // Build context with story arc and potential summary
+      let chatMessages: { role: "user" | "assistant" | "system"; content: string }[];
+      
+      if (storyArc) {
+        const rawMessages = messages.map((m) => ({
+          role: m.role,
+          content: m.content,
+        }));
+        
+        // Find the system prompt (first system message)
+        const systemMessage = messages.find(m => m.role === "system");
+        const systemPrompt = systemMessage?.content || "";
+        
+        chatMessages = buildContextWithSummary(
+          systemPrompt,
+          storySummary,
+          storyArc,
+          rawMessages.filter(m => m.role !== "system")
+        );
+      } else {
+        // Fallback to simple message list
+        chatMessages = messages.map((m) => ({
+          role: m.role as "user" | "assistant" | "system",
+          content: m.content,
+        }));
+      }
 
       // Set up SSE
       res.setHeader("Content-Type", "text/event-stream");
@@ -170,9 +207,9 @@ export function registerChatRoutes(app: Express): void {
 
       // Accumulate all chunks without sending to client
       for await (const chunk of stream) {
-        const content = chunk.choices[0]?.delta?.content || "";
-        if (content) {
-          fullResponse += content;
+        const chunkContent = chunk.choices[0]?.delta?.content || "";
+        if (chunkContent) {
+          fullResponse += chunkContent;
         }
       }
 
@@ -191,6 +228,55 @@ export function registerChatRoutes(app: Express): void {
 
       // Save assistant message with embedded image URL
       await chatStorage.createMessage(conversationId, "assistant", finalContent);
+
+      // Check if we should summarize (every 10 decisions)
+      if (storyArc && shouldSummarize(currentDecisionCount, lastSummarizedAt)) {
+        console.log(`[Story] Decision ${currentDecisionCount}: Triggering summarization...`);
+        
+        // Get fresh messages for summarization
+        const allMessages = await chatStorage.getMessagesByConversation(conversationId);
+        const rawMessages = allMessages.map(m => ({ role: m.role, content: m.content }));
+        
+        // Summarize the story
+        const newSummary = await summarizeStory(rawMessages, storyArc, storySummary);
+        
+        // Update game state with new summary
+        await storage.updateGameState(conversationId, {
+          storySummary: newSummary,
+          lastSummarizedAt: currentDecisionCount
+        });
+        
+        console.log(`[Story] Summary updated at decision ${currentDecisionCount}`);
+
+        // Check for chapter progression
+        const { shouldAdvance, updatedArc } = await checkChapterProgress(storyArc, fullResponse);
+        if (shouldAdvance) {
+          await storage.updateGameState(conversationId, { storyArc: updatedArc });
+          const newChapter = updatedArc.chapters[updatedArc.currentChapterIndex];
+          console.log(`[Story] Advanced to: ${newChapter.title}`);
+          
+          // Send chapter advancement notification to client
+          res.write(`data: ${JSON.stringify({ 
+            chapterAdvance: true, 
+            chapter: newChapter.title,
+            chapterIndex: updatedArc.currentChapterIndex + 1,
+            totalChapters: updatedArc.chapters.length
+          })}\n\n`);
+        }
+      }
+
+      // Send story progress info
+      if (storyArc) {
+        const currentChapter = storyArc.chapters[storyArc.currentChapterIndex];
+        res.write(`data: ${JSON.stringify({ 
+          storyProgress: {
+            chapter: currentChapter.title,
+            chapterIndex: storyArc.currentChapterIndex + 1,
+            totalChapters: storyArc.chapters.length,
+            decisionCount: currentDecisionCount
+          }
+        })}\n\n`);
+      }
 
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
       res.end();

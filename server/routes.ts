@@ -5,6 +5,7 @@ import { registerChatRoutes } from "./replit_integrations/chat/routes";
 import { registerImageRoutes } from "./replit_integrations/image/routes";
 import { registerTTSRoutes } from "./replit_integrations/tts/routes";
 import { chatStorage } from "./replit_integrations/chat/storage";
+import { generateStoryArc } from "./replit_integrations/story/engine";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import OpenAI from "openai";
@@ -67,10 +68,13 @@ export async function registerRoutes(
       // 1. Create a new conversation
       const conversation = await chatStorage.createConversation(`Adventure for ${playerName}`);
 
-      // 2. Generate verbose character description for consistent image generation
-      const characterDescription = await generateCharacterDescription(playerName, house || null);
+      // 2. Generate story arc and character description in parallel
+      const [storyArc, characterDescription] = await Promise.all([
+        generateStoryArc(playerName, house || null),
+        generateCharacterDescription(playerName, house || null)
+      ]);
 
-      // 3. Initialize Game State with character description
+      // 3. Initialize Game State with character description and story arc
       await storage.createGameState({
         conversationId: conversation.id,
         house: house || null,
@@ -79,14 +83,30 @@ export async function registerRoutes(
         location: "Platform 9¾",
         gameTime: "September 1st, 1991 - 10:30 AM",
         characterDescription,
+        storyArc,
+        decisionCount: 0,
+        storySummary: null,
+        lastSummarizedAt: 0,
       });
 
-      // 3. Seed the AI context (System Prompt)
+      // 3. Seed the AI context (System Prompt) with story arc
+      const currentChapter = storyArc.chapters[storyArc.currentChapterIndex];
       const systemPrompt = `
 You are a master storyteller narrating a Harry Potter text adventure.
 The protagonist is ${playerName}${house ? `, a proud member of House ${house}` : ''}.
 
 SETTING: It is September 1st, 1991. ${playerName} has just arrived at Platform 9¾ and is boarding the Hogwarts Express for their first year at Hogwarts School of Witchcraft and Wizardry.
+
+===== THE STORY ARC =====
+TITLE: "${storyArc.title}"
+PREMISE: ${storyArc.premise}
+
+CURRENT CHAPTER: ${currentChapter.title}
+OBJECTIVE: ${currentChapter.objective}
+KEY EVENTS TO WEAVE IN: ${currentChapter.keyEvents.join(", ")}
+
+Your job is to naturally guide the story toward the chapter objectives while respecting player agency. Plant seeds for upcoming events. Make the mystery compelling and the stakes personal.
+=========================
 
 WRITING STYLE:
 - Write in second person ("You step onto the train...") like a classic Choose Your Own Adventure novel
@@ -120,17 +140,12 @@ CRITICAL REQUIREMENTS:
    [Choice 3: Description]
    [Choice 4: Description]
 
-Make choices meaningful - some safe, some risky, some social, some exploratory.
+Make choices meaningful - some safe, some risky, some social, some exploratory. At least one choice should relate to the current chapter objective.
       `;
 
       await chatStorage.createMessage(conversation.id, "system", systemPrompt);
 
-      // 4. Generate the opening message from AI to start the game
-      // We manually create a "user" trigger message to get the ball rolling, or just let the client handle the first interaction.
-      // Better: Let's insert a "Welcome" message from the "assistant" immediately so the user sees something.
-      // Ideally we'd call OpenAI here, but for speed, let's just insert a hardcoded intro or let the client trigger the first generation.
-      // Let's Insert a hardcoded intro to be safe and fast.
-      
+      // 4. Generate the opening message that hints at the story arc
       const introText = `[TIME: September 1st, 1991 - 10:30 AM]
 [SCENE: A young first-year wizard in new black robes stands on the bustling Platform 9¾, the magnificent scarlet Hogwarts Express billowing white steam behind them. Golden morning light filters through the station's Victorian ironwork. Owls hoot from brass cages, trunks are stacked high, and excited students in robes embrace tearful parents amid the magical chaos.]
 
@@ -146,7 +161,13 @@ You've done it. You've actually made it. The Hogwarts Express awaits, and with i
 
       res.status(201).json({
         conversationId: conversation.id,
-        message: introText
+        message: introText,
+        storyArc: {
+          title: storyArc.title,
+          premise: storyArc.premise,
+          currentChapter: currentChapter.title,
+          totalChapters: storyArc.chapters.length
+        }
       });
 
     } catch (err) {
