@@ -46,10 +46,16 @@ Preferred communication style: Simple, everyday language.
   - Includes character description for visual consistency
 - **Text-to-Speech**: xAI Grok Voice Agent API (Ara voice) via WebSocket for narration
   - Route: `/api/tts/speak` - converts text to WAV audio
+  - Narrator persona: Age-appropriate magical storyteller for first-year Hogwarts students
+  - PERFORMS paralinguistic cues (sighs, gasps) rather than reading them literally
   - Frontend auto-plays final paragraph after story renders
   - Mute toggle with localStorage persistence
+  - Atomic locking prevents duplicate TTS calls during React re-renders
 - **Character Descriptions**: Generated on game init (80-100 words) for consistent character appearance across images
 - **Streaming**: Server-sent events for buffered AI response delivery
+  - Error handling with automatic rollback on AI failures
+  - Structured SSE error events with retry capability
+  - User message deleted from DB on AI failure to maintain consistency
 - **Batch Processing**: Utility module for rate-limited parallel API calls with retries
 
 ### Project Structure
