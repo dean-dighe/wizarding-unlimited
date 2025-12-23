@@ -75,9 +75,6 @@ export function useChatStream(conversationId: number | null) {
       let assistantMessage = "";
       let currentImageUrl: string | undefined;
 
-      // Add placeholder for assistant
-      setMessages(prev => [...prev, { role: "assistant", content: "" }]);
-
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -90,25 +87,21 @@ export function useChatStream(conversationId: number | null) {
             try {
               const data = JSON.parse(line.slice(6));
               
-              if (data.content) {
-                assistantMessage += data.content;
-                setMessages(prev => {
-                  const updated = [...prev];
-                  // Extract choices and time from the message
-                  const choiceMatch = assistantMessage.match(/\[Choice \d+: [^\]]+\]/g);
-                  const choices = choiceMatch ? choiceMatch.map(c => c.replace(/^\[Choice \d+: /, '').replace(/\]$/, '')) : [];
-                  const timeMatch = assistantMessage.match(/\[TIME: ([^\]]+)\]/);
-                  const gameTime = timeMatch ? timeMatch[1] : undefined;
-                  
-                  updated[updated.length - 1] = { 
-                    role: "assistant", 
-                    content: assistantMessage,
-                    choices: choices.length > 0 ? choices : undefined,
-                    gameTime,
-                    imageUrl: currentImageUrl
-                  };
-                  return updated;
-                });
+              // Handle full content (text complete - render once)
+              if (data.fullContent) {
+                assistantMessage = data.fullContent;
+                const choiceMatch = assistantMessage.match(/\[Choice \d+: [^\]]+\]/g);
+                const choices = choiceMatch ? choiceMatch.map(c => c.replace(/^\[Choice \d+: /, '').replace(/\]$/, '')) : [];
+                const timeMatch = assistantMessage.match(/\[TIME: ([^\]]+)\]/);
+                const gameTime = timeMatch ? timeMatch[1] : undefined;
+                
+                setMessages(prev => [...prev, { 
+                  role: "assistant", 
+                  content: assistantMessage,
+                  choices: choices.length > 0 ? choices : undefined,
+                  gameTime,
+                  imageUrl: currentImageUrl
+                }]);
               }
 
               // Handle imagePending event - text is done, image generation starting

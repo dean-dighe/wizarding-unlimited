@@ -136,7 +136,7 @@ export function registerChatRoutes(app: Express): void {
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
-      // Stream response from Ollama
+      // Get response from Ollama (non-streaming to buffer complete text)
       const stream = await openai.chat.completions.create({
         model: process.env.OLLAMA_MODEL || "qwen3-coder:30b",
         messages: chatMessages,
@@ -145,16 +145,16 @@ export function registerChatRoutes(app: Express): void {
 
       let fullResponse = "";
 
+      // Accumulate all chunks without sending to client
       for await (const chunk of stream) {
         const content = chunk.choices[0]?.delta?.content || "";
         if (content) {
           fullResponse += content;
-          res.write(`data: ${JSON.stringify({ content })}\n\n`);
         }
       }
 
-      // Text streaming complete - signal that image generation is starting
-      res.write(`data: ${JSON.stringify({ textDone: true, imagePending: true })}\n\n`);
+      // Text complete - send full content in one event, then signal image generation starting
+      res.write(`data: ${JSON.stringify({ fullContent: fullResponse, textDone: true, imagePending: true })}\n\n`);
 
       // Generate scene image based on story content
       const imageUrl = await generateSceneImage(fullResponse);
