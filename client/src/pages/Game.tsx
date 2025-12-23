@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useRoute } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
@@ -57,21 +57,24 @@ export default function Game() {
   return (
     <div className="h-screen flex flex-col md:flex-row bg-[#1a0b2e] text-[#fdfbf7] overflow-hidden">
       
-      {/* Mobile Stats Bar */}
-      <div className="md:hidden bg-[#120521] border-b border-white/5 p-3 flex flex-col gap-2 flex-shrink-0">
-        <div className="flex items-center justify-center gap-2 text-yellow-400">
-          <Clock className="w-3 h-3" />
-          <span className="text-xs font-serif">{currentGameTime}</span>
+      {/* Mobile Header - Compact */}
+      <div className="md:hidden bg-[#120521] border-b border-white/5 px-4 py-2 flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <ScrollText className="w-4 h-4 text-yellow-500" />
+          <span className="font-serif text-sm text-yellow-100/80">Wizarding Sagas</span>
         </div>
-        <div className="flex items-center justify-center gap-4">
-          <div className="flex items-center gap-2 whitespace-nowrap">
-            <Heart className="w-3 h-3 text-red-400" />
-            <span className="text-xs font-serif uppercase">HP: {state?.health ?? 100}%</span>
+        <div className="flex items-center gap-3 text-xs">
+          <div className="flex items-center gap-1 text-yellow-400">
+            <Clock className="w-3 h-3" />
+            <span className="font-serif hidden xs:inline">{currentGameTime.split(' - ')[1] || currentGameTime}</span>
           </div>
-          <div className="w-px h-3 bg-white/10" />
-          <div className="flex items-center gap-2 whitespace-nowrap">
-            <MapPin className="w-3 h-3 text-emerald-400" />
-            <span className="text-xs font-serif uppercase truncate">{state?.location || "Unknown"}</span>
+          <div className="flex items-center gap-1 text-red-400">
+            <Heart className="w-3 h-3" />
+            <span>{state?.health ?? 100}%</span>
+          </div>
+          <div className="flex items-center gap-1 text-emerald-400">
+            <MapPin className="w-3 h-3" />
+            <span className="truncate max-w-[80px]">{state?.location || "Unknown"}</span>
           </div>
         </div>
       </div>
@@ -127,18 +130,20 @@ export default function Game() {
         </div>
       </motion.div>
 
-      {/* Chat Area */}
+      {/* Main Content Area */}
       <div className="flex-1 flex flex-col relative overflow-hidden">
-        <div className="h-16 border-b border-white/5 bg-[#1a0b2e]/95 backdrop-blur flex items-center px-6 justify-between z-10 flex-shrink-0">
+        {/* Desktop Header */}
+        <div className="hidden md:flex h-16 border-b border-white/5 bg-[#1a0b2e]/95 backdrop-blur items-center px-6 justify-between z-10 flex-shrink-0">
           <h1 className="font-serif text-lg text-yellow-100/80 flex items-center gap-2">
             <ScrollText className="w-4 h-4 text-yellow-500" />
             Wizarding Sagas
           </h1>
         </div>
 
+        {/* Messages Area - Priority for mobile */}
         <div 
           ref={scrollRef}
-          className="flex-1 min-h-0 overflow-y-auto p-4 md:p-8 space-y-6 scroll-smooth"
+          className="flex-1 min-h-0 overflow-y-auto p-3 md:p-8 space-y-4 md:space-y-6 scroll-smooth"
         >
           <AnimatePresence initial={false}>
             {messages.map((msg, idx) => (
@@ -154,9 +159,9 @@ export default function Game() {
               >
                 {msg.role === "assistant" ? (
                   <div className="max-w-3xl w-full">
-                    <ParchmentCard className="shadow-xl">
+                    <ParchmentCard className="shadow-xl p-4 md:p-6">
                       <div 
-                        className="whitespace-pre-wrap text-amber-950 leading-relaxed text-lg"
+                        className="whitespace-pre-wrap text-amber-950 leading-relaxed text-base md:text-lg"
                         style={{ fontFamily: "var(--font-book)" }}
                       >
                         {stripMetadata(msg.content)}
@@ -164,8 +169,8 @@ export default function Game() {
                     </ParchmentCard>
                   </div>
                 ) : (
-                  <div className="bg-purple-900/50 backdrop-blur-sm border border-purple-700/50 text-purple-100 rounded-2xl rounded-tr-sm px-6 py-4 max-w-xl shadow-lg">
-                    <p className="font-sans leading-relaxed">{msg.content}</p>
+                  <div className="bg-purple-900/50 backdrop-blur-sm border border-purple-700/50 text-purple-100 rounded-2xl rounded-tr-sm px-4 py-3 md:px-6 md:py-4 max-w-xl shadow-lg">
+                    <p className="font-sans leading-relaxed text-sm md:text-base">{msg.content}</p>
                   </div>
                 )}
               </motion.div>
@@ -186,39 +191,35 @@ export default function Game() {
           </AnimatePresence>
         </div>
 
-        {/* Choices Area */}
-        <div className="flex-shrink-0 p-4 md:p-6 bg-gradient-to-t from-[#0d0415] to-[#1a0b2e] border-t border-white/5">
+        {/* Choices Area - Compact on mobile */}
+        <div className="flex-shrink-0 p-2 md:p-6 bg-gradient-to-t from-[#0d0415] to-[#1a0b2e] border-t border-white/5">
           {currentChoices.length > 0 ? (
-            <div className="max-w-4xl mx-auto space-y-3">
-              <p className="text-xs text-white/40 uppercase tracking-widest font-serif text-center mb-4">
-                What is your next move?
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="max-w-4xl mx-auto">
+              <div className="grid grid-cols-2 gap-2 md:gap-3">
                 {currentChoices.map((choice, idx) => (
                   <motion.button
                     key={idx}
                     onClick={() => handleChoiceClick(choice)}
                     disabled={isStreaming}
-                    whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     className={cn(
-                      "p-4 rounded-lg border-2 border-yellow-600/50 bg-[#25123d] hover:bg-[#2d1847] text-purple-100 font-serif text-sm transition-all",
+                      "p-2 md:p-4 rounded-lg border border-yellow-600/50 bg-[#25123d] active:bg-[#2d1847] text-purple-100 font-serif text-xs md:text-sm transition-all",
                       "disabled:opacity-50 disabled:cursor-not-allowed",
-                      "hover:border-yellow-500 hover:shadow-lg hover:shadow-yellow-500/20"
+                      "md:hover:bg-[#2d1847] md:hover:border-yellow-500 md:hover:shadow-lg md:hover:shadow-yellow-500/20"
                     )}
                   >
-                    <div className="flex items-start gap-3">
-                      <div className="text-yellow-500 font-bold text-lg mt-0.5">
+                    <div className="flex items-start gap-2">
+                      <div className="text-yellow-500 font-bold text-sm md:text-lg shrink-0">
                         {idx + 1}
                       </div>
-                      <div className="text-left">{choice}</div>
+                      <div className="text-left line-clamp-3 md:line-clamp-none">{choice}</div>
                     </div>
                   </motion.button>
                 ))}
               </div>
             </div>
           ) : (
-            <div className="text-center text-white/30 font-serif italic text-sm">
+            <div className="text-center text-white/30 font-serif italic text-sm py-2">
               Awaiting the next turn...
             </div>
           )}
