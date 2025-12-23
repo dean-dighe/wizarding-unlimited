@@ -40,3 +40,10 @@ waitForPort = 5000
 
 [agent]
 integrations = ["javascript_openai_ai_integrations:2.0.0"]
+
+[userenv]
+
+[userenv.shared]
+OLLAMA_BASE_URL = "https://gpt.netsuite.tech/v1"
+OLLAMA_MODEL = "qwen3-coder:30b"
+OLLAMA_API_KEY = "ollama"

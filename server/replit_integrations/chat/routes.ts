@@ -3,8 +3,8 @@ import OpenAI from "openai";
 import { chatStorage } from "./storage";
 
 const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+  apiKey: process.env.OLLAMA_API_KEY || "ollama",
+  baseURL: process.env.OLLAMA_BASE_URL || "https://gpt.netsuite.tech/v1",
 });
 
 export function registerChatRoutes(app: Express): void {
@@ -80,12 +80,11 @@ export function registerChatRoutes(app: Express): void {
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
-      // Stream response from OpenAI
+      // Stream response from Ollama
       const stream = await openai.chat.completions.create({
-        model: "gpt-5.1",
+        model: process.env.OLLAMA_MODEL || "qwen3-coder:30b",
         messages: chatMessages,
         stream: true,
-        max_completion_tokens: 2048,
       });
 
       let fullResponse = "";
