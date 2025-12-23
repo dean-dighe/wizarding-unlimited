@@ -68,6 +68,7 @@ export function registerTTSRoutes(app: Express): void {
       const audioChunks: Buffer[] = [];
       let isCleanedUp = false;
       
+      console.log("[TTS] Connecting to xAI Realtime API...");
       const ws = new WebSocket(XAI_REALTIME_URL, {
         headers: {
           "Authorization": `Bearer ${apiKey}`,
@@ -91,15 +92,21 @@ export function registerTTSRoutes(app: Express): void {
         }
       };
 
-      // Handle client disconnect (browser closes, request aborted)
-      req.on("close", () => {
-        if (!res.headersSent) {
-          console.log("[TTS] Client disconnected, cleaning up WebSocket");
+      // Handle client disconnect (use response finish event instead of request close)
+      res.on("finish", () => {
+        console.log("[TTS] Response finished, cleaning up");
+        cleanup();
+      });
+      
+      res.on("close", () => {
+        if (!res.writableEnded) {
+          console.log("[TTS] Client disconnected before response complete, cleaning up");
           cleanup();
         }
       });
 
       ws.on("open", () => {
+        console.log("[TTS] WebSocket connected, sending session config...");
         ws.send(JSON.stringify({
           type: "session.update",
           session: {
@@ -184,11 +191,11 @@ Simply read the narrative text with your enchanting storyteller voice, performin
         }
       });
 
-      ws.on("error", (error) => {
-        console.error("TTS WebSocket error:", error);
+      ws.on("error", (error: Error & { code?: string }) => {
+        console.error("[TTS] WebSocket error:", error.message, error.code || '');
         cleanup();
         if (!res.headersSent) {
-          res.status(500).json({ error: "WebSocket connection failed" });
+          res.status(500).json({ error: `WebSocket connection failed: ${error.message}` });
         }
       });
 
