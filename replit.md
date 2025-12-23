@@ -20,6 +20,10 @@ Preferred communication style: Simple, everyday language.
 - **Custom Hooks**: 
   - `use-game.ts` - Game state and initialization
   - `use-chat-stream.ts` - Streaming AI responses and message history
+- **Responsive Design**:
+  - Mobile: Story paragraphs collapse to 1 line with "Tap to read" hint, tap to expand
+  - Desktop: Full text displayed, no collapse UI
+  - Scene images appear BELOW story text (narrator-first focus)
 
 ### Backend Architecture
 - **Express.js** server with TypeScript

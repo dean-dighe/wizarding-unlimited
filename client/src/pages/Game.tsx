@@ -70,6 +70,39 @@ function releaseTTSLock() {
   globalTTSLock = false;
 }
 
+// Collapsible paragraph for mobile - shows 1 line with tap to expand
+// On desktop (sm+), always shows full text via CSS. On mobile, tap to expand.
+function CollapsibleParagraph({ text, testId }: { text: string; testId: string }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  return (
+    <div 
+      className="cursor-pointer sm:cursor-default"
+      onClick={() => setIsExpanded(true)}
+      data-testid={testId}
+    >
+      <p 
+        className={cn(
+          "text-[#3d2914] text-sm sm:text-base leading-relaxed",
+          !isExpanded && "line-clamp-1 sm:line-clamp-none"
+        )}
+      >
+        {text}
+      </p>
+      {/* Mobile-only hint - sm:hidden ensures it's invisible on desktop */}
+      {!isExpanded && (
+        <span 
+          className="text-xs text-[#3d2914]/50 mt-1 flex items-center gap-1 sm:hidden"
+          data-testid={`${testId}-hint`}
+        >
+          <ChevronDown className="w-3 h-3" />
+          Tap to read
+        </span>
+      )}
+    </div>
+  );
+}
+
 export default function Game() {
   const [, params] = useRoute("/game/:id");
   const conversationId = params?.id ? parseInt(params.id) : null;
@@ -844,6 +877,17 @@ export default function Game() {
             >
               {message.role === "assistant" ? (
                 <div className="space-y-3 sm:space-y-4">
+                  <ParchmentCard className="relative">
+                    <div className="font-serif space-y-3">
+                      {stripMetadata(message.content).split('\n\n').map((para, j) => (
+                        <CollapsibleParagraph 
+                          key={j} 
+                          text={para} 
+                          testId={`text-paragraph-${i}-${j}`}
+                        />
+                      ))}
+                    </div>
+                  </ParchmentCard>
                   {message.imageUrl && (
                     <div className="relative w-full max-w-md mx-auto aspect-[4/3] rounded-lg overflow-hidden border border-white/10">
                       <img 
@@ -854,15 +898,6 @@ export default function Game() {
                       />
                     </div>
                   )}
-                  <ParchmentCard className="relative">
-                    <div className="font-serif space-y-3">
-                      {stripMetadata(message.content).split('\n\n').map((para, j) => (
-                        <p key={j} className="text-[#3d2914] text-sm sm:text-base leading-relaxed">
-                          {para}
-                        </p>
-                      ))}
-                    </div>
-                  </ParchmentCard>
                 </div>
               ) : (
                 <div className="flex justify-end">
