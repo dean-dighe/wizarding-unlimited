@@ -157,31 +157,27 @@ export default function Game() {
                   )}
                 >
                   {msg.role === "assistant" ? (
-                    <div className="w-full">
-                      {/* Scene Card - Image + Text unified */}
-                      <div className="bg-[#0d0415]/50 rounded-lg overflow-hidden border border-white/5">
-                        {msg.imageUrl && (
-                          <div className="relative">
-                            <img 
-                              src={msg.imageUrl} 
-                              alt="Scene illustration" 
-                              className="w-full h-48 sm:h-64 lg:h-80 object-cover"
-                              data-testid={`img-scene-${idx}`}
-                            />
-                            <div className="absolute inset-0 bg-gradient-to-t from-[#0d0415] via-transparent to-transparent" />
-                          </div>
-                        )}
-                        <div className={cn("p-3 sm:p-4 lg:p-5", msg.imageUrl && "-mt-8 relative z-10")}>
-                          <ParchmentCard className="shadow-lg">
-                            <div 
-                              className="whitespace-pre-wrap text-amber-950 leading-relaxed text-sm sm:text-base lg:text-lg"
-                              style={{ fontFamily: "var(--font-book)" }}
-                            >
-                              {stripMetadata(msg.content)}
-                            </div>
-                          </ParchmentCard>
+                    <div className="w-full space-y-3">
+                      {/* Story Text First */}
+                      <ParchmentCard className="shadow-lg">
+                        <div 
+                          className="whitespace-pre-wrap text-amber-950 leading-relaxed text-sm sm:text-base lg:text-lg"
+                          style={{ fontFamily: "var(--font-book)" }}
+                        >
+                          {stripMetadata(msg.content)}
                         </div>
-                      </div>
+                      </ParchmentCard>
+                      {/* Scene Image Below Text */}
+                      {msg.imageUrl && (
+                        <div className="relative rounded-lg overflow-hidden border border-yellow-600/20 shadow-lg">
+                          <img 
+                            src={msg.imageUrl} 
+                            alt="Scene illustration" 
+                            className="w-full max-h-[50vh] object-contain bg-black/20"
+                            data-testid={`img-scene-${idx}`}
+                          />
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="bg-purple-900/50 backdrop-blur-sm border border-purple-700/50 text-purple-100 rounded-xl rounded-tr-sm px-3 py-2 sm:px-4 sm:py-3 max-w-md shadow-lg">
