@@ -54,7 +54,7 @@ export default function Game() {
       <motion.div 
         initial={{ x: -100, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
-        className="w-full md:w-80 bg-[#120521] border-r border-white/5 flex flex-col p-6 z-20 shadow-2xl"
+        className="w-full md:w-80 md:h-full bg-[#120521] border-r border-white/5 flex flex-col p-6 z-20 shadow-2xl overflow-y-auto md:overflow-y-auto max-h-[40vh] md:max-h-full flex-shrink-0 md:flex-shrink-1"
       >
         <div className="mb-8 text-center">
           <h2 className="text-2xl font-serif font-bold text-yellow-500 tracking-widest uppercase mb-1">
