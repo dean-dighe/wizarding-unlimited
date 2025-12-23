@@ -76,9 +76,9 @@ export default function Game() {
     });
   }, [cleanupAudio]);
 
-  // Extract final paragraph for narration (last paragraph before choices)
-  const extractFinalParagraph = useCallback((content: string): string => {
-    const stripped = content
+  // Extract full content for narration (all story text, no metadata tags)
+  const extractNarrationText = useCallback((content: string): string => {
+    return content
       .replace(/\[IMAGE: [^\]]+\]\n?/g, '')
       .replace(/\[TIME: [^\]]+\]\n?/g, '')
       .replace(/\[SCENE: [^\]]+\]\n?/g, '')
@@ -89,9 +89,6 @@ export default function Game() {
       .replace(/\[SPELL_LEARN: [^\]]+\]\n?/g, '')
       .replace(/\[LOCATION: [^\]]+\]\n?/g, '')
       .trim();
-    
-    const paragraphs = stripped.split(/\n\n+/).filter(p => p.trim());
-    return paragraphs[paragraphs.length - 1] || stripped.slice(-500);
   }, []);
 
   // Narrate new assistant messages
@@ -109,7 +106,7 @@ export default function Game() {
       lastReadMessageRef.current = currentCount;
       
       const latestMessage = assistantMessages[assistantMessages.length - 1];
-      const textToRead = extractFinalParagraph(latestMessage.content);
+      const textToRead = extractNarrationText(latestMessage.content);
       
       if (textToRead && textToRead.length > 20) {
         // Create abort controller for this request
@@ -181,7 +178,7 @@ export default function Game() {
           });
       }
     }
-  }, [messages, isMuted, isStreaming, extractFinalParagraph, cleanupAudio]);
+  }, [messages, isMuted, isStreaming, extractNarrationText, cleanupAudio]);
 
   useEffect(() => {
     if (scrollRef.current) {
