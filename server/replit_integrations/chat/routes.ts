@@ -208,6 +208,8 @@ export function registerChatRoutes(app: Express): void {
       const conversationId = parseInt(req.params.id);
       const { content } = req.body;
 
+      console.log(`[Chat] Received message for conversation ${conversationId}: "${content.slice(0, 50)}..."`);
+
       // Save user message
       await chatStorage.createMessage(conversationId, "user", content);
 
@@ -259,24 +261,30 @@ export function registerChatRoutes(app: Express): void {
 
       // Signal to client that we're starting AI generation
       res.write(`data: ${JSON.stringify({ generating: true })}\n\n`);
+      console.log(`[Chat] Starting AI generation for conversation ${conversationId}`);
 
       let fullResponse = "";
       
       try {
         // Get response from Ollama with timeout protection
+        console.log(`[Chat] Calling Ollama API...`);
         const stream = await openai.chat.completions.create({
           model: process.env.OLLAMA_MODEL || "qwen3-coder:30b",
           messages: chatMessages,
           stream: true,
         });
+        console.log(`[Chat] Got stream, reading chunks...`);
 
         // Accumulate all chunks
+        let chunkCount = 0;
         for await (const chunk of stream) {
           const chunkContent = chunk.choices[0]?.delta?.content || "";
           if (chunkContent) {
             fullResponse += chunkContent;
+            chunkCount++;
           }
         }
+        console.log(`[Chat] Received ${chunkCount} chunks, total length: ${fullResponse.length}`);
 
         // Validate we got a meaningful response
         if (!fullResponse || fullResponse.trim().length < 20) {
