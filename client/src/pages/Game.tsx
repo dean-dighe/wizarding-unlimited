@@ -225,6 +225,9 @@ export default function Game() {
   const currentChoices = lastAssistantMessage?.choices || [];
   const currentGameTime = lastAssistantMessage?.gameTime || state?.gameTime || "Unknown";
 
+  // Check if all messages have been processed - don't show choices if there are pending messages
+  const hasPendingMessages = messages.length > readyMessages.length;
+
   // Determine if we're in initial loading state (no ready messages yet)
   const isInitialLoading = stateLoading || (messages.length > 0 && readyMessages.length === 0);
 
@@ -454,20 +457,21 @@ export default function Game() {
           ))}
           
           {/* Streaming/Loading indicator */}
-          {(isStreaming || isGeneratingImage || isPreparingAudio) && (
+          {(isStreaming || isGeneratingImage || isPreparingAudio || hasPendingMessages) && (
             <div className="flex items-center gap-2 text-purple-300">
               <Sparkles className="w-4 h-4 animate-spin" />
               <span className="font-serif text-sm animate-pulse">
                 {isGeneratingImage ? "Painting the scene..." : 
                  isPreparingAudio ? "Preparing narration..." :
-                 "The story unfolds..."}
+                 isStreaming ? "The story unfolds..." :
+                 "Processing..."}
               </span>
             </div>
           )}
         </div>
 
-        {/* Choice Buttons - Fixed at bottom */}
-        {currentChoices.length > 0 && !isStreaming && !isPreparingAudio && (
+        {/* Choice Buttons - Fixed at bottom - Only show when all messages are processed */}
+        {currentChoices.length > 0 && !isStreaming && !isPreparingAudio && !hasPendingMessages && (
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
