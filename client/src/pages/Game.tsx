@@ -25,28 +25,54 @@ export default function Game() {
   const { messages, sendMessage, isStreaming, isGeneratingImage } = useChatStream(conversationId);
   const scrollRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const lastReadMessageRef = useRef<number>(0);
   const [isNarrating, setIsNarrating] = useState(false);
   
-  // Mute state with localStorage persistence
+  // Mute state with localStorage persistence - use ref to track current value across async calls
   const [isMuted, setIsMuted] = useState(() => {
     const stored = localStorage.getItem("hogwarts-muted");
     return stored === "true";
   });
+  const isMutedRef = useRef(isMuted);
+  
+  // Keep ref in sync with state
+  useEffect(() => {
+    isMutedRef.current = isMuted;
+  }, [isMuted]);
+
+  const cleanupAudio = useCallback(() => {
+    // Abort any in-flight request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    // Stop and cleanup audio
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    // Revoke object URL to prevent memory leaks
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = null;
+    }
+    setIsNarrating(false);
+  }, []);
 
   const toggleMute = useCallback(() => {
     setIsMuted(prev => {
       const newValue = !prev;
       localStorage.setItem("hogwarts-muted", String(newValue));
-      // Stop current audio if muting
-      if (newValue && audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-        setIsNarrating(false);
+      isMutedRef.current = newValue;
+      // Stop current audio and abort pending requests if muting
+      if (newValue) {
+        cleanupAudio();
       }
       return newValue;
     });
-  }, []);
+  }, [cleanupAudio]);
 
   // Extract final paragraph for narration (last paragraph before choices)
   const extractFinalParagraph = useCallback((content: string): string => {
@@ -76,38 +102,78 @@ export default function Game() {
       const textToRead = extractFinalParagraph(latestMessage.content);
       
       if (textToRead && textToRead.length > 20) {
+        // Create abort controller for this request
+        const abortController = new AbortController();
+        abortControllerRef.current = abortController;
+        
         setIsNarrating(true);
         
         fetch("/api/tts/speak", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text: textToRead }),
+          signal: abortController.signal,
         })
           .then(res => {
+            // Check if muted during request
+            if (isMutedRef.current) {
+              cleanupAudio();
+              return null;
+            }
             if (res.ok) return res.blob();
             throw new Error("TTS failed");
           })
           .then(blob => {
+            // Check if muted or aborted before playing
+            if (!blob || isMutedRef.current) {
+              setIsNarrating(false);
+              return;
+            }
+            
             const url = URL.createObjectURL(blob);
+            audioUrlRef.current = url;
+            
+            // Final mute check before creating audio
+            if (isMutedRef.current) {
+              URL.revokeObjectURL(url);
+              audioUrlRef.current = null;
+              setIsNarrating(false);
+              return;
+            }
+            
             const audio = new Audio(url);
             audioRef.current = audio;
             audio.onended = () => {
-              URL.revokeObjectURL(url);
+              if (audioUrlRef.current) {
+                URL.revokeObjectURL(audioUrlRef.current);
+                audioUrlRef.current = null;
+              }
               setIsNarrating(false);
               audioRef.current = null;
             };
             audio.onerror = () => {
+              if (audioUrlRef.current) {
+                URL.revokeObjectURL(audioUrlRef.current);
+                audioUrlRef.current = null;
+              }
               setIsNarrating(false);
               audioRef.current = null;
             };
-            audio.play().catch(() => setIsNarrating(false));
+            audio.play().catch(() => {
+              cleanupAudio();
+            });
           })
-          .catch(() => setIsNarrating(false));
+          .catch((err) => {
+            if (err.name !== 'AbortError') {
+              console.error('TTS error:', err);
+            }
+            setIsNarrating(false);
+          });
       }
       
       lastReadMessageRef.current = currentCount;
     }
-  }, [messages, isMuted, isStreaming, extractFinalParagraph]);
+  }, [messages, isMuted, isStreaming, extractFinalParagraph, cleanupAudio]);
 
   useEffect(() => {
     if (scrollRef.current) {
