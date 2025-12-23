@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { Wand2, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
+import wandLogo from "@assets/generated_images/magical_wand_app_logo.png";
 import { MagicalButton } from "@/components/ui/magical-button";
 import { useInitGame } from "@/hooks/use-game";
 import { useToast } from "@/hooks/use-toast";
@@ -63,8 +64,8 @@ export default function Landing() {
         
         <div className="relative bg-black/80 backdrop-blur-xl rounded-xl p-8 border border-white/10 shadow-2xl">
           <div className="text-center mb-8">
-            <div className="w-16 h-16 mx-auto bg-primary/20 rounded-full flex items-center justify-center mb-4 border border-primary/40">
-              <Wand2 className="w-8 h-8 text-yellow-400 animate-float" />
+            <div className="w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-4 overflow-hidden">
+              <img src={wandLogo} alt="Magical Wand" className="w-full h-full object-cover animate-float" />
             </div>
             <h1 className="text-4xl font-serif font-bold text-transparent bg-clip-text bg-gradient-to-b from-yellow-200 to-yellow-600 mb-2">
               Wizarding Sagas
