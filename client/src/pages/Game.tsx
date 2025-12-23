@@ -34,6 +34,7 @@ let globalNarratorActive = false;
 let globalProcessedContent = new Map<number, Set<string>>();
 let globalCurrentlyProcessing: string | null = null;
 let globalActiveConversationId: number | null = null;
+let globalTTSLock = false; // Atomic lock for TTS requests
 
 // Helper to get processed set for a conversation
 function getProcessedSet(conversationId: number): Set<string> {
@@ -49,7 +50,19 @@ function resetForNewConversation(conversationId: number) {
     globalNarratorActive = false;
     globalCurrentlyProcessing = null;
     globalActiveConversationId = conversationId;
+    globalTTSLock = false;
   }
+}
+
+// Atomic lock acquisition - returns true if lock acquired, false if already locked
+function acquireTTSLock(): boolean {
+  if (globalTTSLock) return false;
+  globalTTSLock = true;
+  return true;
+}
+
+function releaseTTSLock() {
+  globalTTSLock = false;
 }
 
 export default function Game() {
@@ -137,19 +150,39 @@ export default function Game() {
     return () => {
       globalNarratorActive = false;
       globalCurrentlyProcessing = null;
+      releaseTTSLock();
     };
   }, []);
 
   // Process messages: prepare TTS and only show when ready
   useEffect(() => {
+    // ATOMIC LOCK CHECK - must be FIRST before any other logic
+    // This prevents React StrictMode double-mount from triggering duplicate TTS
+    if (!acquireTTSLock()) return;
+    
     // Don't process while streaming or without conversationId
-    if (isStreaming) return;
-    if (messages.length === 0) return;
-    if (!conversationId) return;
+    if (isStreaming) {
+      releaseTTSLock();
+      return;
+    }
+    if (messages.length === 0) {
+      releaseTTSLock();
+      return;
+    }
+    if (!conversationId) {
+      releaseTTSLock();
+      return;
+    }
     // Already processing something - wait (using module-level global)
-    if (globalCurrentlyProcessing !== null) return;
+    if (globalCurrentlyProcessing !== null) {
+      releaseTTSLock();
+      return;
+    }
     // Don't start new TTS if narrator is already active (speaking or preparing)
-    if (globalNarratorActive) return;
+    if (globalNarratorActive) {
+      releaseTTSLock();
+      return;
+    }
     
     // Get the processed set for this conversation
     const processedSet = getProcessedSet(conversationId);
@@ -166,18 +199,21 @@ export default function Game() {
       }
     }
     
-    if (!nextMessage) return;
+    if (!nextMessage) {
+      releaseTTSLock();
+      return;
+    }
     
     const messageKey = getMessageKey(nextMessage);
     
-    // ATOMIC: Mark as processing AND add to processed set immediately
-    // Using module-level globals that persist across hot reloads
+    // Mark as processing AND add to processed set immediately
     globalCurrentlyProcessing = messageKey;
     processedSet.add(messageKey);
     
     // User messages are ready immediately
     if (nextMessage.role === "user") {
       globalCurrentlyProcessing = null;
+      releaseTTSLock();
       setReadyMessages(prev => [...prev, { ...nextMessage! }]);
       return;
     }
@@ -188,6 +224,7 @@ export default function Game() {
     // If muted or no text, show immediately without audio
     if (isMutedRef.current || !textToRead || textToRead.length <= 20) {
       globalCurrentlyProcessing = null;
+      releaseTTSLock();
       setReadyMessages(prev => [...prev, { ...nextMessage! }]);
       return;
     }
@@ -219,6 +256,7 @@ export default function Game() {
         globalCurrentlyProcessing = null;
         ttsAbortRef.current = null;
         setIsPreparingAudio(false);
+        releaseTTSLock(); // Release lock after fetch completes
         
         // Add message to ready queue
         setReadyMessages(prev => [...prev, messageToAdd]);
@@ -264,6 +302,7 @@ export default function Game() {
           ttsAbortRef.current = null;
           setIsPreparingAudio(false);
           globalNarratorActive = false;
+          releaseTTSLock();
           // Still show the message even if TTS was aborted
           setReadyMessages(prev => [...prev, messageToAdd]);
           return;
@@ -274,6 +313,7 @@ export default function Game() {
         ttsAbortRef.current = null;
         setIsPreparingAudio(false);
         globalNarratorActive = false;
+        releaseTTSLock();
         setReadyMessages(prev => [...prev, messageToAdd]);
       });
       
@@ -291,6 +331,8 @@ export default function Game() {
     cleanupAudio();
     // Mark narrator as inactive (module-level global)
     globalNarratorActive = false;
+    // Release TTS lock in case we're in the middle of processing
+    releaseTTSLock();
     // Abort any pending TTS request
     if (ttsAbortRef.current) {
       ttsAbortRef.current.abort();
