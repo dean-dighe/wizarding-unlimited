@@ -14,6 +14,9 @@ import {
   VolumeX,
   BookOpen,
   Wand2,
+  ChevronDown,
+  ChevronUp,
+  Star,
 } from "lucide-react";
 import { ParchmentCard } from "@/components/ui/parchment-card";
 import { cn } from "@/lib/utils";
@@ -94,6 +97,9 @@ export default function Game() {
     return stored === "true";
   });
   const isMutedRef = useRef(isMuted);
+  
+  // Mobile drawer state
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   
   // Keep ref in sync with state
   useEffect(() => {
@@ -626,8 +632,170 @@ export default function Game() {
             >
               {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
             </Button>
+            {/* Mobile Stats Drawer Toggle */}
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setMobileDrawerOpen(!mobileDrawerOpen)}
+              className="lg:hidden h-7 w-7 flex-shrink-0 text-yellow-400"
+              data-testid="button-stats-drawer"
+              title="View character stats"
+            >
+              {mobileDrawerOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </Button>
           </div>
         </div>
+
+        {/* Mobile Stats Drawer - Magical Pull-down Panel */}
+        <AnimatePresence>
+          {mobileDrawerOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
+              className="lg:hidden overflow-hidden bg-gradient-to-b from-[#1a0b2e] to-[#120521] border-b border-purple-500/20"
+            >
+              <div className="p-4 space-y-4">
+                {/* Character Header */}
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
+                      <Star className="w-5 h-5 text-yellow-300" />
+                    </div>
+                    <div>
+                      <h3 className="font-serif text-yellow-100 font-medium" data-testid="mobile-player-name">
+                        {state?.playerName || "Wizard"}
+                      </h3>
+                      {state?.house && (
+                        <span className={cn(
+                          "text-xs font-medium uppercase tracking-wider",
+                          state.house === "Gryffindor" && "text-red-400",
+                          state.house === "Slytherin" && "text-green-400",
+                          state.house === "Ravenclaw" && "text-blue-400",
+                          state.house === "Hufflepuff" && "text-yellow-400",
+                        )} data-testid="mobile-house">
+                          {state.house}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-yellow-300/80">
+                    <Clock className="w-3 h-3" />
+                    <span className="text-xs font-serif">{currentGameTime}</span>
+                  </div>
+                </div>
+
+                {/* Stats Grid */}
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Health */}
+                  <div className="bg-white/5 border border-white/5 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-red-400 mb-1">
+                      <Heart className="w-4 h-4 fill-current" />
+                      <span className="text-xs uppercase tracking-wider">Health</span>
+                    </div>
+                    <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-500"
+                        style={{ width: `${state?.health ?? 100}%` }}
+                      />
+                    </div>
+                    <span className="text-xs text-red-300 mt-1">{state?.health ?? 100}%</span>
+                  </div>
+
+                  {/* Location */}
+                  <div className="bg-white/5 border border-white/5 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-emerald-400 mb-1">
+                      <MapPin className="w-4 h-4" />
+                      <span className="text-xs uppercase tracking-wider">Location</span>
+                    </div>
+                    <p className="text-sm text-emerald-200 truncate" title={state?.location || "Unknown"}>
+                      {state?.location || "Unknown"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Inventory & Spells */}
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Inventory */}
+                  <div className="bg-white/5 border border-white/5 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-purple-400 mb-2">
+                      <Backpack className="w-4 h-4" />
+                      <span className="text-xs uppercase tracking-wider">Inventory</span>
+                    </div>
+                    <div className="space-y-1 max-h-24 overflow-y-auto">
+                      {state?.inventory?.length ? state.inventory.map((item, i) => (
+                        <div 
+                          key={i}
+                          className="bg-purple-500/10 border border-purple-500/20 rounded px-2 py-1 text-xs text-purple-200 truncate"
+                          title={item}
+                        >
+                          {item}
+                        </div>
+                      )) : <span className="text-xs text-white/30 italic">Empty...</span>}
+                    </div>
+                  </div>
+
+                  {/* Known Spells */}
+                  <div className="bg-white/5 border border-white/5 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-blue-400 mb-2">
+                      <Wand2 className="w-4 h-4" />
+                      <span className="text-xs uppercase tracking-wider">Spells</span>
+                    </div>
+                    <div className="space-y-1 max-h-24 overflow-y-auto">
+                      {state?.spells?.length ? state.spells.map((spell, i) => (
+                        <div 
+                          key={i}
+                          className="bg-blue-500/10 border border-blue-500/20 rounded px-2 py-1 text-xs text-blue-200 truncate"
+                          title={spell}
+                        >
+                          {spell}
+                        </div>
+                      )) : <span className="text-xs text-white/30 italic">None yet...</span>}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Story Progress */}
+                {storyProgress && (
+                  <div className="bg-white/5 border border-white/5 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-yellow-400 mb-2">
+                      <BookOpen className="w-4 h-4" />
+                      <span className="text-xs uppercase tracking-wider">Story Progress</span>
+                    </div>
+                    <p className="text-sm text-purple-200 font-serif mb-2">{storyProgress.chapter}</p>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-yellow-500 to-yellow-400 transition-all duration-500"
+                          style={{ width: `${(storyProgress.chapterIndex / storyProgress.totalChapters) * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-white/50">
+                        {storyProgress.chapterIndex}/{storyProgress.totalChapters}
+                      </span>
+                    </div>
+                    <p className="text-xs text-white/40 mt-1">
+                      {storyProgress.decisionCount} decisions made
+                    </p>
+                  </div>
+                )}
+
+                {/* Close hint */}
+                <div className="text-center">
+                  <button 
+                    onClick={() => setMobileDrawerOpen(false)}
+                    className="text-xs text-white/30 flex items-center gap-1 mx-auto"
+                    data-testid="button-close-stats-drawer"
+                  >
+                    <ChevronUp className="w-3 h-3" />
+                    <span>Tap to close</span>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Story Content - Scrollable area */}
         <div 
