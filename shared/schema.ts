@@ -14,6 +14,7 @@ export const game_states = pgTable("game_states", {
   inventory: jsonb("inventory").default([]),
   location: text("location").default("Great Hall"),
   gameTime: text("game_time").default("September 1st, 1991 - 10:30 AM"), // In-game date and time
+  characterDescription: text("character_description"), // Verbose visual description for consistent image generation
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 

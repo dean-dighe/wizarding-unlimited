@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import OpenAI from "openai";
 import { chatStorage } from "./storage";
+import { storage } from "../../storage";
 
 const openai = new OpenAI({
   apiKey: process.env.OLLAMA_API_KEY || "ollama",
@@ -9,7 +10,7 @@ const openai = new OpenAI({
 
 const XAI_API_URL = "https://api.x.ai/v1/images/generations";
 
-async function generateSceneImage(storyContent: string): Promise<string | null> {
+async function generateSceneImage(storyContent: string, characterDescription?: string): Promise<string | null> {
   try {
     const apiKey = process.env.XAI_API_KEY;
     if (!apiKey) {
@@ -33,8 +34,13 @@ async function generateSceneImage(storyContent: string): Promise<string | null> 
       sceneDescription = cleanContent.slice(0, 200);
     }
 
+    // Include character description for consistency if available
+    const characterContext = characterDescription 
+      ? `\nPROTAGONIST: ${characterDescription}` 
+      : '';
+
     // Create a focused image prompt for Harry Potter style illustration
-    const imagePrompt = `Wizarding world illustration in the style of classic fantasy book covers and concept art, 1990s British magical setting: ${sceneDescription}
+    const imagePrompt = `Wizarding world illustration in the style of classic fantasy book covers and concept art, 1990s British magical setting: ${sceneDescription}${characterContext}
 STYLE: Painterly digital illustration blending pre-Raphaelite romanticism with contemporary fantasy art. Rich oil-painting textures, visible brushwork in backgrounds, smooth rendering on focal subjects. Inspired by the golden age of book illustration (Arthur Rackham, Alan Lee, John Howe).
 LIGHTING: Warm candlelight and cool moonlight interplay, god rays through gothic windows, magical luminescence with soft bloom effects, dramatic chiaroscuro with deep shadows preserving detail.
 COLOR PALETTE: Autumnal golds, deep burgundies, forest greens, midnight blues, and warm amber highlights. Desaturated backgrounds pushing saturated focal points. Aged parchment undertones throughout.
@@ -132,6 +138,10 @@ export function registerChatRoutes(app: Express): void {
       // Save user message
       await chatStorage.createMessage(conversationId, "user", content);
 
+      // Get game state for character description
+      const gameState = await storage.getGameState(conversationId);
+      const characterDescription = gameState?.characterDescription || undefined;
+
       // Get conversation history for context
       const messages = await chatStorage.getMessagesByConversation(conversationId);
       const chatMessages = messages.map((m) => ({
@@ -164,8 +174,8 @@ export function registerChatRoutes(app: Express): void {
       // Text complete - send full content in one event, then signal image generation starting
       res.write(`data: ${JSON.stringify({ fullContent: fullResponse, textDone: true, imagePending: true })}\n\n`);
 
-      // Generate scene image based on story content
-      const imageUrl = await generateSceneImage(fullResponse);
+      // Generate scene image based on story content with character description for consistency
+      const imageUrl = await generateSceneImage(fullResponse, characterDescription);
       
       // Embed image URL in the message content for persistence
       let finalContent = fullResponse;

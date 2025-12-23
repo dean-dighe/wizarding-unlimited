@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useRoute } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
@@ -8,11 +8,14 @@ import {
   Backpack, 
   Sparkles,
   Clock,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { useGameState } from "@/hooks/use-game";
 import { useChatStream } from "@/hooks/use-chat-stream";
 import { ParchmentCard } from "@/components/ui/parchment-card";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 export default function Game() {
   const [, params] = useRoute("/game/:id");
@@ -21,6 +24,90 @@ export default function Game() {
   const { data: state, isLoading: stateLoading } = useGameState(conversationId);
   const { messages, sendMessage, isStreaming, isGeneratingImage } = useChatStream(conversationId);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const lastReadMessageRef = useRef<number>(0);
+  const [isNarrating, setIsNarrating] = useState(false);
+  
+  // Mute state with localStorage persistence
+  const [isMuted, setIsMuted] = useState(() => {
+    const stored = localStorage.getItem("hogwarts-muted");
+    return stored === "true";
+  });
+
+  const toggleMute = useCallback(() => {
+    setIsMuted(prev => {
+      const newValue = !prev;
+      localStorage.setItem("hogwarts-muted", String(newValue));
+      // Stop current audio if muting
+      if (newValue && audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+        setIsNarrating(false);
+      }
+      return newValue;
+    });
+  }, []);
+
+  // Extract final paragraph for narration (last paragraph before choices)
+  const extractFinalParagraph = useCallback((content: string): string => {
+    const stripped = content
+      .replace(/\[IMAGE: [^\]]+\]\n?/g, '')
+      .replace(/\[TIME: [^\]]+\]\n?/g, '')
+      .replace(/\[SCENE: [^\]]+\]\n?/g, '')
+      .replace(/\[Choice \d+: [^\]]+\]\n?/g, '')
+      .trim();
+    
+    const paragraphs = stripped.split(/\n\n+/).filter(p => p.trim());
+    return paragraphs[paragraphs.length - 1] || stripped.slice(-500);
+  }, []);
+
+  // Narrate new assistant messages
+  useEffect(() => {
+    if (isMuted || isStreaming || messages.length === 0) return;
+    
+    const assistantMessages = messages.filter(m => m.role === "assistant");
+    if (assistantMessages.length === 0) return;
+    
+    const currentCount = assistantMessages.length;
+    
+    // Only narrate if we have a new message
+    if (currentCount > lastReadMessageRef.current) {
+      const latestMessage = assistantMessages[assistantMessages.length - 1];
+      const textToRead = extractFinalParagraph(latestMessage.content);
+      
+      if (textToRead && textToRead.length > 20) {
+        setIsNarrating(true);
+        
+        fetch("/api/tts/speak", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: textToRead }),
+        })
+          .then(res => {
+            if (res.ok) return res.blob();
+            throw new Error("TTS failed");
+          })
+          .then(blob => {
+            const url = URL.createObjectURL(blob);
+            const audio = new Audio(url);
+            audioRef.current = audio;
+            audio.onended = () => {
+              URL.revokeObjectURL(url);
+              setIsNarrating(false);
+              audioRef.current = null;
+            };
+            audio.onerror = () => {
+              setIsNarrating(false);
+              audioRef.current = null;
+            };
+            audio.play().catch(() => setIsNarrating(false));
+          })
+          .catch(() => setIsNarrating(false));
+      }
+      
+      lastReadMessageRef.current = currentCount;
+    }
+  }, [messages, isMuted, isStreaming, extractFinalParagraph]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -135,6 +222,21 @@ export default function Game() {
               <Heart className="w-3 h-3 fill-current" />
               <span>{state?.health ?? 100}</span>
             </div>
+            {/* Mute Toggle */}
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={toggleMute}
+              className={cn(
+                "h-7 w-7 transition-colors",
+                isMuted ? "text-white/40" : "text-purple-400",
+                isNarrating && !isMuted && "text-yellow-400 animate-pulse"
+              )}
+              data-testid="button-mute-toggle"
+              title={isMuted ? "Unmute narration" : "Mute narration"}
+            >
+              {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+            </Button>
           </div>
         </div>
 

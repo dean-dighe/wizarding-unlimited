@@ -3,9 +3,52 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { registerChatRoutes } from "./replit_integrations/chat/routes";
 import { registerImageRoutes } from "./replit_integrations/image/routes";
+import { registerTTSRoutes } from "./replit_integrations/tts/routes";
 import { chatStorage } from "./replit_integrations/chat/storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  apiKey: process.env.OLLAMA_API_KEY || "ollama",
+  baseURL: process.env.OLLAMA_BASE_URL || "https://gpt.netsuite.tech/v1",
+});
+
+async function generateCharacterDescription(playerName: string, house: string | null): Promise<string> {
+  try {
+    const houseColors: Record<string, string> = {
+      "Gryffindor": "crimson and gold",
+      "Slytherin": "emerald and silver", 
+      "Ravenclaw": "blue and bronze",
+      "Hufflepuff": "yellow and black"
+    };
+    
+    const prompt = `Generate a detailed visual description of a young first-year Hogwarts student named ${playerName}${house ? ` sorted into ${house}` : ''} for consistent illustration purposes. 
+
+Include SPECIFIC details about:
+- Hair: color, length, texture, style
+- Eyes: color, shape, expression
+- Skin: tone, any distinctive features like freckles
+- Face: shape, notable features
+- Build: height, body type for an 11-year-old
+- Clothing: ${house ? `Hogwarts robes with ${houseColors[house]} trim` : 'new black Hogwarts robes'}
+- Posture and demeanor
+- Any distinctive accessories or items
+
+Write it as a single paragraph, approximately 80-100 words, in third person, suitable for an illustrator to recreate consistently across multiple scenes. Start directly with the description, no preamble.`;
+
+    const response = await openai.chat.completions.create({
+      model: process.env.OLLAMA_MODEL || "qwen3-coder:30b",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 300,
+    });
+
+    return response.choices[0]?.message?.content?.trim() || `A young first-year student named ${playerName} with neat dark hair, bright curious eyes, and an eager expression, wearing new black Hogwarts robes${house ? ` with ${houseColors[house]} ${house} trim` : ''}.`;
+  } catch (error) {
+    console.error("Error generating character description:", error);
+    return `A young first-year student named ${playerName} with neat dark hair, bright curious eyes, and an eager expression, wearing new black Hogwarts robes.`;
+  }
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -14,6 +57,7 @@ export async function registerRoutes(
   // Register integration routes
   registerChatRoutes(app);
   registerImageRoutes(app);
+  registerTTSRoutes(app);
 
   // Game Init Route
   app.post(api.game.init.path, async (req, res) => {
@@ -23,7 +67,10 @@ export async function registerRoutes(
       // 1. Create a new conversation
       const conversation = await chatStorage.createConversation(`Adventure for ${playerName}`);
 
-      // 2. Initialize Game State
+      // 2. Generate verbose character description for consistent image generation
+      const characterDescription = await generateCharacterDescription(playerName, house || null);
+
+      // 3. Initialize Game State with character description
       await storage.createGameState({
         conversationId: conversation.id,
         house: house || null,
@@ -31,6 +78,7 @@ export async function registerRoutes(
         inventory: ["Wand", "Hogwarts Robes"],
         location: "Platform 9¾",
         gameTime: "September 1st, 1991 - 10:30 AM",
+        characterDescription,
       });
 
       // 3. Seed the AI context (System Prompt)
