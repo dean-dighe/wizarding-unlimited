@@ -5,6 +5,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   choices?: string[];
+  gameTime?: string;
 }
 
 export function useChatStream(conversationId: number | null) {
@@ -26,10 +27,13 @@ export function useChatStream(conversationId: number | null) {
             .map((m: any) => {
               const choiceMatch = m.content.match(/\[Choice \d+: [^\]]+\]/g);
               const choices = choiceMatch ? choiceMatch.map((c: string) => c.replace(/^\[Choice \d+: /, '').replace(/\]$/, '')) : [];
+              const timeMatch = m.content.match(/\[TIME: ([^\]]+)\]/);
+              const gameTime = timeMatch ? timeMatch[1] : undefined;
               return { 
                 role: m.role, 
                 content: m.content,
-                choices: choices.length > 0 ? choices : undefined
+                choices: choices.length > 0 ? choices : undefined,
+                gameTime
               };
             });
           setMessages(formatted);
@@ -82,14 +86,17 @@ export function useChatStream(conversationId: number | null) {
               assistantMessage += data.content;
               setMessages(prev => {
                 const updated = [...prev];
-                // Extract choices from the message
+                // Extract choices and time from the message
                 const choiceMatch = assistantMessage.match(/\[Choice \d+: [^\]]+\]/g);
                 const choices = choiceMatch ? choiceMatch.map(c => c.replace(/^\[Choice \d+: /, '').replace(/\]$/, '')) : [];
+                const timeMatch = assistantMessage.match(/\[TIME: ([^\]]+)\]/);
+                const gameTime = timeMatch ? timeMatch[1] : undefined;
                 
                 updated[updated.length - 1] = { 
                   role: "assistant", 
                   content: assistantMessage,
-                  choices: choices.length > 0 ? choices : undefined
+                  choices: choices.length > 0 ? choices : undefined,
+                  gameTime
                 };
                 return updated;
               });

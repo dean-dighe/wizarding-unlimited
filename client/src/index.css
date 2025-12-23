@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;800&family=DM+Sans:wght@400;500;700&family=Architects+Daughter&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;800&family=DM+Sans:wght@400;500;700&family=Architects+Daughter&family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400;1,600&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -33,6 +33,7 @@
   --font-serif: 'Cinzel', serif;
   --font-sans: 'DM Sans', sans-serif;
   --font-handwriting: 'Architects Daughter', cursive;
+  --font-book: 'EB Garamond', 'Crimson Text', Georgia, serif;
 }
 
 .dark {

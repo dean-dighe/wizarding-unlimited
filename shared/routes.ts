@@ -25,6 +25,7 @@ export const api = {
           health: z.number(),
           inventory: z.array(z.string()),
           location: z.string(),
+          gameTime: z.string(),
         }),
         404: z.object({ message: z.string() }),
       },

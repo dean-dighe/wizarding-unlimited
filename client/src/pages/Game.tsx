@@ -7,6 +7,7 @@ import {
   MapPin, 
   Backpack, 
   Sparkles,
+  Clock,
 } from "lucide-react";
 import { useGameState } from "@/hooks/use-game";
 import { useChatStream } from "@/hooks/use-chat-stream";
@@ -31,9 +32,18 @@ export default function Game() {
     sendMessage(choice);
   };
 
-  // Get the last assistant message with choices
+  // Get the last assistant message with choices and time
   const lastAssistantMessage = messages.filter(m => m.role === "assistant").pop();
   const currentChoices = lastAssistantMessage?.choices || [];
+  const currentGameTime = lastAssistantMessage?.gameTime || state?.gameTime || "Unknown";
+
+  // Helper to strip metadata from content for display
+  const stripMetadata = (content: string) => {
+    return content
+      .replace(/\[TIME: [^\]]+\]\n?/g, '')
+      .replace(/\[Choice \d+: [^\]]+\]\n?/g, '')
+      .trim();
+  };
 
   if (stateLoading) {
     return (
@@ -48,15 +58,21 @@ export default function Game() {
     <div className="h-screen flex flex-col md:flex-row bg-[#1a0b2e] text-[#fdfbf7] overflow-hidden">
       
       {/* Mobile Stats Bar */}
-      <div className="md:hidden h-20 bg-[#120521] border-b border-white/5 p-4 flex items-center gap-4 overflow-x-auto flex-shrink-0">
-        <div className="flex items-center gap-2 whitespace-nowrap">
-          <Heart className="w-4 h-4 text-red-400" />
-          <span className="text-xs font-serif uppercase">HP: {state?.health ?? 100}%</span>
+      <div className="md:hidden bg-[#120521] border-b border-white/5 p-3 flex flex-col gap-2 flex-shrink-0">
+        <div className="flex items-center justify-center gap-2 text-yellow-400">
+          <Clock className="w-3 h-3" />
+          <span className="text-xs font-serif">{currentGameTime}</span>
         </div>
-        <div className="w-px h-4 bg-white/10" />
-        <div className="flex items-center gap-2 whitespace-nowrap">
-          <MapPin className="w-4 h-4 text-emerald-400" />
-          <span className="text-xs font-serif uppercase truncate">{state?.location || "Unknown"}</span>
+        <div className="flex items-center justify-center gap-4">
+          <div className="flex items-center gap-2 whitespace-nowrap">
+            <Heart className="w-3 h-3 text-red-400" />
+            <span className="text-xs font-serif uppercase">HP: {state?.health ?? 100}%</span>
+          </div>
+          <div className="w-px h-3 bg-white/10" />
+          <div className="flex items-center gap-2 whitespace-nowrap">
+            <MapPin className="w-3 h-3 text-emerald-400" />
+            <span className="text-xs font-serif uppercase truncate">{state?.location || "Unknown"}</span>
+          </div>
         </div>
       </div>
 
@@ -66,11 +82,15 @@ export default function Game() {
         animate={{ x: 0, opacity: 1 }}
         className="hidden md:flex w-80 h-full bg-[#120521] border-r border-white/5 flex-col p-6 z-20 shadow-2xl overflow-y-auto flex-shrink-0"
       >
-        <div className="mb-8 text-center">
+        <div className="mb-6 text-center">
           <h2 className="text-2xl font-serif font-bold text-yellow-500 tracking-widest uppercase mb-1">
             {state?.house || "Unsorted"}
           </h2>
-          <div className="h-0.5 w-16 bg-gradient-to-r from-transparent via-yellow-500 to-transparent mx-auto" />
+          <div className="h-0.5 w-16 bg-gradient-to-r from-transparent via-yellow-500 to-transparent mx-auto mb-4" />
+          <div className="flex items-center justify-center gap-2 text-yellow-300/80">
+            <Clock className="w-4 h-4" />
+            <span className="text-sm font-serif">{currentGameTime}</span>
+          </div>
         </div>
 
         <div className="space-y-6 flex-1">
@@ -134,9 +154,12 @@ export default function Game() {
               >
                 {msg.role === "assistant" ? (
                   <div className="max-w-3xl w-full">
-                    <ParchmentCard className="prose prose-p:font-serif prose-p:leading-relaxed prose-headings:font-serif prose-strong:text-amber-900 text-amber-950 shadow-xl">
-                      <div className="whitespace-pre-wrap">
-                        {msg.content.replace(/\[Choice \d+: [^\]]+\]\n?/g, '').trim()}
+                    <ParchmentCard className="shadow-xl">
+                      <div 
+                        className="whitespace-pre-wrap text-amber-950 leading-relaxed text-lg"
+                        style={{ fontFamily: "var(--font-book)" }}
+                      >
+                        {stripMetadata(msg.content)}
                       </div>
                     </ParchmentCard>
                   </div>

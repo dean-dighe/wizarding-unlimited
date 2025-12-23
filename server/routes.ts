@@ -29,27 +29,38 @@ export async function registerRoutes(
         house: house || null,
         health: 100,
         inventory: ["Wand", "Hogwarts Robes"],
-        location: "Hogwarts Express",
+        location: "Platform 9¾",
+        gameTime: "September 1st, 1991 - 10:30 AM",
       });
 
       // 3. Seed the AI context (System Prompt)
       const systemPrompt = `
-You are the Dungeon Master for a Harry Potter text adventure game. 
-The player is named "${playerName}". 
-${house ? `They belong to House ${house}.` : "They have not been sorted yet."}
-Current location: Hogwarts Express.
+You are a master storyteller narrating a Harry Potter text adventure.
+The protagonist is ${playerName}${house ? `, a proud member of House ${house}` : ''}.
 
-Your goal is to lead the player on a magical adventure. 
-Keep responses immersive, descriptive, but concise (under 3 paragraphs).
-Use typical RPG elements.
+SETTING: It is September 1st, 1991. ${playerName} has just arrived at Platform 9¾ and is boarding the Hogwarts Express for their first year at Hogwarts School of Witchcraft and Wizardry.
 
-IMPORTANT: Always end your response with exactly 4 numbered choices in this format:
-[Choice 1: Description of first action]
-[Choice 2: Description of second action]
-[Choice 3: Description of third action]
-[Choice 4: Description of fourth action]
+WRITING STYLE:
+- Write in second person ("You step onto the train...") like a classic Choose Your Own Adventure novel
+- Use rich, atmospheric prose with sensory details - describe sights, sounds, smells, and feelings
+- Channel the whimsical yet dangerous tone of J.K. Rowling's world
+- Keep responses between 2-3 paragraphs, evocative but not overlong
+- Include dialogue when characters speak, properly formatted with quotation marks
 
-Make choices thematic, engaging, and relevant to the current situation.
+CRITICAL REQUIREMENTS:
+1. ALWAYS start your response with the current in-game time in this exact format:
+   [TIME: Month Day, Year - Hour:Minutes AM/PM]
+   Example: [TIME: September 1st, 1991 - 11:45 AM]
+   
+2. Time should progress logically based on the player's actions (minutes or hours passing)
+
+3. ALWAYS end with exactly 4 choices in this format:
+   [Choice 1: Description]
+   [Choice 2: Description]
+   [Choice 3: Description]
+   [Choice 4: Description]
+
+Make choices meaningful - some safe, some risky, some social, some exploratory.
       `;
 
       await chatStorage.createMessage(conversation.id, "system", systemPrompt);
@@ -60,12 +71,16 @@ Make choices thematic, engaging, and relevant to the current situation.
       // Ideally we'd call OpenAI here, but for speed, let's just insert a hardcoded intro or let the client trigger the first generation.
       // Let's Insert a hardcoded intro to be safe and fast.
       
-      const introText = `Welcome, ${playerName}, to the Wizarding World! The Hogwarts Express whistle blows, steam filling the platform. You find a compartment.
+      const introText = `[TIME: September 1st, 1991 - 10:30 AM]
 
-[Choice 1: Explore the corridor to meet other students]
-[Choice 2: Settle into the compartment and wait for it to depart]
-[Choice 3: Visit the food cart in the next car over]
-[Choice 4: Gaze out the window at Diagon Alley]`;
+The scarlet steam engine gleams before you, wisps of white smoke curling into the grey London sky. Platform 9¾ buzzes with the chaos of departure—owls hooting from their cages, parents calling last-minute advice, and trunks scraping along the ancient stone. You clutch your ticket tightly, heart hammering with a mixture of terror and wonder.
+
+You've done it. You've actually made it. The Hogwarts Express awaits, and with it, a world you've only dreamed about. Families embrace tearfully around you, but your eyes are fixed on the train's gleaming brass fixtures and the promise they hold. A porter gestures you forward—it's time to find a compartment.
+
+[Choice 1: Search for an empty compartment where you can collect your thoughts]
+[Choice 2: Follow a group of laughing students who seem to know where they're going]
+[Choice 3: Help a small, round-faced boy who's struggling with a heavy trunk]
+[Choice 4: Investigate the mysterious hooded figure lingering near the last carriage]`;
       await chatStorage.createMessage(conversation.id, "assistant", introText);
 
       res.status(201).json({
@@ -97,6 +112,7 @@ Make choices thematic, engaging, and relevant to the current situation.
       health: state.health ?? 100,
       inventory: (state.inventory as string[]) ?? [],
       location: state.location ?? "Unknown",
+      gameTime: state.gameTime ?? "Unknown",
     });
   });
 

@@ -13,6 +13,7 @@ export const game_states = pgTable("game_states", {
   health: integer("health").default(100),
   inventory: jsonb("inventory").default([]),
   location: text("location").default("Great Hall"),
+  gameTime: text("game_time").default("September 1st, 1991 - 10:30 AM"), // In-game date and time
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
