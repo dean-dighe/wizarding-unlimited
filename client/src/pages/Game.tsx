@@ -154,7 +154,7 @@ export default function Game() {
         </div>
 
         {/* Input Area */}
-        <div className="p-4 md:p-6 bg-gradient-to-t from-[#0d0415] to-[#1a0b2e]">
+        <div className="flex-shrink-0 p-4 md:p-6 bg-gradient-to-t from-[#0d0415] to-[#1a0b2e] border-t border-white/5">
           <form 
             onSubmit={handleSubmit}
             className="max-w-4xl mx-auto relative flex items-end gap-2 bg-[#25123d] border border-purple-500/20 rounded-xl p-2 shadow-2xl shadow-purple-950/50 focus-within:ring-2 focus-within:ring-yellow-500/30 transition-all"
