@@ -185,6 +185,22 @@ CRITICAL REQUIREMENTS:
    [SPELL_LEARN: Lumos]
    [LOCATION: Hogwarts Express - Compartment 7]
 
+6. When introducing a NEW CHARACTER for the first time (not canon characters like Harry, Ron, Hermione, professors, etc.), include a character description tag:
+   [CHARACTER: Name | Detailed physical description for consistent illustration]
+   
+   The description should be 30-50 words and include:
+   - Hair: color, length, style
+   - Eyes: color, distinguishing features
+   - Face: shape, notable features (freckles, dimples, etc.)
+   - Build: height, body type appropriate for age
+   - Clothing: what they're wearing
+   - Any distinctive features or accessories
+   
+   Example:
+   [CHARACTER: Marcus Flint | A stocky fifth-year with slicked-back dark hair, heavy brow, and crooked teeth. Pale skin, narrow grey eyes, and a permanent sneer. Wears Slytherin robes with prefect badge, silver and emerald scarf.]
+   
+   Only include this tag the FIRST time a non-canon character appears. Do not repeat for characters already introduced.
+
 Make choices meaningful - some safe, some risky, some social, some exploratory. At least one choice should relate to the current chapter objective.
 
 PLAYER STATE TRACKING:

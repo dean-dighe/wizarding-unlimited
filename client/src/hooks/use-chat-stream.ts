@@ -67,6 +67,12 @@ export function useChatStream(conversationId: number | null) {
 
   const sendMessage = async (content: string) => {
     if (!conversationId || !content.trim()) return;
+    
+    // Prevent duplicate requests while streaming
+    if (isStreaming) {
+      console.log("[Chat] Ignoring message - already streaming");
+      return;
+    }
 
     // Clear any previous error
     setStreamError(null);
@@ -76,6 +82,7 @@ export function useChatStream(conversationId: number | null) {
     const newMessages = [...messages, { role: "user" as const, content }];
     setMessages(newMessages);
     setIsStreaming(true);
+    console.log(`[Chat] Sending message: "${content.slice(0, 50)}..."`);
 
     try {
       abortControllerRef.current = new AbortController();
@@ -89,11 +96,13 @@ export function useChatStream(conversationId: number | null) {
       });
 
       if (!res.ok) {
+        console.error(`[Chat] Request failed with status ${res.status}`);
         // Remove the optimistically added user message
         setMessages(messages);
         throw new Error("Failed to send message");
       }
       if (!res.body) throw new Error("No response body");
+      console.log("[Chat] Got response, reading stream...");
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -193,6 +202,7 @@ export function useChatStream(conversationId: number | null) {
 
               // When completely done
               if (data.done) {
+                console.log("[Chat] Stream complete");
                 setIsGeneratingImage(false);
               }
             } catch (e) {

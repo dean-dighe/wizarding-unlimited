@@ -80,7 +80,55 @@ function parseStateChanges(content: string): StateChanges {
   return changes;
 }
 
-async function generateSceneImage(storyContent: string, characterDescription?: string): Promise<string | null> {
+// Parse NPC character descriptions from [CHARACTER: Name | Description] tags
+function parseNPCDescriptions(content: string): Record<string, string> {
+  const npcs: Record<string, string> = {};
+  const characterRegex = /\[CHARACTER:\s*([^|]+)\|([^\]]+)\]/gi;
+  let match;
+  while ((match = characterRegex.exec(content)) !== null) {
+    const name = match[1].trim();
+    const description = match[2].trim();
+    npcs[name] = description;
+  }
+  return npcs;
+}
+
+// Extract character names mentioned in scene description or story content to find relevant NPC descriptions
+function findRelevantNPCs(
+  sceneDescription: string, 
+  storyContent: string,
+  npcDescriptions: Record<string, string>,
+  newlyIntroducedNPCs: Record<string, string> = {}
+): string[] {
+  const relevantDescriptions: string[] = [];
+  const searchText = (sceneDescription + ' ' + storyContent).toLowerCase();
+  
+  for (const [name, description] of Object.entries(npcDescriptions)) {
+    // Check if the NPC name appears in the scene or story content (case-insensitive)
+    // Also check for first name only (e.g., "Marcus" for "Marcus Flint")
+    const firstName = name.split(' ')[0];
+    if (searchText.includes(name.toLowerCase()) || 
+        (firstName.length > 2 && searchText.includes(firstName.toLowerCase()))) {
+      relevantDescriptions.push(`${name}: ${description}`);
+    }
+  }
+  
+  // Always include newly introduced NPCs since they're likely in the current scene
+  for (const [name, description] of Object.entries(newlyIntroducedNPCs)) {
+    if (!relevantDescriptions.some(d => d.startsWith(name + ':'))) {
+      relevantDescriptions.push(`${name}: ${description}`);
+    }
+  }
+  
+  return relevantDescriptions;
+}
+
+async function generateSceneImage(
+  storyContent: string, 
+  characterDescription?: string,
+  npcDescriptions?: Record<string, string>,
+  newlyIntroducedNPCs?: Record<string, string>
+): Promise<string | null> {
   try {
     const apiKey = process.env.XAI_API_KEY;
     if (!apiKey) {
@@ -108,10 +156,27 @@ async function generateSceneImage(storyContent: string, characterDescription?: s
     const characterBrief = characterDescription 
       ? ` Protagonist: ${characterDescription.slice(0, 100)}` 
       : '';
+    
+    // Find and include relevant NPC descriptions (existing + newly introduced)
+    let npcBrief = '';
+    const hasNPCs = (npcDescriptions && Object.keys(npcDescriptions).length > 0) ||
+                    (newlyIntroducedNPCs && Object.keys(newlyIntroducedNPCs).length > 0);
+    if (hasNPCs) {
+      const relevantNPCs = findRelevantNPCs(
+        sceneDescription, 
+        storyContent, 
+        npcDescriptions || {},
+        newlyIntroducedNPCs || {}
+      );
+      if (relevantNPCs.length > 0) {
+        // Limit to first 2 NPCs and 80 chars each to stay within limits
+        npcBrief = ' ' + relevantNPCs.slice(0, 2).map(d => d.slice(0, 80)).join('. ');
+      }
+    }
 
     // Compact image prompt optimized for 1024 char limit
-    // Base style (~550 chars) + scene (~150) + character (~100) = ~800 chars
-    const imagePrompt = `Fantasy book illustration, 1990s British wizarding world: ${sceneDescription}${characterBrief}
+    // Base style (~450 chars) + scene (~150) + protagonist (~100) + NPCs (~160) = ~860 chars
+    const imagePrompt = `Fantasy book illustration, 1990s British wizarding world: ${sceneDescription}${characterBrief}${npcBrief}
 
 STYLE: Painterly digital art, Arthur Rackham/Alan Lee inspired, oil-painting textures, romantic fantasy.
 LIGHTING: Warm candlelight, cool moonlight, god rays, magical glow, dramatic shadows.
@@ -317,8 +382,21 @@ export function registerChatRoutes(app: Express): void {
       // Text complete - send full content in one event, then signal image generation starting
       res.write(`data: ${JSON.stringify({ fullContent: fullResponse, textDone: true, imagePending: true })}\n\n`);
 
-      // Generate scene image based on story content with character description for consistency
-      const imageUrl = await generateSceneImage(fullResponse, characterDescription);
+      // Parse and store any new NPC descriptions
+      const newNPCs = parseNPCDescriptions(fullResponse);
+      // Start with existing NPCs from database
+      let allNPCDescriptions = (gameState?.npcDescriptions as Record<string, string>) || {};
+      
+      if (Object.keys(newNPCs).length > 0) {
+        // Merge new NPCs with existing ones - use merged version for image generation
+        allNPCDescriptions = { ...allNPCDescriptions, ...newNPCs };
+        // Save to database for future turns
+        await storage.updateGameState(conversationId, { npcDescriptions: allNPCDescriptions });
+        console.log(`[NPC] Stored ${Object.keys(newNPCs).length} new character descriptions: ${Object.keys(newNPCs).join(', ')}`);
+      }
+
+      // Generate scene image based on story content with ALL character descriptions (existing + new)
+      const imageUrl = await generateSceneImage(fullResponse, characterDescription, allNPCDescriptions, newNPCs);
       
       // Embed image URL in the message content for persistence
       let finalContent = fullResponse;
