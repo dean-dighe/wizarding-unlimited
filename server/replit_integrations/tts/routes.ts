@@ -2,14 +2,62 @@ import type { Express, Request, Response } from "express";
 import WebSocket from "ws";
 
 const XAI_REALTIME_URL = "wss://api.x.ai/v1/realtime";
+const MAX_TTS_TEXT_LENGTH = 2000; // Max characters for TTS to prevent abuse
+const TTS_RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
+const TTS_RATE_LIMIT_MAX = 10; // 10 TTS requests per minute per IP
+
+// Simple rate limiter for TTS
+const ttsRateLimitMap = new Map<string, { count: number; resetTime: number }>();
+
+function checkTTSRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
+  const now = Date.now();
+  const record = ttsRateLimitMap.get(ip);
+  
+  if (!record || now > record.resetTime) {
+    ttsRateLimitMap.set(ip, { count: 1, resetTime: now + TTS_RATE_LIMIT_WINDOW_MS });
+    return { allowed: true };
+  }
+  
+  if (record.count >= TTS_RATE_LIMIT_MAX) {
+    const retryAfter = Math.ceil((record.resetTime - now) / 1000);
+    return { allowed: false, retryAfter };
+  }
+  
+  record.count++;
+  return { allowed: true };
+}
+
+// Cleanup old entries
+setInterval(() => {
+  const now = Date.now();
+  const entries = Array.from(ttsRateLimitMap.entries());
+  for (const [ip, record] of entries) {
+    if (now > record.resetTime) {
+      ttsRateLimitMap.delete(ip);
+    }
+  }
+}, 60000);
 
 export function registerTTSRoutes(app: Express): void {
   app.post("/api/tts/speak", async (req: Request, res: Response) => {
     try {
+      // Rate limiting
+      const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+      const rateCheck = checkTTSRateLimit(clientIp);
+      if (!rateCheck.allowed) {
+        res.setHeader('Retry-After', rateCheck.retryAfter || 60);
+        return res.status(429).json({ error: "Too many TTS requests. Please wait." });
+      }
+
       const { text } = req.body;
 
       if (!text) {
         return res.status(400).json({ error: "Text is required" });
+      }
+      
+      // Validate text length
+      if (typeof text !== 'string' || text.length > MAX_TTS_TEXT_LENGTH) {
+        return res.status(400).json({ error: `Text must be under ${MAX_TTS_TEXT_LENGTH} characters` });
       }
 
       const apiKey = process.env.XAI_API_KEY;

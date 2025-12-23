@@ -2,6 +2,20 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 import { type InsertGameState } from "@shared/schema";
 
+// Session token storage (localStorage for persistence across browser restarts)
+export function getSessionToken(conversationId: number): string | null {
+  return localStorage.getItem(`game_token_${conversationId}`);
+}
+
+export function setSessionToken(conversationId: number, token: string): void {
+  localStorage.setItem(`game_token_${conversationId}`, token);
+}
+
+export function getAuthHeaders(conversationId: number): HeadersInit {
+  const token = getSessionToken(conversationId);
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 // Game State Hook
 export function useGameState(conversationId: number | null) {
   return useQuery({
@@ -36,7 +50,15 @@ export function useInitGame() {
         throw new Error(error.message || "Failed to initialize game");
       }
       
-      return api.game.init.responses[201].parse(await res.json());
+      const result = await res.json();
+      const parsed = api.game.init.responses[201].parse(result);
+      
+      // Store the session token for this game
+      if (result.sessionToken) {
+        setSessionToken(parsed.conversationId, result.sessionToken);
+      }
+      
+      return parsed;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: [api.game.getState.path, data.conversationId] });

@@ -267,6 +267,7 @@ You spot several familiar faces in the crowd. A group of your housemates waves e
 
       res.status(201).json({
         conversationId: conversation.id,
+        sessionToken: conversation.sessionToken,
         message: introText,
         storyArc: {
           title: storyArc.title,

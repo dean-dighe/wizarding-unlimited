@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { getAuthHeaders } from "./use-game";
 
 interface Message {
   role: "user" | "assistant";
@@ -37,8 +38,14 @@ export function useChatStream(conversationId: number | null) {
   useEffect(() => {
     if (!conversationId) return;
     
-    fetch(`/api/conversations/${conversationId}`, { credentials: "include" })
-      .then(res => res.json())
+    fetch(`/api/conversations/${conversationId}`, { 
+      credentials: "include",
+      headers: getAuthHeaders(conversationId)
+    })
+      .then(res => {
+        if (!res.ok) throw new Error("Failed to fetch conversation");
+        return res.json();
+      })
       .then(data => {
         if (data.messages) {
           const formatted = data.messages
@@ -89,7 +96,10 @@ export function useChatStream(conversationId: number | null) {
       
       const res = await fetch(`/api/conversations/${conversationId}/messages`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          ...getAuthHeaders(conversationId)
+        },
         body: JSON.stringify({ content }),
         signal: abortControllerRef.current.signal,
         credentials: "include",

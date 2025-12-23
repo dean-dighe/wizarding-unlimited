@@ -54,6 +54,13 @@ setInterval(() => {
   }
 }, 60000);
 
+// Helper to extract session token from Authorization header
+function extractSessionToken(req: Request): string | null {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  return authHeader.slice(7);
+}
+
 interface StateChanges {
   hasChanges: boolean;
   healthChange: number;
@@ -276,11 +283,23 @@ export function registerChatRoutes(app: Express): void {
   app.get("/api/conversations/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
+      
+      // Session validation
+      const sessionToken = extractSessionToken(req);
+      if (!sessionToken) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const isValid = await chatStorage.validateSessionToken(id, sessionToken);
+      if (!isValid) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
       const conversation = await chatStorage.getConversation(id);
       if (!conversation) {
         return res.status(404).json({ error: "Conversation not found" });
       }
-      const messages = await chatStorage.getMessagesByConversation(id);
+      // Limit message history to prevent memory issues (game uses summarization anyway)
+      const messages = await chatStorage.getMessagesByConversation(id, 100);
       res.json({ ...conversation, messages });
     } catch (error) {
       console.error("Error fetching conversation:", error);
@@ -304,6 +323,17 @@ export function registerChatRoutes(app: Express): void {
   app.delete("/api/conversations/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
+      
+      // Session validation
+      const sessionToken = extractSessionToken(req);
+      if (!sessionToken) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const isValid = await chatStorage.validateSessionToken(id, sessionToken);
+      if (!isValid) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
       await chatStorage.deleteConversation(id);
       res.status(204).send();
     } catch (error) {
@@ -324,6 +354,17 @@ export function registerChatRoutes(app: Express): void {
       }
 
       const conversationId = parseInt(req.params.id);
+      
+      // Session validation
+      const sessionToken = extractSessionToken(req);
+      if (!sessionToken) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const isValid = await chatStorage.validateSessionToken(conversationId, sessionToken);
+      if (!isValid) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
       const { content } = req.body;
 
       // Input validation
