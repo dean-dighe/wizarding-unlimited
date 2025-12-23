@@ -75,11 +75,15 @@ export default function Game() {
   
   // Audio state
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioBlobUrlRef = useRef<string | null>(null); // Track blob URL for cleanup
   const [isNarrating, setIsNarrating] = useState(false);
   
   // Ready messages - only these are displayed
   const [readyMessages, setReadyMessages] = useState<ReadyMessage[]>([]);
   const [isPreparingAudio, setIsPreparingAudio] = useState(false);
+  
+  // Counter to trigger re-processing after each TTS message completes
+  const [processingTrigger, setProcessingTrigger] = useState(0);
   
   // TTS abort controller (component-level since it needs cleanup)
   const ttsAbortRef = useRef<AbortController | null>(null);
@@ -96,14 +100,21 @@ export default function Game() {
     isMutedRef.current = isMuted;
   }, [isMuted]);
 
-  // Cleanup audio resources
+  // Cleanup audio resources - also clears global narrator state
   const cleanupAudio = useCallback(() => {
+    // Revoke blob URL to prevent memory leak
+    if (audioBlobUrlRef.current) {
+      URL.revokeObjectURL(audioBlobUrlRef.current);
+      audioBlobUrlRef.current = null;
+    }
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.src = "";
       audioRef.current = null;
     }
     setIsNarrating(false);
+    // Clear global narrator state so message processing can continue
+    globalNarratorActive = false;
   }, []);
 
   const toggleMute = useCallback(() => {
@@ -138,16 +149,55 @@ export default function Game() {
     return `${msg.role}:${msg.content.slice(0, 100)}`;
   }, []);
 
-  // Reset global state when conversation changes
+  // Reset global state and cleanup when conversation changes
   useEffect(() => {
     if (conversationId) {
+      // Stop any audio from previous conversation
+      if (audioBlobUrlRef.current) {
+        URL.revokeObjectURL(audioBlobUrlRef.current);
+        audioBlobUrlRef.current = null;
+      }
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = "";
+        audioRef.current = null;
+      }
+      // Abort any pending TTS request from previous conversation
+      if (ttsAbortRef.current) {
+        ttsAbortRef.current.abort();
+        ttsAbortRef.current = null;
+      }
+      setIsNarrating(false);
+      setIsPreparingAudio(false);
+      // Reset ready messages for new conversation
+      setReadyMessages([]);
+      // Clear the processed set for this conversation so messages can be re-shown
+      // This handles returning to a previously viewed conversation
+      globalProcessedContent.delete(conversationId);
+      // Reset global state
       resetForNewConversation(conversationId);
     }
   }, [conversationId]);
 
-  // Cleanup on unmount
+  // Cleanup on unmount - stop audio and clear all state
   useEffect(() => {
     return () => {
+      // Stop any playing audio and revoke blob URL
+      if (audioBlobUrlRef.current) {
+        URL.revokeObjectURL(audioBlobUrlRef.current);
+        audioBlobUrlRef.current = null;
+      }
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = "";
+        audioRef.current = null;
+      }
+      // Abort any pending TTS request
+      if (ttsAbortRef.current) {
+        ttsAbortRef.current.abort();
+        ttsAbortRef.current = null;
+      }
+      // Clear all global state
       globalNarratorActive = false;
       globalCurrentlyProcessing = null;
       releaseTTSLock();
@@ -187,50 +237,64 @@ export default function Game() {
     // Get the processed set for this conversation
     const processedSet = getProcessedSet(conversationId);
     
-    // Find the next unprocessed message by content
-    let nextMessage: typeof messages[0] | null = null;
+    // PHASE 1: Process all user messages and muted/short assistant messages immediately
+    // This allows full history to appear when returning to a conversation
+    const immediateMessages: typeof messages = [];
+    let ttsMessage: typeof messages[0] | null = null;
     
     for (let i = 0; i < messages.length; i++) {
-      const key = getMessageKey(messages[i]);
-      // Check if already processed (using conversation-scoped set)
-      if (!processedSet.has(key)) {
-        nextMessage = messages[i];
-        break;
+      const msg = messages[i];
+      const key = getMessageKey(msg);
+      
+      // Skip already processed
+      if (processedSet.has(key)) continue;
+      
+      // User messages - add to immediate queue
+      if (msg.role === "user") {
+        processedSet.add(key);
+        immediateMessages.push(msg);
+        continue;
       }
+      
+      // Assistant messages - check if needs TTS
+      const textToRead = stripMetadata(msg.content);
+      const needsTTS = !isMutedRef.current && textToRead && textToRead.length > 20;
+      
+      if (!needsTTS) {
+        // No TTS needed - add to immediate queue
+        processedSet.add(key);
+        immediateMessages.push(msg);
+        continue;
+      }
+      
+      // This message needs TTS - stop here and process it
+      ttsMessage = msg;
+      break;
     }
     
-    if (!nextMessage) {
+    // Add all immediate messages to ready queue
+    if (immediateMessages.length > 0) {
+      setReadyMessages(prev => [...prev, ...immediateMessages.map(m => ({ ...m }))]);
+    }
+    
+    // If no TTS message to process, we're done
+    if (!ttsMessage) {
       releaseTTSLock();
       return;
     }
     
-    const messageKey = getMessageKey(nextMessage);
+    const messageKey = getMessageKey(ttsMessage);
     
-    // Mark as processing AND add to processed set immediately
+    // Mark as processing
     globalCurrentlyProcessing = messageKey;
     processedSet.add(messageKey);
     
-    // User messages are ready immediately
-    if (nextMessage.role === "user") {
-      globalCurrentlyProcessing = null;
-      releaseTTSLock();
-      setReadyMessages(prev => [...prev, { ...nextMessage! }]);
-      return;
-    }
+    // Get text for TTS
+    const textToRead = stripMetadata(ttsMessage.content);
     
-    // Assistant messages need TTS preparation
-    const textToRead = stripMetadata(nextMessage.content);
-    
-    // If muted or no text, show immediately without audio
-    if (isMutedRef.current || !textToRead || textToRead.length <= 20) {
-      globalCurrentlyProcessing = null;
-      releaseTTSLock();
-      setReadyMessages(prev => [...prev, { ...nextMessage! }]);
-      return;
-    }
-    
-    // Capture message for async closure
-    const messageToAdd = { ...nextMessage };
+    // Capture message and conversationId for async closure
+    const messageToAdd = { ...ttsMessage };
+    const capturedConversationId = conversationId;
     
     // Create abort controller for this request
     const abortController = new AbortController();
@@ -258,66 +322,99 @@ export default function Game() {
         setIsPreparingAudio(false);
         releaseTTSLock(); // Release lock after fetch completes
         
+        // Verify conversation hasn't changed - discard if stale
+        if (globalActiveConversationId !== capturedConversationId) {
+          globalNarratorActive = false;
+          return;
+        }
+        
         // Add message to ready queue
         setReadyMessages(prev => [...prev, messageToAdd]);
         
         // Play audio immediately (unless muted during fetch)
         if (!isMutedRef.current) {
-          const audioUrl = URL.createObjectURL(blob);
+          // Clean up any previous audio first
           cleanupAudio();
+          
+          const audioUrl = URL.createObjectURL(blob);
+          audioBlobUrlRef.current = audioUrl; // Track for cleanup
           
           const audio = new Audio(audioUrl);
           audioRef.current = audio;
+          globalNarratorActive = true; // Re-set since cleanupAudio cleared it
           setIsNarrating(true);
           
           audio.onended = () => {
-            URL.revokeObjectURL(audioUrl);
+            // Use cleanupAudio for consistent cleanup
+            if (audioBlobUrlRef.current) {
+              URL.revokeObjectURL(audioBlobUrlRef.current);
+              audioBlobUrlRef.current = null;
+            }
             setIsNarrating(false);
             audioRef.current = null;
             globalNarratorActive = false;
+            // Trigger re-processing for next message
+            setProcessingTrigger(prev => prev + 1);
           };
           
           audio.onerror = () => {
-            URL.revokeObjectURL(audioUrl);
+            if (audioBlobUrlRef.current) {
+              URL.revokeObjectURL(audioBlobUrlRef.current);
+              audioBlobUrlRef.current = null;
+            }
             setIsNarrating(false);
             audioRef.current = null;
             globalNarratorActive = false;
+            // Trigger re-processing for next message
+            setProcessingTrigger(prev => prev + 1);
           };
           
           audio.play().catch(() => {
-            URL.revokeObjectURL(audioUrl);
+            if (audioBlobUrlRef.current) {
+              URL.revokeObjectURL(audioBlobUrlRef.current);
+              audioBlobUrlRef.current = null;
+            }
             setIsNarrating(false);
             audioRef.current = null;
             globalNarratorActive = false;
+            // Trigger re-processing for next message
+            setProcessingTrigger(prev => prev + 1);
           });
         } else {
-          // Muted during fetch - mark narrator as inactive
+          // Muted during fetch - narrator state already inactive from earlier check
           globalNarratorActive = false;
+          // Trigger re-processing for next message
+          setProcessingTrigger(prev => prev + 1);
         }
       })
       .catch(err => {
-        // Ignore abort errors
-        if (err.name === 'AbortError') {
-          globalCurrentlyProcessing = null;
-          ttsAbortRef.current = null;
-          setIsPreparingAudio(false);
-          globalNarratorActive = false;
-          releaseTTSLock();
-          // Still show the message even if TTS was aborted
-          setReadyMessages(prev => [...prev, messageToAdd]);
-          return;
-        }
-        console.error('TTS error:', err);
-        // Show message anyway on error
         globalCurrentlyProcessing = null;
         ttsAbortRef.current = null;
         setIsPreparingAudio(false);
         globalNarratorActive = false;
         releaseTTSLock();
-        setReadyMessages(prev => [...prev, messageToAdd]);
+        
+        // Abort errors - only show message if still same conversation
+        if (err.name === 'AbortError') {
+          // Only add message if conversation hasn't changed
+          if (globalActiveConversationId === capturedConversationId) {
+            setReadyMessages(prev => [...prev, messageToAdd]);
+            // Trigger re-processing for next message
+            setProcessingTrigger(prev => prev + 1);
+          }
+          return;
+        }
+        
+        console.error('TTS error:', err);
+        // Show message anyway on error, but only if still same conversation
+        if (globalActiveConversationId === capturedConversationId) {
+          setReadyMessages(prev => [...prev, messageToAdd]);
+          // Trigger re-processing for next message
+          setProcessingTrigger(prev => prev + 1);
+        }
       });
       
-  }, [messages, isStreaming, stripMetadata, getMessageKey, cleanupAudio, conversationId]);
+  }, [messages, isStreaming, stripMetadata, getMessageKey, cleanupAudio, conversationId, processingTrigger]);
 
   // Scroll to bottom when new ready messages appear
   useEffect(() => {
@@ -328,9 +425,8 @@ export default function Game() {
 
   const handleChoiceClick = (choice: string) => {
     // Stop any current narration when user makes a selection
+    // cleanupAudio() also clears globalNarratorActive
     cleanupAudio();
-    // Mark narrator as inactive (module-level global)
-    globalNarratorActive = false;
     // Release TTS lock in case we're in the middle of processing
     releaseTTSLock();
     // Abort any pending TTS request
