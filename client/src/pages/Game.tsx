@@ -265,8 +265,8 @@ export default function Game() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col relative overflow-hidden">
-        {/* Unified Header Bar - Both Mobile and Desktop */}
-        <div className="bg-[#120521]/95 backdrop-blur border-b border-white/5 px-3 py-2 flex items-center justify-between flex-shrink-0 z-10">
+        {/* Unified Header Bar - Sticky at top */}
+        <div className="sticky top-0 bg-[#120521] border-b border-white/5 px-3 py-2 flex items-center justify-between flex-shrink-0 z-50">
           <div className="flex items-center gap-2">
             <ScrollText className="w-4 h-4 text-yellow-500" />
             <span className="font-serif text-sm text-yellow-100/80 hidden sm:inline">Wizarding Sagas</span>
@@ -306,7 +306,7 @@ export default function Game() {
           </div>
         </div>
 
-        {/* Story Area - Maximized */}
+        {/* Story Area - Scrollable container below sticky header */}
         <div 
           ref={scrollRef}
           className="flex-1 min-h-0 overflow-y-auto scroll-smooth"

@@ -36,12 +36,12 @@ export function registerTTSRoutes(app: Express): void {
         ws.send(JSON.stringify({
           type: "session.update",
           session: {
+            modalities: ["text", "audio"],
             voice: "Ara",
-            instructions: "You are a narrator reading story text aloud. Read the text exactly as provided with appropriate dramatic flair suitable for a fantasy adventure story. Do not add any commentary or additional text.",
-            output_audio: {
-              format: "pcm",
-              sample_rate: 24000
-            }
+            instructions: "You are a dramatic narrator. Simply read aloud any text the user provides, using appropriate dramatic flair for a fantasy adventure story. Do not add commentary.",
+            input_audio_format: "pcm16",
+            output_audio_format: "pcm16",
+            turn_detection: null
           }
         }));
 
@@ -50,23 +50,28 @@ export function registerTTSRoutes(app: Express): void {
           item: {
             type: "message",
             role: "user",
-            content: [{ type: "input_text", text: `Please read this story text aloud: "${text}"` }]
+            content: [{ type: "input_text", text: `Read this aloud: ${text}` }]
           }
         }));
 
-        ws.send(JSON.stringify({ type: "response.create" }));
+        ws.send(JSON.stringify({ 
+          type: "response.create",
+          response: {
+            modalities: ["audio"]
+          }
+        }));
       });
 
       ws.on("message", (data: Buffer) => {
         try {
           const message = JSON.parse(data.toString());
           
-          if (message.type === "response.audio.delta" && message.delta) {
+          if (message.type === "response.output_audio.delta" && message.delta) {
             const audioBytes = Buffer.from(message.delta, "base64");
             audioChunks.push(audioBytes);
           }
           
-          if (message.type === "response.audio.done" || message.type === "response.done") {
+          if (message.type === "response.done") {
             clearTimeout(timeout);
             ws.close();
             
@@ -83,7 +88,7 @@ export function registerTTSRoutes(app: Express): void {
           }
 
           if (message.type === "error") {
-            console.error("TTS WebSocket error:", message);
+            console.error("TTS API error:", message.error);
             clearTimeout(timeout);
             ws.close();
             if (!res.headersSent) {
@@ -96,7 +101,7 @@ export function registerTTSRoutes(app: Express): void {
       });
 
       ws.on("error", (error) => {
-        console.error("WebSocket error:", error);
+        console.error("TTS WebSocket error:", error);
         clearTimeout(timeout);
         if (!res.headersSent) {
           res.status(500).json({ error: "WebSocket connection failed" });
