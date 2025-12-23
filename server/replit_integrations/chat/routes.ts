@@ -85,10 +85,15 @@ function parseNPCDescriptions(content: string): Record<string, string> {
   const npcs: Record<string, string> = {};
   const characterRegex = /\[CHARACTER:\s*([^|]+)\|([^\]]+)\]/gi;
   let match;
+  console.log(`[NPC Parse] Searching for CHARACTER tags in response (${content.length} chars)`);
   while ((match = characterRegex.exec(content)) !== null) {
     const name = match[1].trim();
     const description = match[2].trim();
     npcs[name] = description;
+    console.log(`[NPC Parse] Found: "${name}" -> "${description.slice(0, 50)}..."`);
+  }
+  if (Object.keys(npcs).length === 0) {
+    console.log(`[NPC Parse] No CHARACTER tags found in response`);
   }
   return npcs;
 }
@@ -103,6 +108,8 @@ function findRelevantNPCs(
   const relevantDescriptions: string[] = [];
   const searchText = (sceneDescription + ' ' + storyContent).toLowerCase();
   
+  console.log(`[NPC Match] Checking ${Object.keys(npcDescriptions).length} stored NPCs + ${Object.keys(newlyIntroducedNPCs).length} new NPCs`);
+  
   for (const [name, description] of Object.entries(npcDescriptions)) {
     // Check if the NPC name appears in the scene or story content (case-insensitive)
     // Also check for first name only (e.g., "Marcus" for "Marcus Flint")
@@ -110,6 +117,7 @@ function findRelevantNPCs(
     if (searchText.includes(name.toLowerCase()) || 
         (firstName.length > 2 && searchText.includes(firstName.toLowerCase()))) {
       relevantDescriptions.push(`${name}: ${description}`);
+      console.log(`[NPC Match] Matched stored NPC: "${name}"`);
     }
   }
   
@@ -117,9 +125,11 @@ function findRelevantNPCs(
   for (const [name, description] of Object.entries(newlyIntroducedNPCs)) {
     if (!relevantDescriptions.some(d => d.startsWith(name + ':'))) {
       relevantDescriptions.push(`${name}: ${description}`);
+      console.log(`[NPC Match] Including new NPC: "${name}"`);
     }
   }
   
+  console.log(`[NPC Match] Total relevant NPCs for image: ${relevantDescriptions.length}`);
   return relevantDescriptions;
 }
 
