@@ -21,9 +21,11 @@ export const api = {
       path: '/api/game/:conversationId/state',
       responses: {
         200: z.object({
+          playerName: z.string().nullable(),
           house: z.string().nullable(),
           health: z.number(),
           inventory: z.array(z.string()),
+          spells: z.array(z.string()),
           location: z.string(),
           gameTime: z.string(),
         }),

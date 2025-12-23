@@ -219,6 +219,7 @@ You've done it. You've actually made it. The Hogwarts Express awaits, and with i
       house: state.house,
       health: state.health ?? 100,
       inventory: (state.inventory as string[]) ?? [],
+      spells: (state.spells as string[]) ?? [],
       location: state.location ?? "Unknown",
       gameTime: state.gameTime ?? "Unknown",
     });

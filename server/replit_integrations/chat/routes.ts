@@ -19,6 +19,67 @@ const XAI_API_URL = "https://api.x.ai/v1/images/generations";
 
 const MAX_PROMPT_LENGTH = 1000; // xAI limit is 1024, leave buffer
 
+interface StateChanges {
+  hasChanges: boolean;
+  healthChange: number;
+  itemsAdded: string[];
+  itemsRemoved: string[];
+  spellsLearned: string[];
+  newLocation: string | null;
+}
+
+function parseStateChanges(content: string): StateChanges {
+  const changes: StateChanges = {
+    hasChanges: false,
+    healthChange: 0,
+    itemsAdded: [],
+    itemsRemoved: [],
+    spellsLearned: [],
+    newLocation: null
+  };
+
+  // Parse health changes: [HEALTH: +10] or [HEALTH: -15]
+  const healthRegex = /\[HEALTH:\s*([+-]?\d+)\]/gi;
+  let healthMatch;
+  while ((healthMatch = healthRegex.exec(content)) !== null) {
+    changes.healthChange += parseInt(healthMatch[1], 10);
+    changes.hasChanges = true;
+  }
+
+  // Parse item additions: [ITEM_ADD: Item Name]
+  const itemAddRegex = /\[ITEM_ADD:\s*([^\]]+)\]/gi;
+  let itemAddMatch;
+  while ((itemAddMatch = itemAddRegex.exec(content)) !== null) {
+    changes.itemsAdded.push(itemAddMatch[1].trim());
+    changes.hasChanges = true;
+  }
+
+  // Parse item removals: [ITEM_REMOVE: Item Name]
+  const itemRemoveRegex = /\[ITEM_REMOVE:\s*([^\]]+)\]/gi;
+  let itemRemoveMatch;
+  while ((itemRemoveMatch = itemRemoveRegex.exec(content)) !== null) {
+    changes.itemsRemoved.push(itemRemoveMatch[1].trim());
+    changes.hasChanges = true;
+  }
+
+  // Parse spell learning: [SPELL_LEARN: Spell Name]
+  const spellRegex = /\[SPELL_LEARN:\s*([^\]]+)\]/gi;
+  let spellMatch;
+  while ((spellMatch = spellRegex.exec(content)) !== null) {
+    changes.spellsLearned.push(spellMatch[1].trim());
+    changes.hasChanges = true;
+  }
+
+  // Parse location changes: [LOCATION: New Location]
+  const locationMatch = content.match(/\[LOCATION:\s*([^\]]+)\]/i);
+  if (locationMatch) {
+    changes.newLocation = locationMatch[1].trim();
+    changes.hasChanges = true;
+  }
+
+  return changes;
+}
+
 async function generateSceneImage(storyContent: string, characterDescription?: string): Promise<string | null> {
   try {
     const apiKey = process.env.XAI_API_KEY;
@@ -228,6 +289,61 @@ export function registerChatRoutes(app: Express): void {
 
       // Save assistant message with embedded image URL
       await chatStorage.createMessage(conversationId, "assistant", finalContent);
+
+      // Parse and apply state changes from AI response
+      const stateChanges = parseStateChanges(fullResponse);
+      if (stateChanges.hasChanges && gameState) {
+        const currentInventory = (gameState.inventory as string[]) || [];
+        const currentSpells = (gameState.spells as string[]) || [];
+        const currentHealth = gameState.health ?? 100;
+        const currentLocation = gameState.location || "Unknown";
+
+        // Apply inventory changes
+        let newInventory = [...currentInventory];
+        for (const item of stateChanges.itemsAdded) {
+          if (!newInventory.includes(item)) {
+            newInventory.push(item);
+          }
+        }
+        for (const item of stateChanges.itemsRemoved) {
+          newInventory = newInventory.filter(i => i.toLowerCase() !== item.toLowerCase());
+        }
+
+        // Apply spell changes
+        let newSpells = [...currentSpells];
+        for (const spell of stateChanges.spellsLearned) {
+          if (!newSpells.includes(spell)) {
+            newSpells.push(spell);
+          }
+        }
+
+        // Apply health changes
+        let newHealth = currentHealth + stateChanges.healthChange;
+        newHealth = Math.max(0, Math.min(100, newHealth)); // Clamp to 0-100
+
+        // Apply location change
+        const newLocation = stateChanges.newLocation || currentLocation;
+
+        // Update game state
+        await storage.updateGameState(conversationId, {
+          inventory: newInventory,
+          spells: newSpells,
+          health: newHealth,
+          location: newLocation
+        });
+
+        console.log(`[State] Updated: health=${newHealth}, inventory=${newInventory.length} items, spells=${newSpells.length}, location=${newLocation}`);
+        
+        // Send state update to client
+        res.write(`data: ${JSON.stringify({ 
+          stateUpdate: {
+            health: newHealth,
+            inventory: newInventory,
+            spells: newSpells,
+            location: newLocation
+          }
+        })}\n\n`);
+      }
 
       // Check if we should summarize (every 10 decisions)
       if (storyArc && shouldSummarize(currentDecisionCount, lastSummarizedAt)) {

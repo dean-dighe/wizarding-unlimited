@@ -11,6 +11,7 @@ import {
   Volume2,
   VolumeX,
   BookOpen,
+  Wand2,
 } from "lucide-react";
 import { useGameState } from "@/hooks/use-game";
 import { useChatStream } from "@/hooks/use-chat-stream";
@@ -253,7 +254,7 @@ export default function Game() {
               <span className="font-serif uppercase tracking-wider text-xs">Inventory</span>
             </div>
             <div className="space-y-1">
-              {state?.inventory?.map((item, i) => (
+              {state?.inventory?.length ? state.inventory.map((item, i) => (
                 <div 
                   key={i}
                   className="bg-white/5 border border-white/5 rounded px-2 py-1.5 text-xs text-purple-100/80 truncate"
@@ -261,7 +262,27 @@ export default function Game() {
                 >
                   {item}
                 </div>
-              )) || <span className="text-xs text-white/30 italic">Empty...</span>}
+              )) : <span className="text-xs text-white/30 italic">Empty...</span>}
+            </div>
+          </div>
+
+          {/* Known Spells */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-blue-400">
+              <Wand2 className="w-4 h-4" />
+              <span className="font-serif uppercase tracking-wider text-xs">Known Spells</span>
+            </div>
+            <div className="space-y-1">
+              {state?.spells?.length ? state.spells.map((spell, i) => (
+                <div 
+                  key={i}
+                  className="bg-blue-500/10 border border-blue-500/20 rounded px-2 py-1.5 text-xs text-blue-200/80 truncate"
+                  title={spell}
+                  data-testid={`spell-${i}`}
+                >
+                  {spell}
+                </div>
+              )) : <span className="text-xs text-white/30 italic">None learned yet...</span>}
             </div>
           </div>
 
