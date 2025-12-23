@@ -24,17 +24,17 @@ async function generateCharacterDescription(playerName: string, house: string | 
       "Hufflepuff": "yellow and black"
     };
     
-    const prompt = `Generate a detailed visual description of a young first-year Hogwarts student named ${playerName}${house ? ` sorted into ${house}` : ''} for consistent illustration purposes. 
+    const prompt = `Generate a detailed visual description of a third-year Hogwarts student (age 13) named ${playerName}${house ? ` in House ${house}` : ''} for consistent illustration purposes. 
 
 Include SPECIFIC details about:
 - Hair: color, length, texture, style
 - Eyes: color, shape, expression
 - Skin: tone, any distinctive features like freckles
 - Face: shape, notable features
-- Build: height, body type for an 11-year-old
-- Clothing: ${house ? `Hogwarts robes with ${houseColors[house]} trim` : 'new black Hogwarts robes'}
-- Posture and demeanor
-- Any distinctive accessories or items
+- Build: height, body type for a 13-year-old (taller than first-years, starting to mature)
+- Clothing: ${house ? `Well-worn but cared-for Hogwarts robes with ${houseColors[house]} ${house} trim, showing two years of use` : 'familiar black Hogwarts robes'}
+- Posture and demeanor: confident, comfortable at Hogwarts, no longer wide-eyed and nervous
+- Any distinctive accessories or items they might have acquired over two years
 
 Write it as a single paragraph, approximately 80-100 words, in third person, suitable for an illustrator to recreate consistently across multiple scenes. Start directly with the description, no preamble.`;
 
@@ -44,10 +44,10 @@ Write it as a single paragraph, approximately 80-100 words, in third person, sui
       max_tokens: 300,
     });
 
-    return response.choices[0]?.message?.content?.trim() || `A young first-year student named ${playerName} with neat dark hair, bright curious eyes, and an eager expression, wearing new black Hogwarts robes${house ? ` with ${houseColors[house]} ${house} trim` : ''}.`;
+    return response.choices[0]?.message?.content?.trim() || `A confident third-year student named ${playerName} with slightly tousled hair, keen observant eyes, and an easy smile. Standing taller now after two years of growth, wearing well-worn Hogwarts robes${house ? ` with ${houseColors[house]} ${house} trim` : ''} that show comfortable familiarity.`;
   } catch (error) {
     console.error("Error generating character description:", error);
-    return `A young first-year student named ${playerName} with neat dark hair, bright curious eyes, and an eager expression, wearing new black Hogwarts robes.`;
+    return `A confident third-year student named ${playerName} with slightly tousled hair, keen observant eyes, and an easy smile. Standing taller now after two years of growth, wearing familiar Hogwarts robes.`;
   }
 }
 
@@ -75,15 +75,28 @@ export async function registerRoutes(
       ]);
 
       // 3. Initialize Game State with character description and story arc
+      // Year 3 students have learned basic spells from their first two years
+      const startingSpells = [
+        "Lumos",           // Year 1 - Charms
+        "Nox",             // Year 1 - Charms  
+        "Wingardium Leviosa", // Year 1 - Charms
+        "Alohomora",       // Year 1 - Charms
+        "Reparo",          // Year 1 - Charms
+        "Incendio",        // Year 1 - Charms
+        "Flipendo",        // Year 1 - Defense
+        "Expelliarmus",    // Year 2 - Defense
+        "Rictusempra",     // Year 2 - Defense
+      ];
+      
       await storage.createGameState({
         conversationId: conversation.id,
         playerName,
         house,
         health: 100,
-        inventory: ["Wand", "Hogwarts Robes"],
-        spells: [], // Start with no known spells - will learn them during the adventure
+        inventory: ["Wand", "Hogwarts Robes", "Spellbook Collection", "Cauldron", "Broomstick", "Signed Hogsmeade Permission Slip"],
+        spells: startingSpells,
         location: "Platform 9¾",
-        gameTime: "September 1st, 1991 - 10:30 AM",
+        gameTime: "September 1st, 1993 - 10:30 AM",
         characterDescription,
         storyArc,
         decisionCount: 0,
@@ -93,19 +106,27 @@ export async function registerRoutes(
 
       // 3. Seed the AI context (System Prompt) with story arc
       const currentChapter = storyArc.chapters[storyArc.currentChapterIndex];
+      const knownSpellsList = startingSpells.join(", ");
       const systemPrompt = `
 You are a master storyteller narrating a Harry Potter text adventure.
-The protagonist is ${playerName}, a proud member of House ${house}.
+The protagonist is ${playerName}, a THIRD-YEAR student and proud member of House ${house}.
+
+STUDENT BACKGROUND:
+${playerName} has completed two years at Hogwarts and is returning for their third year. They know their way around the castle, have established friendships and rivalries, and are comfortable with basic magic. They've survived exams, explored secret passages, and earned their place in ${house}.
+
+KNOWN SPELLS (learned in Years 1-2):
+${knownSpellsList}
+The protagonist can use these spells confidently. New spells will be learned in Year 3 classes.
 
 HOUSE IDENTITY - ${house.toUpperCase()}:
-${house === "Gryffindor" ? "As a Gryffindor, " + playerName + " values bravery, courage, and chivalry. They're drawn to heroic actions, standing up for the underdog, and facing danger head-on. Other characters may expect boldness from them." :
-  house === "Slytherin" ? "As a Slytherin, " + playerName + " values ambition, cunning, and resourcefulness. They're drawn to strategic thinking, making powerful connections, and achieving their goals through clever means. Other characters may view them with suspicion or respect." :
-  house === "Ravenclaw" ? "As a Ravenclaw, " + playerName + " values wisdom, wit, and learning. They're drawn to solving puzzles, uncovering secrets, and understanding the deeper mysteries of magic. Other characters may seek their insight or knowledge." :
-  "As a Hufflepuff, " + playerName + " values loyalty, patience, and fair play. They're drawn to helping others, building friendships, and doing what's right regardless of recognition. Other characters may trust them implicitly."}
+${house === "Gryffindor" ? "As a Gryffindor, " + playerName + " values bravery, courage, and chivalry. After two years, they've built a reputation for boldness. Other students expect them to stand up for the underdog and face danger head-on." :
+  house === "Slytherin" ? "As a Slytherin, " + playerName + " values ambition, cunning, and resourcefulness. After two years, they've learned to navigate house politics and make strategic alliances. Some view them with suspicion, others with respect." :
+  house === "Ravenclaw" ? "As a Ravenclaw, " + playerName + " values wisdom, wit, and learning. After two years, they've become known for their insight and curiosity. Other students often seek their help with puzzles and mysteries." :
+  "As a Hufflepuff, " + playerName + " values loyalty, patience, and fair play. After two years, they've earned a reputation for being trustworthy and kind. Other students confide in them and rely on their steady friendship."}
 
-Weave the player's house identity into the narrative - let NPCs react to their house, present choices that test their house values, and give them opportunities to embody (or challenge) their house traits.
+Weave the player's house identity and established history into the narrative - they have existing relationships, know the professors' quirks, and feel at home at Hogwarts.
 
-SETTING: It is September 1st, 1991. ${playerName} has just arrived at Platform 9¾ and is boarding the Hogwarts Express for their first year at Hogwarts School of Witchcraft and Wizardry.
+SETTING: It is September 1st, 1993. ${playerName} has arrived at Platform 9¾ and is boarding the Hogwarts Express for their third year at Hogwarts School of Witchcraft and Wizardry. This is the year of new electives (Care of Magical Creatures, Divination, etc.), first-ever Hogsmeade visits (the player has a signed permission slip), and growing independence.
 
 ===== THE STORY ARC =====
 TITLE: "${storyArc.title}"
@@ -150,7 +171,7 @@ Keep these cues subtle and natural - they should enhance the prose, not overwhel
 CRITICAL REQUIREMENTS:
 1. ALWAYS start your response with the current in-game time in this exact format:
    [TIME: Month Day, Year - Hour:Minutes AM/PM]
-   Example: [TIME: September 1st, 1991 - 11:45 AM]
+   Example: [TIME: September 1st, 1993 - 11:45 AM]
    
 2. Time should progress logically based on the player's actions (minutes or hours passing)
 
@@ -211,23 +232,28 @@ You are responsible for tracking the player's current state. When narrative even
 - Learning new spells in classes or from books adds to KNOWN SPELLS
 - Moving to new locations updates LOCATION
 
+The player ALREADY KNOWS these spells from Years 1-2: ${knownSpellsList}
+They can cast these confidently without needing to learn them again. New Year 3 spells (like Riddikulus, Patronus attempts, etc.) should be learned through classes and practice.
+
 Be generous with spell learning during classes and tutoring scenes. Be realistic about item usage and health effects.
       `;
 
       await chatStorage.createMessage(conversation.id, "system", systemPrompt);
 
       // 4. Generate the opening message that hints at the story arc
-      const introText = `[TIME: September 1st, 1991 - 10:30 AM]
-[SCENE: A young first-year wizard in new black robes stands on the bustling Platform 9¾, the magnificent scarlet Hogwarts Express billowing white steam behind them. Golden morning light filters through the station's Victorian ironwork. Owls hoot from brass cages, trunks are stacked high, and excited students in robes embrace tearful parents amid the magical chaos.]
+      const introText = `[TIME: September 1st, 1993 - 10:30 AM]
+[SCENE: A confident third-year ${house} student strides onto Platform 9¾, their worn but beloved Hogwarts robes bearing the ${house} crest. The scarlet Hogwarts Express billows white steam into the grey morning. Familiar faces call out greetings while first-years clutch their parents nervously. The student's trunk is plastered with two years' worth of stickers and memories.]
 
-The scarlet steam engine gleams before you, wisps of white smoke curling into the grey London sky. Platform 9¾ buzzes with the chaos of departure—owls hooting from their cages, parents calling last-minute advice, and trunks scraping along the ancient stone. You clutch your ticket tightly, heart hammering with a mixture of terror and wonder.
+The familiar scarlet steam engine gleams before you, and for the first time in months, you feel truly home. Platform 9¾ buzzes with the usual chaos—owls hooting, parents fussing, first-years looking absolutely terrified—but you move through it all with the easy confidence of someone who's done this twice before.
 
-You've done it. You've actually made it. The Hogwarts Express awaits, and with it, a world you've only dreamed about. Families embrace tearfully around you, but your eyes are fixed on the train's gleaming brass fixtures and the promise they hold. A porter gestures you forward—it's time to find a compartment.
+Two years at Hogwarts have changed you. You know the secret passages, the professors' quirks, which staircases move on Tuesdays. Your wand fits your hand like an old friend, and spells that once seemed impossible now come naturally. But this year feels different somehow—there's an odd tension in the air, whispered conversations that stop when you walk by.
 
-[Choice 1: Search for an empty compartment where you can collect your thoughts]
-[Choice 2: Follow a group of laughing students who seem to know where they're going]
-[Choice 3: Help a small, round-faced boy who's struggling with a heavy trunk]
-[Choice 4: Investigate the mysterious hooded figure lingering near the last carriage]`;
+You spot several familiar faces in the crowd. A group of your housemates waves enthusiastically from near the train doors, while across the platform, you notice a cluster of adults in Ministry robes speaking urgently with the conductor. Strange. You've never seen Ministry officials at the platform before.
+
+[Choice 1: Head straight to your usual compartment to catch up with your housemates]
+[Choice 2: Wander toward the Ministry officials to overhear what's going on]
+[Choice 3: Find a quiet compartment to review your new elective textbooks]
+[Choice 4: Search for that friend who owes you five Galleons from last year's bet]`;
       await chatStorage.createMessage(conversation.id, "assistant", introText);
 
       res.status(201).json({

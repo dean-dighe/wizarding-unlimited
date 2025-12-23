@@ -2,7 +2,12 @@
 
 ## Overview
 
-A Harry Potter-themed text adventure game built as a full-stack web application. Players create a character, optionally choose a Hogwarts house, and embark on an interactive narrative experience powered by AI. The game uses conversational AI to generate dynamic story content with player choices, maintaining game state like health, inventory, and location throughout the adventure.
+A Harry Potter-themed text adventure game built as a full-stack web application. Players create a character, choose a Hogwarts house, and embark on an interactive narrative experience powered by AI as a **third-year student (1993)**. The game uses conversational AI to generate dynamic story content with player choices, maintaining game state like health, inventory, spells, and location throughout the adventure.
+
+**Year 3 Features:**
+- Players start with 9 spells learned from Years 1-2 (Lumos, Nox, Wingardium Leviosa, Alohomora, Reparo, Incendio, Flipendo, Expelliarmus, Rictusempra)
+- Starting inventory includes: Wand, Hogwarts Robes, Spellbook Collection, Cauldron, Broomstick, Signed Hogsmeade Permission Slip
+- Narrative reflects established student with existing friendships, knowledge of castle, and Year 3 privileges (electives, Hogsmeade)
 
 ## User Preferences
 
