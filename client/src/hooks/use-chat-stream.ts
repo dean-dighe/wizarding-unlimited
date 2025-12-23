@@ -23,7 +23,15 @@ export function useChatStream(conversationId: number | null) {
         if (data.messages) {
           const formatted = data.messages
             .filter((m: any) => m.role !== 'system')
-            .map((m: any) => ({ role: m.role, content: m.content }));
+            .map((m: any) => {
+              const choiceMatch = m.content.match(/\[Choice \d+: [^\]]+\]/g);
+              const choices = choiceMatch ? choiceMatch.map((c: string) => c.replace(/^\[Choice \d+: /, '').replace(/\]$/, '')) : [];
+              return { 
+                role: m.role, 
+                content: m.content,
+                choices: choices.length > 0 ? choices : undefined
+              };
+            });
           setMessages(formatted);
         }
       })

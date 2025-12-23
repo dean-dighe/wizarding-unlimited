@@ -135,7 +135,9 @@ export default function Game() {
                 {msg.role === "assistant" ? (
                   <div className="max-w-3xl w-full">
                     <ParchmentCard className="prose prose-p:font-serif prose-p:leading-relaxed prose-headings:font-serif prose-strong:text-amber-900 text-amber-950 shadow-xl">
-                      <div className="whitespace-pre-wrap">{msg.content}</div>
+                      <div className="whitespace-pre-wrap">
+                        {msg.content.replace(/\[Choice \d+: [^\]]+\]\n?/g, '').trim()}
+                      </div>
                     </ParchmentCard>
                   </div>
                 ) : (
