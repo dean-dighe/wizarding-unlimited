@@ -18,6 +18,7 @@ export function registerTTSRoutes(app: Express): void {
       }
 
       const audioChunks: Buffer[] = [];
+      let isCleanedUp = false;
       
       const ws = new WebSocket(XAI_REALTIME_URL, {
         headers: {
@@ -26,11 +27,29 @@ export function registerTTSRoutes(app: Express): void {
       });
 
       const timeout = setTimeout(() => {
-        ws.close();
+        cleanup();
         if (!res.headersSent) {
           res.status(504).json({ error: "TTS request timed out" });
         }
       }, 60000);
+
+      // Cleanup function to prevent resource leaks
+      const cleanup = () => {
+        if (isCleanedUp) return;
+        isCleanedUp = true;
+        clearTimeout(timeout);
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+          ws.close();
+        }
+      };
+
+      // Handle client disconnect (browser closes, request aborted)
+      req.on("close", () => {
+        if (!res.headersSent) {
+          console.log("[TTS] Client disconnected, cleaning up WebSocket");
+          cleanup();
+        }
+      });
 
       ws.on("open", () => {
         ws.send(JSON.stringify({
@@ -91,8 +110,7 @@ Simply read the narrative text with your enchanting storyteller voice, performin
           }
           
           if (message.type === "response.done") {
-            clearTimeout(timeout);
-            ws.close();
+            cleanup();
             
             if (audioChunks.length > 0) {
               const combinedAudio = Buffer.concat(audioChunks);
@@ -101,15 +119,14 @@ Simply read the narrative text with your enchanting storyteller voice, performin
               res.setHeader("Content-Type", "audio/wav");
               res.setHeader("Content-Length", wavBuffer.length);
               res.send(wavBuffer);
-            } else {
+            } else if (!res.headersSent) {
               res.status(500).json({ error: "No audio generated" });
             }
           }
 
           if (message.type === "error") {
             console.error("TTS API error:", message.error);
-            clearTimeout(timeout);
-            ws.close();
+            cleanup();
             if (!res.headersSent) {
               res.status(500).json({ error: message.error?.message || "TTS error" });
             }
@@ -121,14 +138,14 @@ Simply read the narrative text with your enchanting storyteller voice, performin
 
       ws.on("error", (error) => {
         console.error("TTS WebSocket error:", error);
-        clearTimeout(timeout);
+        cleanup();
         if (!res.headersSent) {
           res.status(500).json({ error: "WebSocket connection failed" });
         }
       });
 
       ws.on("close", () => {
-        clearTimeout(timeout);
+        cleanup();
       });
 
     } catch (error) {

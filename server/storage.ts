@@ -20,11 +20,24 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateGameState(conversationId: number, updates: Partial<InsertGameState>): Promise<GameState> {
+    // Filter out undefined values to prevent accidental NULL writes
+    const cleanUpdates: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(updates)) {
+      if (value !== undefined) {
+        cleanUpdates[key] = value;
+      }
+    }
+    
     const [updated] = await db
       .update(game_states)
-      .set({ ...updates, updatedAt: new Date() })
+      .set({ ...cleanUpdates, updatedAt: new Date() })
       .where(eq(game_states.conversationId, conversationId))
       .returning();
+    
+    if (!updated) {
+      throw new Error(`Game state not found for conversation ${conversationId}`);
+    }
+    
     return updated;
   }
 }
