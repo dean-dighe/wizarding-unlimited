@@ -83,6 +83,11 @@ export default function Game() {
       .replace(/\[TIME: [^\]]+\]\n?/g, '')
       .replace(/\[SCENE: [^\]]+\]\n?/g, '')
       .replace(/\[Choice \d+: [^\]]+\]\n?/g, '')
+      .replace(/\[HEALTH: [^\]]+\]\n?/g, '')
+      .replace(/\[ITEM_ADD: [^\]]+\]\n?/g, '')
+      .replace(/\[ITEM_REMOVE: [^\]]+\]\n?/g, '')
+      .replace(/\[SPELL_LEARN: [^\]]+\]\n?/g, '')
+      .replace(/\[LOCATION: [^\]]+\]\n?/g, '')
       .trim();
     
     const paragraphs = stripped.split(/\n\n+/).filter(p => p.trim());
@@ -100,6 +105,9 @@ export default function Game() {
     
     // Only narrate if we have a new message
     if (currentCount > lastReadMessageRef.current) {
+      // Update ref IMMEDIATELY to prevent duplicate calls during re-renders
+      lastReadMessageRef.current = currentCount;
+      
       const latestMessage = assistantMessages[assistantMessages.length - 1];
       const textToRead = extractFinalParagraph(latestMessage.content);
       
@@ -172,8 +180,6 @@ export default function Game() {
             setIsNarrating(false);
           });
       }
-      
-      lastReadMessageRef.current = currentCount;
     }
   }, [messages, isMuted, isStreaming, extractFinalParagraph, cleanupAudio]);
 
@@ -199,6 +205,11 @@ export default function Game() {
       .replace(/\[TIME: [^\]]+\]\n?/g, '')
       .replace(/\[SCENE: [^\]]+\]\n?/g, '')
       .replace(/\[Choice \d+: [^\]]+\]\n?/g, '')
+      .replace(/\[HEALTH: [^\]]+\]\n?/g, '')
+      .replace(/\[ITEM_ADD: [^\]]+\]\n?/g, '')
+      .replace(/\[ITEM_REMOVE: [^\]]+\]\n?/g, '')
+      .replace(/\[SPELL_LEARN: [^\]]+\]\n?/g, '')
+      .replace(/\[LOCATION: [^\]]+\]\n?/g, '')
       .trim();
   };
 
