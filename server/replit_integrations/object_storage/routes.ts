@@ -67,11 +67,21 @@ export function registerObjectStorageRoutes(app: Express): void {
    *
    * GET /objects/:objectPath(*)
    *
-   * This serves files from object storage. For public files, no auth needed.
+   * This serves files from object storage. Searches both public and private directories.
+   * For public files, no auth needed.
    * For protected files, add authentication middleware and ACL checks.
    */
   app.get("/objects/:objectPath(*)", async (req, res) => {
     try {
+      // First try to find in public search paths
+      const objectPath = req.params.objectPath;
+      const publicFile = await objectStorageService.searchPublicObject(objectPath);
+      
+      if (publicFile) {
+        return await objectStorageService.downloadObject(publicFile, res);
+      }
+      
+      // Fall back to private entity lookup
       const objectFile = await objectStorageService.getObjectEntityFile(req.path);
       await objectStorageService.downloadObject(objectFile, res);
     } catch (error) {

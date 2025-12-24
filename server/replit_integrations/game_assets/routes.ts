@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { SpriteGenerationService, CANON_CHARACTERS } from "./sprites";
 import { MapGenerationService, HARRY_POTTER_LOCATIONS } from "./maps";
 import { environmentAssetService, ENVIRONMENT_ASSETS } from "./environment";
-import { backgroundSceneService } from "./backgrounds";
+import { backgroundSceneService, HARRY_POTTER_BACKGROUND_LOCATIONS } from "./backgrounds";
 import { characterPortraitService } from "./portraits";
 import { storage } from "../../storage";
 import pLimit from "p-limit";
@@ -538,6 +538,53 @@ export function registerGameAssetRoutes(app: Express): void {
     } catch (error) {
       console.error("Error fetching all portraits:", error);
       res.status(500).json({ error: "Failed to fetch portraits" });
+    }
+  });
+
+  // ===== VN ASSET PRE-GENERATION ROUTES =====
+
+  app.post("/api/vn-assets/backgrounds/pregenerate", async (req, res) => {
+    try {
+      const { concurrency = 2 } = req.body;
+      const allLocations = HARRY_POTTER_BACKGROUND_LOCATIONS;
+      
+      res.json({ 
+        success: true, 
+        message: `Starting background pre-generation for ${allLocations.length} locations`,
+        locations: allLocations,
+        estimatedTime: `${Math.ceil(allLocations.length / concurrency) * 60} seconds`
+      });
+      
+      backgroundSceneService.pregenerateAllBackgrounds(concurrency)
+        .then(() => {
+          console.log("[VN-Assets] Background pre-generation completed");
+        })
+        .catch((err) => {
+          console.error("[VN-Assets] Background pre-generation failed:", err);
+        });
+      
+    } catch (error) {
+      console.error("Error starting background pre-generation:", error);
+      res.status(500).json({ error: "Failed to start background pre-generation" });
+    }
+  });
+
+  app.get("/api/vn-assets/backgrounds/status", async (req, res) => {
+    try {
+      const statuses = await backgroundSceneService.getAllBackgroundsStatus();
+      
+      const summary = {
+        total: statuses.length,
+        ready: statuses.filter(s => s.status === "ready").length,
+        generating: statuses.filter(s => s.status === "generating").length,
+        failed: statuses.filter(s => s.status === "failed").length,
+        pending: statuses.filter(s => s.status === "pending").length,
+      };
+      
+      res.json({ summary, locations: statuses });
+    } catch (error) {
+      console.error("Error fetching background statuses:", error);
+      res.status(500).json({ error: "Failed to fetch background statuses" });
     }
   });
 }
