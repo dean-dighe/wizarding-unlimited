@@ -272,3 +272,88 @@ export const insertGameStateSchema = createInsertSchema(game_states).omit({
 
 export type GameState = typeof game_states.$inferSelect;
 export type InsertGameState = z.infer<typeof insertGameStateSchema>;
+
+// ===== SPELL ANIMATION SYSTEM =====
+
+// Spell classification for categorizing effects
+export type SpellClassification = "charm" | "jinx" | "hex" | "curse" | "transfiguration" | "healing" | "defensive" | "utility" | "dark";
+
+// Animation generation status
+export type AnimationStatus = "pending" | "generating" | "ready" | "failed";
+
+// Spell color themes for procedural fallback effects
+export interface SpellColorTheme {
+  primary: string;    // Main spell color (hex)
+  secondary: string;  // Secondary glow color
+  particle: string;   // Particle effect color
+}
+
+// Animation frame configuration for sprite sheet playback
+export interface SpellAnimationConfig {
+  frameWidth: number;      // Width of each frame in pixels
+  frameHeight: number;     // Height of each frame in pixels
+  frameCount: number;      // Total number of frames
+  frameRate: number;       // Frames per second
+  loop: boolean;           // Whether to loop the animation
+  phases: {                // Animation phases
+    setup: { start: number; end: number };    // Wand raise/preparation
+    cast: { start: number; end: number };     // Spell release
+    impact: { start: number; end: number };   // Hit/effect
+  };
+}
+
+// Master spell database - all known Harry Potter spells
+export const spells = pgTable("spells", {
+  id: serial("id").primaryKey(),
+  spellName: text("spell_name").notNull().unique(), // e.g., "Lumos", "Expelliarmus"
+  incantation: text("incantation").notNull(), // The spoken word(s)
+  classification: text("classification").$type<SpellClassification>().default("charm"),
+  description: text("description"), // What the spell does
+  effect: text("effect"), // Visual effect description for image generation
+  colorTheme: jsonb("color_theme").$type<SpellColorTheme>(), // Colors for procedural fallback
+  difficulty: integer("difficulty").default(1), // 1-10 difficulty rating
+  yearLearned: integer("year_learned").default(1), // Hogwarts year when typically learned
+  isUnforgivable: boolean("is_unforgivable").default(false), // Avada Kedavra, Crucio, Imperio
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSpellSchema = createInsertSchema(spells).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type Spell = typeof spells.$inferSelect;
+export type InsertSpell = z.infer<typeof insertSpellSchema>;
+
+// Spell animations - generated sprite sheets for each spell
+export const spell_animations = pgTable("spell_animations", {
+  id: serial("id").primaryKey(),
+  spellName: text("spell_name").notNull().unique(), // References spell name for easy lookup
+  spriteSheetUrl: text("sprite_sheet_url"), // Object Storage URL for animation sprite sheet
+  animationConfig: jsonb("animation_config").$type<SpellAnimationConfig>(),
+  promptUsed: text("prompt_used"), // Prompt used for generation
+  generationStatus: text("generation_status").$type<AnimationStatus>().default("pending"),
+  generationError: text("generation_error"),
+  generationHash: text("generation_hash"), // Hash of prompt for cache invalidation
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSpellAnimationSchema = createInsertSchema(spell_animations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type SpellAnimation = typeof spell_animations.$inferSelect;
+export type InsertSpellAnimation = z.infer<typeof insertSpellAnimationSchema>;
+
+// Spell event for triggering animations in the scene
+export interface SpellEvent {
+  type: "spell";
+  spellName: string;
+  casterId: string;      // Character name who cast the spell
+  targetId?: string;     // Character name of target (optional)
+  position?: { x: number; y: number }; // Override position on screen
+  timestamp: number;
+}

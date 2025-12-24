@@ -6,6 +6,7 @@ const TILESETS_DIR = "tilesets";
 const ENV_SPRITES_DIR = "env_sprites";
 const BACKGROUNDS_DIR = "backgrounds";
 const PORTRAITS_DIR = "portraits";
+const SPELL_ANIMATIONS_DIR = "spell_animations";
 
 export class GameAssetStorageService {
   private objectStorage: ObjectStorageService;
@@ -157,6 +158,32 @@ export class GameAssetStorageService {
     });
     
     return `/objects/${PORTRAITS_DIR}/${fileName}`;
+  }
+
+  async uploadSpellAnimation(spellName: string, imageBuffer: Buffer): Promise<string> {
+    if (!this.isConfigured()) {
+      throw new Error("Object storage not configured");
+    }
+
+    const publicDir = this.getPublicDir();
+    const fileName = `${spellName.toLowerCase().replace(/\s+/g, "_")}_${randomUUID().slice(0, 8)}.png`;
+    const objectPath = `${publicDir}/${SPELL_ANIMATIONS_DIR}/${fileName}`;
+    
+    const { bucketName, objectName } = this.parseObjectPath(objectPath);
+    const bucket = objectStorageClient.bucket(bucketName);
+    const file = bucket.file(objectName);
+    
+    await file.save(imageBuffer, {
+      contentType: "image/png",
+      metadata: {
+        "custom:aclPolicy": JSON.stringify({
+          owner: "system",
+          visibility: "public",
+        }),
+      },
+    });
+    
+    return `/objects/${SPELL_ANIMATIONS_DIR}/${fileName}`;
   }
 
   private parseObjectPath(path: string): { bucketName: string; objectName: string } {

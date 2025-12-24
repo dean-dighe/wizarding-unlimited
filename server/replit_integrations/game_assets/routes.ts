@@ -4,6 +4,7 @@ import { MapGenerationService, HARRY_POTTER_LOCATIONS } from "./maps";
 import { environmentAssetService, ENVIRONMENT_ASSETS } from "./environment";
 import { backgroundSceneService, HARRY_POTTER_BACKGROUND_LOCATIONS } from "./backgrounds";
 import { characterPortraitService } from "./portraits";
+import { spellAnimationService, HARRY_POTTER_SPELLS } from "./spellAnimations";
 import { storage } from "../../storage";
 import pLimit from "p-limit";
 import type { PortraitExpression } from "@shared/schema";
@@ -585,6 +586,119 @@ export function registerGameAssetRoutes(app: Express): void {
     } catch (error) {
       console.error("Error fetching background statuses:", error);
       res.status(500).json({ error: "Failed to fetch background statuses" });
+    }
+  });
+
+  // ===== SPELL ANIMATION ROUTES =====
+
+  app.get("/api/spell-animations/:spellName", async (req, res) => {
+    try {
+      const { spellName } = req.params;
+      const animation = await spellAnimationService.getSpellAnimation(
+        decodeURIComponent(spellName)
+      );
+      
+      if (!animation) {
+        return res.status(404).json({ 
+          error: "Animation not found",
+          colorTheme: spellAnimationService.getSpellColorTheme(spellName)
+        });
+      }
+      
+      res.json({
+        spellName: animation.spellName,
+        status: animation.generationStatus,
+        spriteSheetUrl: animation.spriteSheetUrl,
+        animationConfig: animation.animationConfig,
+        colorTheme: spellAnimationService.getSpellColorTheme(animation.spellName),
+      });
+    } catch (error) {
+      console.error("Error fetching spell animation:", error);
+      res.status(500).json({ error: "Failed to fetch spell animation" });
+    }
+  });
+
+  app.post("/api/spell-animations/generate", async (req, res) => {
+    try {
+      const { spellName } = req.body;
+      
+      if (!spellName) {
+        return res.status(400).json({ error: "spellName is required" });
+      }
+      
+      const animation = await spellAnimationService.generateSpellAnimation(spellName);
+      
+      res.json({
+        spellName: animation.spellName,
+        status: animation.generationStatus,
+        spriteSheetUrl: animation.spriteSheetUrl,
+        colorTheme: spellAnimationService.getSpellColorTheme(animation.spellName),
+      });
+    } catch (error) {
+      console.error("Error generating spell animation:", error);
+      res.status(500).json({ error: "Failed to generate spell animation" });
+    }
+  });
+
+  app.post("/api/spell-animations/pregenerate", async (req, res) => {
+    try {
+      const { concurrency = 2 } = req.body;
+      
+      res.json({ 
+        success: true, 
+        message: `Starting spell animation pre-generation for ${HARRY_POTTER_SPELLS.length} spells`,
+        spells: HARRY_POTTER_SPELLS.map(s => s.name),
+        estimatedTime: `${Math.ceil(HARRY_POTTER_SPELLS.length / concurrency) * 60} seconds`
+      });
+      
+      spellAnimationService.pregenerateAllSpells(concurrency)
+        .then(({ started, skipped }) => {
+          console.log(`[SpellAnimation] Pre-generation complete: ${started} started, ${skipped} skipped`);
+        })
+        .catch((err) => {
+          console.error("[SpellAnimation] Pre-generation failed:", err);
+        });
+      
+    } catch (error) {
+      console.error("Error starting spell animation pre-generation:", error);
+      res.status(500).json({ error: "Failed to start spell animation pre-generation" });
+    }
+  });
+
+  app.get("/api/spell-animations/status", async (req, res) => {
+    try {
+      const statuses = await spellAnimationService.getAllSpellAnimationsStatus();
+      
+      const summary = {
+        total: statuses.length,
+        ready: statuses.filter(s => s.status === "ready").length,
+        generating: statuses.filter(s => s.status === "generating").length,
+        failed: statuses.filter(s => s.status === "failed").length,
+        pending: statuses.filter(s => s.status === "pending").length,
+      };
+      
+      res.json({ summary, spells: statuses });
+    } catch (error) {
+      console.error("Error fetching spell animation statuses:", error);
+      res.status(500).json({ error: "Failed to fetch spell animation statuses" });
+    }
+  });
+
+  app.get("/api/spells", async (req, res) => {
+    try {
+      res.json(HARRY_POTTER_SPELLS.map(spell => ({
+        name: spell.name,
+        incantation: spell.incantation,
+        classification: spell.classification,
+        description: spell.description,
+        colorTheme: spell.colorTheme,
+        difficulty: spell.difficulty,
+        yearLearned: spell.yearLearned,
+        isUnforgivable: spell.isUnforgivable || false,
+      })));
+    } catch (error) {
+      console.error("Error fetching spells:", error);
+      res.status(500).json({ error: "Failed to fetch spells" });
     }
   });
 }
