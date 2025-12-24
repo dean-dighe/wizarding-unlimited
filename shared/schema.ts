@@ -1,4 +1,4 @@
-import { pgTable, serial, text, boolean, timestamp, integer, jsonb, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -7,6 +7,75 @@ export * from "./models/chat";
 
 // Import conversations for FK reference
 import { conversations } from "./models/chat";
+
+// ===== GAME ASSET TABLES =====
+
+// Location maps - stores generated Phaser.js map code for each unique location
+// Game-wide persistence: maps are reused across all players
+export const location_maps = pgTable("location_maps", {
+  id: serial("id").primaryKey(),
+  locationName: text("location_name").notNull().unique(), // e.g., "Great Hall", "Potions Classroom"
+  mapCode: text("map_code").notNull(), // Generated Phaser.js map rendering code
+  tilesetUrl: text("tileset_url"), // Object Storage URL for tileset image
+  mapWidth: integer("map_width").default(640), // Canvas width in pixels
+  mapHeight: integer("map_height").default(480), // Canvas height in pixels
+  spawnPoints: jsonb("spawn_points").$type<Record<string, { x: number; y: number }>>().default({}), // Named spawn positions
+  walkableTiles: jsonb("walkable_tiles").$type<number[]>().default([]), // Tile indices that can be walked on
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertLocationMapSchema = createInsertSchema(location_maps).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type LocationMap = typeof location_maps.$inferSelect;
+export type InsertLocationMap = z.infer<typeof insertLocationMapSchema>;
+
+// Character sprites - stores generated pixel art sprites for characters
+// Game-wide persistence: sprites are reused across all players
+export const character_sprites = pgTable("character_sprites", {
+  id: serial("id").primaryKey(),
+  characterName: text("character_name").notNull().unique(), // e.g., "Harry Potter", or custom NPC name
+  isProtagonist: boolean("is_protagonist").default(false), // True for player characters
+  isCanon: boolean("is_canon").default(false), // True for Harry Potter canon characters
+  spriteSheetUrl: text("sprite_sheet_url").notNull(), // Object Storage URL for sprite sheet
+  characterDescription: text("character_description"), // Visual description used for generation
+  spriteWidth: integer("sprite_width").default(32), // Single frame width
+  spriteHeight: integer("sprite_height").default(32), // Single frame height
+  frameCount: integer("frame_count").default(12), // Total animation frames
+  animationConfig: jsonb("animation_config").$type<{
+    idle: { start: number; end: number; frameRate: number };
+    walkDown: { start: number; end: number; frameRate: number };
+    walkUp: { start: number; end: number; frameRate: number };
+    walkLeft: { start: number; end: number; frameRate: number };
+    walkRight: { start: number; end: number; frameRate: number };
+    cast: { start: number; end: number; frameRate: number };
+  }>(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertCharacterSpriteSchema = createInsertSchema(character_sprites).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type CharacterSprite = typeof character_sprites.$inferSelect;
+export type InsertCharacterSprite = z.infer<typeof insertCharacterSpriteSchema>;
+
+// Standard animation definitions - bundled config for consistent animations
+export const DEFAULT_ANIMATION_CONFIG = {
+  idle: { start: 0, end: 0, frameRate: 1 },
+  walkDown: { start: 0, end: 2, frameRate: 8 },
+  walkUp: { start: 3, end: 5, frameRate: 8 },
+  walkLeft: { start: 6, end: 8, frameRate: 8 },
+  walkRight: { start: 9, end: 11, frameRate: 8 },
+  cast: { start: 0, end: 2, frameRate: 6 },
+} as const;
 
 // Story Arc structure for narrative planning
 export interface StoryArc {

@@ -4,6 +4,8 @@ import { storage } from "./storage";
 import { registerChatRoutes } from "./replit_integrations/chat/routes";
 import { registerImageRoutes } from "./replit_integrations/image/routes";
 import { registerTTSRoutes } from "./replit_integrations/tts/routes";
+import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
+import { registerGameAssetRoutes } from "./replit_integrations/game_assets";
 import { chatStorage } from "./replit_integrations/chat/storage";
 import { generateStoryArc } from "./replit_integrations/story/engine";
 import { api } from "@shared/routes";
@@ -62,6 +64,8 @@ export async function registerRoutes(
   registerChatRoutes(app);
   registerImageRoutes(app);
   registerTTSRoutes(app);
+  registerObjectStorageRoutes(app);
+  registerGameAssetRoutes(app);
 
   // Game Init Route
   app.post(api.game.init.path, async (req, res) => {
