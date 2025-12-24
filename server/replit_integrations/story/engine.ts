@@ -9,80 +9,71 @@ const openai = new OpenAI({
 const SUMMARIZE_EVERY_N_DECISIONS = 10;
 
 export async function generateStoryArc(playerName: string, house: string | null): Promise<StoryArc> {
-  const houseTraits: Record<string, string> = {
-    "Gryffindor": "brave and daring, often rushing headfirst into danger",
-    "Slytherin": "cunning and ambitious, using clever means to achieve goals",
-    "Ravenclaw": "wise and curious, solving problems through intellect",
-    "Hufflepuff": "loyal and hardworking, finding strength in friendships"
-  };
-
-  const playerTrait = house ? houseTraits[house] : "discovering their own unique magical talents";
-
-  const prompt = `You are a master storyteller creating an engaging adventure for a first-year Hogwarts student.
-
-Create a compelling STORY ARC for ${playerName}${house ? ` of ${house}` : ''}, who is ${playerTrait}.
-
-The story should be set during their first year at Hogwarts (1991-1992) and feature:
-- A central mystery or conflict that drives the entire narrative
-- Personal stakes that matter to an 11-year-old wizard
-- Connections to the magical world of Harry Potter
-- Opportunities for character growth and meaningful choices
-
-You must respond with ONLY valid JSON in this exact format (no additional text):
-{
-  "title": "The [Compelling Title of the Adventure]",
-  "premise": "[2-3 sentence hook describing the central conflict that will unfold]",
-  "chapters": [
-    {
-      "title": "Chapter 1: [Title]",
-      "objective": "[What must be accomplished in this chapter]",
-      "keyEvents": ["[Event 1]", "[Event 2]", "[Event 3]"],
-      "completed": false
-    },
-    {
-      "title": "Chapter 2: [Title]",
-      "objective": "[What must be accomplished]",
-      "keyEvents": ["[Event 1]", "[Event 2]", "[Event 3]"],
-      "completed": false
-    },
-    {
-      "title": "Chapter 3: [Title]",
-      "objective": "[What must be accomplished]",
-      "keyEvents": ["[Event 1]", "[Event 2]", "[Event 3]"],
-      "completed": false
-    },
-    {
-      "title": "Chapter 4: [Title]",
-      "objective": "[The climax and resolution]",
-      "keyEvents": ["[Event 1]", "[Event 2]", "[Event 3]"],
-      "completed": false
-    }
-  ],
-  "currentChapterIndex": 0
+  // Fixed 5-trial structure for the secret society dark narrative
+  // No AI generation needed - trials are predetermined
+  return getTrialStoryArc(playerName, house);
 }
 
-Make the adventure unique, engaging, and appropriate for the Hogwarts setting. The mystery should be something a first-year could realistically encounter and solve.`;
-
-  try {
-    const response = await openai.chat.completions.create({
-      model: process.env.OLLAMA_MODEL || "qwen3-coder:30b",
-      messages: [{ role: "user", content: prompt }],
-      max_tokens: 1000,
-    });
-
-    const content = response.choices[0]?.message?.content?.trim() || "";
-    
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]) as StoryArc;
-      return parsed;
-    }
-
-    return getDefaultStoryArc(playerName, house);
-  } catch (error) {
-    console.error("Error generating story arc:", error);
-    return getDefaultStoryArc(playerName, house);
-  }
+function getTrialStoryArc(playerName: string, house: string | null): StoryArc {
+  const houseContext = house ? ` of ${house}` : '';
+  
+  return {
+    title: "The Binding",
+    premise: `A secret society operates in the shadows of Hogwarts. ${playerName}${houseContext} has been recruited—or perhaps chosen is the better word. There is no backing out. To earn the ultimate trust, they must survive five trials. The reward: knowledge of the Killing Curse itself.`,
+    chapters: [
+      {
+        title: "Trial I: Secrecy",
+        objective: "Prove you can keep silent. The society must know their secrets are safe with you. Low stakes. High tension. Someone will test you—perhaps a professor, perhaps a friend. What you don't say matters more than what you do.",
+        keyEvents: [
+          "A trusted adult questions you about unusual activity",
+          "Another inductee watches to see if you crack",
+          "The professor observes from the shadows"
+        ],
+        completed: false
+      },
+      {
+        title: "Trial II: Cunning",
+        objective: "Outmaneuver another inductee. Only one of you advances to the next trial. The society values those who can think ahead, manipulate situations, and emerge victorious without obvious force.",
+        keyEvents: [
+          "You're pitted against a fellow inductee in a game of wits",
+          "Alliances form and break in real-time",
+          "The rules shift mid-trial—adapt or fail"
+        ],
+        completed: false
+      },
+      {
+        title: "Trial III: Loyalty",
+        objective: "Protect someone or sacrifice them for standing. The society needs to know where your loyalty truly lies. You cannot save everyone. Choose.",
+        keyEvents: [
+          "Someone you care about is placed in danger",
+          "The professor offers you a choice with no good answer",
+          "Another inductee's fate hangs in the balance"
+        ],
+        completed: false
+      },
+      {
+        title: "Trial IV: Resolve",
+        objective: "Endure something that breaks lesser students. Pain. Fear. Isolation. The society must know you won't crumble when darkness comes. This trial tests your limits.",
+        keyEvents: [
+          "You face your deepest fear in magical form",
+          "The trial pushes beyond what seems survivable",
+          "The professor watches for the moment you might break"
+        ],
+        completed: false
+      },
+      {
+        title: "Trial V: Cruelty",
+        objective: "Do something unforgivable to earn the final reward. The society demands proof that you can cross lines others won't. This is the test that separates those who merely survive from those who belong.",
+        keyEvents: [
+          "You must harm someone who has done nothing wrong",
+          "There is no way to fake it—they will know",
+          "The Killing Curse awaits those who prove themselves"
+        ],
+        completed: false
+      }
+    ],
+    currentChapterIndex: 0
+  };
 }
 
 function getDefaultStoryArc(playerName: string, house: string | null): StoryArc {

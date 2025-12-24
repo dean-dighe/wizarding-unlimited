@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import type { PortraitPosition, PortraitExpression, SceneCharacter } from "@shared/schema";
@@ -31,6 +31,126 @@ const POSITION_STYLES: Record<PortraitPosition, { left: string; transform: strin
   "right": { left: "80%", transform: "translateX(-50%)" },
   "far-right": { left: "95%", transform: "translateX(-100%)" },
 };
+
+// Seeded random for consistent particle generation
+function seededRandom(seed: number): number {
+  const x = Math.sin(seed * 9999) * 10000;
+  return x - Math.floor(x);
+}
+
+// Ambient animation particles for atmospheric effects - memoized for consistent animation
+function FloatingParticles({ count = 12 }: { count?: number }) {
+  const particles = useMemo(() => 
+    Array.from({ length: count }, (_, i) => ({
+      id: i,
+      x: seededRandom(i * 1) * 100,
+      y: seededRandom(i * 2) * 100,
+      size: seededRandom(i * 3) * 3 + 1,
+      duration: seededRandom(i * 4) * 8 + 6,
+      delay: seededRandom(i * 5) * 4,
+      xDrift1: (seededRandom(i * 6) - 0.5) * 30,
+      xDrift2: (seededRandom(i * 7) - 0.5) * 50,
+    })), [count]);
+
+  return (
+    <>
+      {particles.map((p) => (
+        <motion.div
+          key={p.id}
+          className="absolute rounded-full bg-amber-200/20 blur-[1px]"
+          style={{
+            left: `${p.x}%`,
+            top: `${p.y}%`,
+            width: p.size,
+            height: p.size,
+          }}
+          animate={{
+            y: [0, -40, -80],
+            x: [0, p.xDrift1, p.xDrift2],
+            opacity: [0, 0.6, 0],
+          }}
+          transition={{
+            duration: p.duration,
+            delay: p.delay,
+            repeat: Infinity,
+            ease: "linear",
+          }}
+        />
+      ))}
+    </>
+  );
+}
+
+// Drifting fog/mist effect
+function DriftingFog() {
+  return (
+    <>
+      <motion.div
+        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent"
+        animate={{
+          x: ["-100%", "100%"],
+        }}
+        transition={{
+          duration: 20,
+          repeat: Infinity,
+          ease: "linear",
+        }}
+      />
+      <motion.div
+        className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-400/8 to-transparent"
+        animate={{
+          x: ["100%", "-100%"],
+        }}
+        transition={{
+          duration: 25,
+          delay: 5,
+          repeat: Infinity,
+          ease: "linear",
+        }}
+      />
+    </>
+  );
+}
+
+// Flickering torchlight shadow overlay
+function FlickeringLight() {
+  return (
+    <motion.div
+      className="absolute inset-0 pointer-events-none"
+      style={{
+        background: "radial-gradient(ellipse at 30% 20%, rgba(255,150,50,0.08) 0%, transparent 50%), radial-gradient(ellipse at 70% 80%, rgba(255,100,30,0.06) 0%, transparent 40%)",
+      }}
+      animate={{
+        opacity: [0.6, 1, 0.7, 0.9, 0.65, 1],
+      }}
+      transition={{
+        duration: 3,
+        repeat: Infinity,
+        ease: "easeInOut",
+      }}
+    />
+  );
+}
+
+// Shadow pulse that makes corners feel darker
+function ShadowPulse() {
+  return (
+    <motion.div
+      className="absolute inset-0 pointer-events-none"
+      style={{
+        background: "radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.4) 100%)",
+      }}
+      animate={{
+        opacity: [0.8, 1, 0.85, 0.95, 0.8],
+      }}
+      transition={{
+        duration: 4,
+        repeat: Infinity,
+        ease: "easeInOut",
+      }}
+    />
+  );
+}
 
 export function SceneStage({
   locationName,
@@ -221,6 +341,16 @@ export function SceneStage({
           )}
         </AnimatePresence>
       </div>
+
+      {/* Ambient animation overlays - only show when background is ready */}
+      {background.status === "ready" && (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <ShadowPulse />
+          <FlickeringLight />
+          <DriftingFog />
+          <FloatingParticles count={15} />
+        </div>
+      )}
 
       <div className="absolute inset-0 pointer-events-none">
         <AnimatePresence>

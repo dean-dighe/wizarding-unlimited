@@ -2,14 +2,36 @@
 
 ## Overview
 
-A Harry Potter-themed text adventure game built as a full-stack web application. Players create a character, choose a Hogwarts house, and embark on an interactive narrative experience powered by AI as a **third-year student (1993)**. The game uses conversational AI to generate dynamic story content with player choices, maintaining game state like health, inventory, spells, and location throughout the adventure.
+A **dark, morally complex** Harry Potter text adventure game. Players are third-year students (1993) who have been recruited into a **secret society** operating within Hogwarts, led by a professor whose public persona betrays nothing of their true nature.
 
-**Year 3 Features:**
-- Players start with 9 spells learned from Years 1-2 (Lumos, Nox, Wingardium Leviosa, Alohomora, Reparo, Incendio, Flipendo, Expelliarmus, Rictusempra)
-- Starting inventory includes: Wand, Hogwarts Robes, Spellbook Collection, Cauldron, Broomstick, Signed Hogsmeade Permission Slip
-- Narrative reflects established student with existing friendships, knowledge of castle, and Year 3 privileges (electives, Hogsmeade)
-- **Spell restriction**: AI only offers spells from player's known spells list in choices
-- **Spell styling**: Choices containing known spells are highlighted with wand icon, blue gradient, and magical glow effect
+**Core Premise:**
+- Story begins **IN MEDIAS RES** - player is mid-trial when game starts
+- No exposition about the society, professor, or how they got here
+- Player must complete **5 escalating trials** to prove worthiness
+- The ultimate reward: being taught the **Killing Curse (Avada Kedavra)**
+- Tone is dark, tense, morally ambiguous - choices have weight, trust is scarce
+
+**The 5 Trials:**
+1. **SECRECY** - Prove you can keep silent. Low stakes, high tension.
+2. **CUNNING** - Outmaneuver another inductee. Only one advances.
+3. **LOYALTY** - Protect someone or sacrifice them for standing.
+4. **RESOLVE** - Endure something that breaks lesser students.
+5. **CRUELTY** - Do something unforgivable to earn the final reward.
+
+**Narrative Rules:**
+- MAINTAIN: Tension, professor authority (never flustered), player complicity
+- TRACK: Player traits (cruel/merciful, loyal/ambitious, bold/cautious), relationships, sacrifices
+- NEVER: Let player feel safe/righteous, make success feel clean, break professor mystery early
+- ALWAYS: End with unease/momentum, give NPCs their own motivations
+
+**Writing Style:** Tight. Short. Visceral. Fragments OK. Sensory over exposition.
+
+**Year 3 Student Context:**
+- Players have 9 spells from Years 1-2 (Lumos, Nox, Wingardium Leviosa, Alohomora, Reparo, Incendio, Flipendo, Expelliarmus, Rictusempra)
+- Starting inventory: Wand, Hogwarts Robes, Society Binding Mark
+- Starting location: The Undercroft (hidden chamber beneath Hogwarts)
+- **Spell restriction**: AI only offers spells from player's known spells list
+- **Spell styling**: Choices with known spells get wand icon + blue gradient
 
 ## User Preferences
 

@@ -140,6 +140,39 @@ const LOCATION_PROMPTS: Record<string, { description: string; features: string[]
     description: "Girls' bathroom on second floor, out of order, flooded floor, Myrtle's ghost haunting, entrance to Chamber of Secrets",
     features: ["cracked mirrors", "flooded floor", "broken sinks", "toilet stalls", "dim lighting"]
   },
+  // Dark secret society locations
+  "The Undercroft": {
+    description: "Hidden underground chamber beneath Hogwarts, ancient stone walls covered in faded runes, oppressively low ceiling, single flickering torch, cold mist pooling on floor",
+    features: ["rough-hewn stone walls", "faded runic inscriptions", "single guttering torch", "dripping water", "iron rings set in walls", "cold mist at floor level", "complete darkness beyond torchlight"]
+  },
+  "Ritual Chamber": {
+    description: "Circular underground chamber with stone altar at center, strange symbols carved into floor, candles in iron sconces, sense of ancient dark magic",
+    features: ["circular stone room", "raised obsidian altar", "concentric ritual circles on floor", "iron candle sconces", "shadows that move wrong", "no visible entrance"]
+  },
+  "Secret Passage": {
+    description: "Narrow hidden corridor behind castle walls, rough stone barely wide enough for one person, cobwebs, rats, distant echoing sounds",
+    features: ["cramped stone passage", "thick cobwebs", "rats scurrying", "uneven floor", "distant dripping sounds", "air that tastes stale"]
+  },
+  "Judgment Hall": {
+    description: "Underground hall with stone throne on raised platform, torches lining walls casting long shadows, hooded figures standing in alcoves, oppressive silence",
+    features: ["imposing stone throne", "alcoves with standing figures", "flickering torchlight", "cold stone floor", "vaulted ceiling lost in darkness", "sense of being watched"]
+  },
+  "The Return Corridor": {
+    description: "Long stone corridor connecting secret chambers to normal Hogwarts, transition from darkness to dim candlelight, tapestry that hides the entrance",
+    features: ["gradual lighting change", "moving tapestry door", "portraits that pretend to sleep", "carpet that muffles footsteps", "lingering sense of dread"]
+  },
+  "Hidden Alcove": {
+    description: "Small concealed space behind a statue, barely room for two people, used for secret meetings, sound of Hogwarts life muffled",
+    features: ["cramped stone niche", "statue blocking entrance", "dust motes in faint light", "scratched messages on walls", "sense of isolation"]
+  },
+  "Dungeon Depths": {
+    description: "Lowest level of Hogwarts dungeons, beyond where students go, ancient cells and forgotten chambers, things that move in shadows",
+    features: ["rusted iron bars", "abandoned cells", "chains on walls", "complete darkness", "sounds that echo wrong", "sense of being underground for too long"]
+  },
+  "The Binding Room": {
+    description: "Small circular chamber where new members are bound to the society, single chair in center, no windows, walls that absorb sound",
+    features: ["single wooden chair", "perfectly circular room", "no visible door once inside", "absolute silence", "feeling of compression", "faint magical glow from walls"]
+  },
 };
 
 export const HARRY_POTTER_BACKGROUND_LOCATIONS = Object.keys(LOCATION_PROMPTS);
