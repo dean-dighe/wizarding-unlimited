@@ -35,10 +35,17 @@ Preferred communication style: Simple, everyday language.
   - Procedural map generation with basic tilemap
   - Player sprite with walk animations (4 directions, 3 frames each)
   - Click-to-move player navigation with physics
-- **Responsive Design**:
-  - Mobile: Story paragraphs collapse to 1 line with "Tap to read" hint, tap to expand
-  - Desktop: Full text displayed, no collapse UI
-  - Scene images appear BELOW story text (narrator-first focus)
+- **Responsive Design (Refactored December 2024)**:
+  - **Desktop (lg+)**: Two-column layout - fixed canvas (480x360) on left, scrollable story on right
+  - **Mobile/Tablet**: Stacked layout - canvas on top, scrollable story, sticky choice panel at bottom
+  - Compact inline header bar with house icon, player name, health, location, time
+  - Expandable detail drawer on mobile for inventory/spells/story progress
+  - Story paragraphs collapse to 1 line on mobile with "Tap to read" hint
+  - Choice buttons highlighted with spell detection (blue gradient + wand icon for known spells)
+- **Component Structure**:
+  - `StatBadge` - Compact inline stat display for header
+  - `DetailPanel` - Mobile-only expandable stats drawer
+  - `ChoicePanel` - Styled choice buttons with spell highlighting
 
 ### Backend Architecture
 - **Express.js** server with TypeScript
