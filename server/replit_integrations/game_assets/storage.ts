@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 
 const SPRITES_DIR = "sprites";
 const TILESETS_DIR = "tilesets";
+const ENV_SPRITES_DIR = "env_sprites";
 
 export class GameAssetStorageService {
   private objectStorage: ObjectStorageService;
@@ -76,6 +77,32 @@ export class GameAssetStorageService {
     });
     
     return `/objects/${TILESETS_DIR}/${fileName}`;
+  }
+
+  async uploadEnvironmentSprite(imageBuffer: Buffer, assetId: string): Promise<string> {
+    if (!this.isConfigured()) {
+      throw new Error("Object storage not configured");
+    }
+
+    const publicDir = this.getPublicDir();
+    const fileName = `${assetId.toLowerCase().replace(/\s+/g, "_")}_${randomUUID().slice(0, 8)}.png`;
+    const objectPath = `${publicDir}/${ENV_SPRITES_DIR}/${fileName}`;
+    
+    const { bucketName, objectName } = this.parseObjectPath(objectPath);
+    const bucket = objectStorageClient.bucket(bucketName);
+    const file = bucket.file(objectName);
+    
+    await file.save(imageBuffer, {
+      contentType: "image/png",
+      metadata: {
+        "custom:aclPolicy": JSON.stringify({
+          owner: "system",
+          visibility: "public",
+        }),
+      },
+    });
+    
+    return `/objects/${ENV_SPRITES_DIR}/${fileName}`;
   }
 
   private parseObjectPath(path: string): { bucketName: string; objectName: string } {

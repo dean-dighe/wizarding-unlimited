@@ -1,7 +1,8 @@
 import OpenAI from "openai";
 import { storage } from "../../storage";
 import { GameAssetStorageService } from "./storage";
-import type { TilemapData, TilemapLayer, MapGenerationStatus } from "@shared/schema";
+import { environmentAssetService } from "./environment";
+import type { TilemapData, TilemapLayer, MapGenerationStatus, PlacedObject } from "@shared/schema";
 
 const xai = new OpenAI({
   apiKey: process.env.XAI_API_KEY || "",
@@ -140,6 +141,14 @@ export class MapGenerationService {
       }
     }
 
+    const assetIds = environmentAssetService.selectAssetsForLocation(locationName);
+    const objects = environmentAssetService.generateRandomPlacements(
+      assetIds,
+      tilesX * 32,
+      tilesY * 32,
+      0.08
+    );
+
     return {
       width: tilesX,
       height: tilesY,
@@ -164,6 +173,7 @@ export class MapGenerationService {
           opacity: 1,
         },
       ],
+      objects,
     };
   }
 

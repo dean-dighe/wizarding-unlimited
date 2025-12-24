@@ -359,7 +359,7 @@ export default function Game() {
   const npcSpriteUrls = state?.npcSpriteUrls || {};
 
   // Fetch map data for current location
-  const { tilesetUrl, tilemapData, isMapGenerating, spawnPoints } = useGameCanvasData(state?.playerName, state?.location);
+  const { tilesetUrl, tilemapData, isMapGenerating, spawnPoints, environmentSprites } = useGameCanvasData(state?.playerName, state?.location);
 
   useEffect(() => {
     isMutedRef.current = isMuted;
@@ -820,6 +820,7 @@ export default function Game() {
                     height={canvasDimensions.height}
                     isMapGenerating={isMapGenerating}
                     spawnPoints={spawnPoints}
+                    environmentSprites={environmentSprites}
                     onPlayerMove={(target) => console.log("Player moving to:", target)}
                     onInteraction={(npcName) => console.log("Interacting with:", npcName)}
                   />

@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { SpriteGenerationService, CANON_CHARACTERS } from "./sprites";
 import { MapGenerationService, HARRY_POTTER_LOCATIONS } from "./maps";
+import { environmentAssetService, ENVIRONMENT_ASSETS } from "./environment";
 import { storage } from "../../storage";
 import pLimit from "p-limit";
 
@@ -74,12 +75,28 @@ export function registerGameAssetRoutes(app: Express): void {
       
       const result = await mapService.getOrCreateMap(decodedName);
       
+      let environmentSprites: Record<string, string> = {};
+      if (result.tilemapData?.objects && result.tilemapData.objects.length > 0) {
+        const assetIdSet = new Set<string>();
+        result.tilemapData.objects.forEach(o => assetIdSet.add(o.assetId));
+        const uniqueAssetIds = Array.from(assetIdSet);
+        const sprites = await Promise.all(
+          uniqueAssetIds.map(id => storage.getEnvironmentSprite(id))
+        );
+        sprites.forEach((sprite, i) => {
+          if (sprite) {
+            environmentSprites[uniqueAssetIds[i]] = sprite.spriteUrl;
+          }
+        });
+      }
+      
       res.json({
         locationName: decodedName,
         tilesetUrl: result.tilesetUrl,
         tilemapData: result.tilemapData,
         spawnPoints: result.spawnPoints,
         generationStatus: result.generationStatus,
+        environmentSprites,
       });
     } catch (error) {
       console.error("Error fetching map:", error);
@@ -328,6 +345,102 @@ export function registerGameAssetRoutes(app: Express): void {
     } catch (error) {
       console.error("Error fetching map status:", error);
       res.status(500).json({ error: "Failed to fetch map status" });
+    }
+  });
+
+  // ===== ENVIRONMENT ASSET ROUTES =====
+
+  app.get("/api/game-assets/environment", async (req, res) => {
+    try {
+      const sprites = await storage.getAllEnvironmentSprites();
+      res.json(sprites);
+    } catch (error) {
+      console.error("Error fetching environment sprites:", error);
+      res.status(500).json({ error: "Failed to fetch environment sprites" });
+    }
+  });
+
+  app.get("/api/game-assets/environment/:assetId", async (req, res) => {
+    try {
+      const { assetId } = req.params;
+      const sprite = await storage.getEnvironmentSprite(assetId);
+      
+      if (!sprite) {
+        return res.status(404).json({ error: "Environment sprite not found" });
+      }
+      
+      res.json(sprite);
+    } catch (error) {
+      console.error("Error fetching environment sprite:", error);
+      res.status(500).json({ error: "Failed to fetch environment sprite" });
+    }
+  });
+
+  app.post("/api/game-assets/environment/pregenerate", async (req, res) => {
+    try {
+      const { concurrency = 2 } = req.body;
+      
+      res.json({ 
+        success: true, 
+        message: `Starting environment asset pre-generation for ${ENVIRONMENT_ASSETS.length} assets`,
+        assets: ENVIRONMENT_ASSETS.map(a => a.assetId),
+        estimatedTime: `${Math.ceil(ENVIRONMENT_ASSETS.length / concurrency) * 5} seconds`
+      });
+      
+      environmentAssetService.generateAllAssets()
+        .then(({ success, failed }) => {
+          console.log(`[Env-pregen] Complete: ${success.length} successful, ${failed.length} failed`);
+        })
+        .catch((err) => {
+          console.error("[Env-pregen] Unexpected error:", err);
+        });
+      
+    } catch (error) {
+      console.error("Error starting environment pre-generation:", error);
+      res.status(500).json({ error: "Failed to start environment pre-generation" });
+    }
+  });
+
+  app.get("/api/game-assets/environment/status", async (req, res) => {
+    try {
+      const allAssets = ENVIRONMENT_ASSETS;
+      const sprites = await storage.getAllEnvironmentSprites();
+      
+      const status = allAssets.map(asset => {
+        const existingSprite = sprites.find(s => s.assetId === asset.assetId);
+        return {
+          assetId: asset.assetId,
+          category: asset.category,
+          description: asset.description,
+          generated: !!existingSprite,
+          spriteUrl: existingSprite?.spriteUrl || null,
+        };
+      });
+      
+      const summary = {
+        total: allAssets.length,
+        generated: status.filter(s => s.generated).length,
+        pending: status.filter(s => !s.generated).length,
+        byCategory: {
+          nature: status.filter(s => s.category === "nature").length,
+          furniture: status.filter(s => s.category === "furniture").length,
+          magical: status.filter(s => s.category === "magical").length,
+          tools: status.filter(s => s.category === "tools").length,
+          effects: status.filter(s => s.category === "effects").length,
+        },
+        generatedByCategory: {
+          nature: status.filter(s => s.category === "nature" && s.generated).length,
+          furniture: status.filter(s => s.category === "furniture" && s.generated).length,
+          magical: status.filter(s => s.category === "magical" && s.generated).length,
+          tools: status.filter(s => s.category === "tools" && s.generated).length,
+          effects: status.filter(s => s.category === "effects" && s.generated).length,
+        },
+      };
+      
+      res.json({ summary, assets: status });
+    } catch (error) {
+      console.error("Error fetching environment status:", error);
+      res.status(500).json({ error: "Failed to fetch environment status" });
     }
   });
 }

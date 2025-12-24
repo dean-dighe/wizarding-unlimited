@@ -25,6 +25,14 @@ interface TilemapLayer {
   opacity: number;
 }
 
+interface PlacedObject {
+  assetId: string;
+  x: number;
+  y: number;
+  scale?: number;
+  flipX?: boolean;
+}
+
 interface TilemapData {
   width: number;
   height: number;
@@ -32,6 +40,7 @@ interface TilemapData {
   tileHeight: number;
   layers: TilemapLayer[];
   tilesetName: string;
+  objects?: PlacedObject[];
 }
 
 type MapGenerationStatus = "pending" | "generating" | "ready" | "failed";
@@ -42,6 +51,7 @@ interface MapData {
   tilemapData: TilemapData | null;
   spawnPoints: Record<string, { x: number; y: number }>;
   generationStatus: MapGenerationStatus;
+  environmentSprites?: Record<string, string>;
 }
 
 export function usePlayerSprite(playerName: string | null | undefined) {
@@ -91,6 +101,7 @@ export function useGameCanvasData(playerName: string | null | undefined, locatio
     tilesetUrl: locationMapQuery.data?.tilesetUrl,
     tilemapData: locationMapQuery.data?.tilemapData,
     spawnPoints: locationMapQuery.data?.spawnPoints,
+    environmentSprites: locationMapQuery.data?.environmentSprites,
   };
 }
 

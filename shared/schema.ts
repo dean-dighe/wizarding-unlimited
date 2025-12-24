@@ -23,6 +23,15 @@ export interface TilemapLayer {
   opacity: number;
 }
 
+// Placed object on a map (environment sprite instance)
+export interface PlacedObject {
+  assetId: string; // References environment_sprites.assetId
+  x: number; // Pixel position
+  y: number;
+  scale?: number; // Optional scale factor (default 1)
+  flipX?: boolean; // Horizontal flip
+}
+
 // Full tilemap data structure
 export interface TilemapData {
   width: number; // Map width in tiles
@@ -31,6 +40,7 @@ export interface TilemapData {
   tileHeight: number;
   layers: TilemapLayer[];
   tilesetName: string;
+  objects?: PlacedObject[]; // Environmental objects placed on this map
 }
 
 // Location maps - stores generated Phaser.js map code for each unique location
@@ -96,6 +106,31 @@ export const insertCharacterSpriteSchema = createInsertSchema(character_sprites)
 
 export type CharacterSprite = typeof character_sprites.$inferSelect;
 export type InsertCharacterSprite = z.infer<typeof insertCharacterSpriteSchema>;
+
+// Environment sprites - pre-generated assets for map decorations
+// Game-wide persistence: shared across all maps and players
+export const environment_sprites = pgTable("environment_sprites", {
+  id: serial("id").primaryKey(),
+  assetId: text("asset_id").notNull().unique(), // e.g., "rock_1", "tree_oak", "torch_lit"
+  category: text("category").notNull(), // "nature", "furniture", "magical", "tools", "effects"
+  spriteUrl: text("sprite_url").notNull(), // Object Storage URL for sprite image
+  spriteWidth: integer("sprite_width").default(32),
+  spriteHeight: integer("sprite_height").default(32),
+  isAnimated: boolean("is_animated").default(false),
+  frameCount: integer("frame_count").default(1),
+  animationFrameRate: integer("animation_frame_rate").default(8),
+  isWalkable: boolean("is_walkable").default(false), // Can player walk through this?
+  description: text("description"), // What this asset represents
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertEnvironmentSpriteSchema = createInsertSchema(environment_sprites).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type EnvironmentSprite = typeof environment_sprites.$inferSelect;
+export type InsertEnvironmentSprite = z.infer<typeof insertEnvironmentSpriteSchema>;
 
 // Standard animation definitions - bundled config for consistent animations
 export const DEFAULT_ANIMATION_CONFIG = {

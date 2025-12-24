@@ -3,12 +3,15 @@ import {
   game_states, 
   location_maps,
   character_sprites,
+  environment_sprites,
   type InsertGameState, 
   type GameState,
   type InsertLocationMap,
   type LocationMap,
   type InsertCharacterSprite,
   type CharacterSprite,
+  type InsertEnvironmentSprite,
+  type EnvironmentSprite,
 } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
@@ -30,6 +33,12 @@ export interface IStorage {
   updateCharacterSprite(characterName: string, updates: Partial<InsertCharacterSprite>): Promise<CharacterSprite>;
   getAllCharacterSprites(): Promise<CharacterSprite[]>;
   getCanonCharacterSprites(): Promise<CharacterSprite[]>;
+  
+  // Environment sprite methods (game-wide persistence)
+  getEnvironmentSprite(assetId: string): Promise<EnvironmentSprite | undefined>;
+  createEnvironmentSprite(sprite: InsertEnvironmentSprite): Promise<EnvironmentSprite>;
+  getAllEnvironmentSprites(): Promise<EnvironmentSprite[]>;
+  getEnvironmentSpritesByCategory(category: string): Promise<EnvironmentSprite[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -141,6 +150,26 @@ export class DatabaseStorage implements IStorage {
   
   async getCanonCharacterSprites(): Promise<CharacterSprite[]> {
     return db.select().from(character_sprites).where(eq(character_sprites.isCanon, true));
+  }
+
+  // ===== ENVIRONMENT SPRITE METHODS =====
+  
+  async getEnvironmentSprite(assetId: string): Promise<EnvironmentSprite | undefined> {
+    const [sprite] = await db.select().from(environment_sprites).where(eq(environment_sprites.assetId, assetId));
+    return sprite;
+  }
+  
+  async createEnvironmentSprite(sprite: InsertEnvironmentSprite): Promise<EnvironmentSprite> {
+    const [newSprite] = await db.insert(environment_sprites).values(sprite).returning();
+    return newSprite;
+  }
+  
+  async getAllEnvironmentSprites(): Promise<EnvironmentSprite[]> {
+    return db.select().from(environment_sprites);
+  }
+  
+  async getEnvironmentSpritesByCategory(category: string): Promise<EnvironmentSprite[]> {
+    return db.select().from(environment_sprites).where(eq(environment_sprites.category, category));
   }
 }
 

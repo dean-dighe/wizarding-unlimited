@@ -27,6 +27,7 @@ interface GameCanvasProps {
   height?: number;
   isMapGenerating?: boolean;
   spawnPoints?: Record<string, { x: number; y: number }>;
+  environmentSprites?: Record<string, string>;
 }
 
 const TILE_SIZE = 32;
@@ -88,6 +89,7 @@ export function GameCanvas({
   height = 288,
   isMapGenerating = false,
   spawnPoints,
+  environmentSprites = {},
 }: GameCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
@@ -152,6 +154,12 @@ export function GameCanvas({
               });
             }
           });
+          
+          Object.entries(environmentSprites).forEach(([assetId, spriteUrl]) => {
+            if (spriteUrl) {
+              this.load.image(`env_${assetId}`, spriteUrl);
+            }
+          });
         },
         create: function(this: Phaser.Scene) {
           const graphics = this.add.graphics();
@@ -161,6 +169,24 @@ export function GameCanvas({
             renderGeneratedTilemap(this, tilemapData);
           } else {
             renderPokemonStyleMap(graphics, tilesX, tilesY, theme, locationName);
+          }
+          
+          if (tilemapData?.objects && Object.keys(environmentSprites).length > 0) {
+            renderEnvironmentObjects(this, tilemapData.objects);
+          }
+          
+          function renderEnvironmentObjects(scene: Phaser.Scene, objects: Array<{assetId: string; x: number; y: number; scale?: number; flipX?: boolean}>) {
+            objects.forEach(obj => {
+              const textureKey = `env_${obj.assetId}`;
+              if (scene.textures.exists(textureKey)) {
+                const sprite = scene.add.image(obj.x, obj.y, textureKey);
+                sprite.setScale(obj.scale || 1);
+                if (obj.flipX) {
+                  sprite.setFlipX(true);
+                }
+                sprite.setDepth(2);
+              }
+            });
           }
 
           function renderGeneratedTilemap(scene: Phaser.Scene, mapData: TilemapData) {
