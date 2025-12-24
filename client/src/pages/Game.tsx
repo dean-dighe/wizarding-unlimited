@@ -20,7 +20,6 @@ import {
   Star,
   AlertTriangle,
   RefreshCw,
-  Map as MapIcon,
 } from "lucide-react";
 import { GameCanvas } from "@/components/game/GameCanvas";
 import { ParchmentCard } from "@/components/ui/parchment-card";
@@ -76,7 +75,6 @@ interface ReadyMessage {
   content: string;
   choices?: string[];
   gameTime?: string;
-  imageUrl?: string;
 }
 
 // MODULE-LEVEL GLOBALS - persist across hot reloads and component remounts
@@ -155,7 +153,7 @@ export default function Game() {
   const conversationId = params?.id ? parseInt(params.id) : null;
   
   const { data: state, isLoading: stateLoading } = useGameState(conversationId);
-  const { messages, sendMessage, isStreaming, isGeneratingImage, storyProgress, chapterAdvance, streamError, clearError, retryLastMessage } = useChatStream(conversationId);
+  const { messages, sendMessage, isStreaming, storyProgress, chapterAdvance, streamError, clearError, retryLastMessage } = useChatStream(conversationId);
   const scrollRef = useRef<HTMLDivElement>(null);
   
   // Audio state
@@ -190,8 +188,6 @@ export default function Game() {
   // Mobile drawer state
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
-  // Game canvas state - show/hide the visual map
-  const [showGameCanvas, setShowGameCanvas] = useState(false);
   // Sprite URLs now come directly from game state API
   const playerSpriteUrl = state?.playerSpriteUrl || undefined;
   const npcSpriteUrls = state?.npcSpriteUrls || {};
@@ -766,20 +762,6 @@ export default function Game() {
               <Heart className="w-3 h-3 fill-current" />
               <span>{state?.health ?? 100}</span>
             </div>
-            {/* Map Toggle */}
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => setShowGameCanvas(!showGameCanvas)}
-              className={cn(
-                "h-7 w-7 flex-shrink-0 transition-colors",
-                showGameCanvas ? "text-emerald-400" : "text-white/40"
-              )}
-              data-testid="button-map-toggle"
-              title={showGameCanvas ? "Hide map" : "Show map"}
-            >
-              <MapIcon className="w-4 h-4" />
-            </Button>
             {/* Mute Toggle */}
             <Button
               size="icon"
@@ -960,48 +942,40 @@ export default function Game() {
           )}
         </AnimatePresence>
 
-        {/* Game Canvas - Visual Map */}
-        <AnimatePresence>
-          {showGameCanvas && state?.location && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: "easeInOut" }}
-              className="border-b border-purple-500/20 bg-[#0a0412] flex-shrink-0"
-            >
-              <div className="p-2 sm:p-3 flex justify-center">
-                {(() => {
-                  const canvasWidth = Math.min(640, window.innerWidth - 32);
-                  const canvasHeight = Math.min(320, (window.innerWidth - 32) * 0.5);
-                  const npcPositions = state.npcPositions || {};
-                  
-                  const npcsWithPositions = Object.entries(npcPositions).map(([name, posString]) => {
-                    const pixelPos = positionToCoordinates(posString, canvasWidth, canvasHeight);
-                    return {
-                      name,
-                      spriteUrl: npcSpriteUrls[name] || "", // Use real sprite URL from API if available
-                      position: { x: pixelPos.x, y: pixelPos.y, facing: "down" as const }
-                    };
-                  });
-                  
-                  return (
-                    <GameCanvas
-                      locationName={state.location}
-                      playerName={state.playerName || "Player"}
-                      playerSpriteUrl={playerSpriteUrl}
-                      npcs={npcsWithPositions}
-                      width={canvasWidth}
-                      height={canvasHeight}
-                      onPlayerMove={(target) => console.log("Player moving to:", target)}
-                      onInteraction={(npcName) => console.log("Interacting with:", npcName)}
-                    />
-                  );
-                })()}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Game Canvas - Always visible visual map */}
+        {state?.location && (
+          <div className="border-b border-purple-500/20 bg-[#0a0412] flex-shrink-0">
+            <div className="p-2 sm:p-3 flex justify-center">
+              {(() => {
+                const canvasWidth = Math.min(640, window.innerWidth - 32);
+                const canvasHeight = Math.min(320, (window.innerWidth - 32) * 0.5);
+                const npcPositions = state.npcPositions || {};
+                
+                const npcsWithPositions = Object.entries(npcPositions).map(([name, posString]) => {
+                  const pixelPos = positionToCoordinates(posString, canvasWidth, canvasHeight);
+                  return {
+                    name,
+                    spriteUrl: npcSpriteUrls[name] || "",
+                    position: { x: pixelPos.x, y: pixelPos.y, facing: "down" as const }
+                  };
+                });
+                
+                return (
+                  <GameCanvas
+                    locationName={state.location}
+                    playerName={state.playerName || "Player"}
+                    playerSpriteUrl={playerSpriteUrl}
+                    npcs={npcsWithPositions}
+                    width={canvasWidth}
+                    height={canvasHeight}
+                    onPlayerMove={(target) => console.log("Player moving to:", target)}
+                    onInteraction={(npcName) => console.log("Interacting with:", npcName)}
+                  />
+                );
+              })()}
+            </div>
+          </div>
+        )}
 
         {/* Story Content - Scrollable area */}
         <div 
@@ -1017,29 +991,17 @@ export default function Game() {
               transition={{ duration: 0.5 }}
             >
               {message.role === "assistant" ? (
-                <div className="space-y-3 sm:space-y-4">
-                  <ParchmentCard className="relative">
-                    <div className="font-serif space-y-3">
-                      {stripMetadata(message.content).split('\n\n').map((para, j) => (
-                        <CollapsibleParagraph 
-                          key={j} 
-                          text={para} 
-                          testId={`text-paragraph-${i}-${j}`}
-                        />
-                      ))}
-                    </div>
-                  </ParchmentCard>
-                  {message.imageUrl && (
-                    <div className="relative w-full max-w-md mx-auto aspect-[4/3] rounded-lg overflow-hidden border border-white/10">
-                      <img 
-                        src={message.imageUrl} 
-                        alt="Scene illustration" 
-                        className="w-full h-full object-cover"
-                        data-testid={`img-scene-${i}`}
+                <ParchmentCard className="relative">
+                  <div className="font-serif space-y-3">
+                    {stripMetadata(message.content).split('\n\n').map((para, j) => (
+                      <CollapsibleParagraph 
+                        key={j} 
+                        text={para} 
+                        testId={`text-paragraph-${i}-${j}`}
                       />
-                    </div>
-                  )}
-                </div>
+                    ))}
+                  </div>
+                </ParchmentCard>
               ) : (
                 <div className="flex justify-end">
                   <div className="bg-purple-900/40 border border-purple-500/20 rounded-lg px-3 py-2 max-w-[85%]">
@@ -1051,12 +1013,11 @@ export default function Game() {
           ))}
           
           {/* Streaming/Loading indicator */}
-          {(isStreaming || isGeneratingImage || isPreparingAudio || hasPendingMessages) && (
+          {(isStreaming || isPreparingAudio || hasPendingMessages) && (
             <div className="flex items-center gap-2 text-purple-300">
               <Sparkles className="w-4 h-4 animate-spin" />
               <span className="font-serif text-sm animate-pulse">
-                {isGeneratingImage ? "Painting the scene..." : 
-                 isPreparingAudio ? "Preparing narration..." :
+                {isPreparingAudio ? "Preparing narration..." :
                  isStreaming ? "The story unfolds..." :
                  "Processing..."}
               </span>

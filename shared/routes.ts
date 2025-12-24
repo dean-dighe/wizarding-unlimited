@@ -55,6 +55,7 @@ export const api = {
           npcPositions: z.record(z.string(), z.string()).default({}),
           npcSpriteUrls: z.record(z.string(), z.string()).default({}),
           playerSpriteUrl: z.string().nullable(),
+          playerSpriteGenerated: z.boolean().default(false),
           decisionCount: z.number(),
         }),
         404: z.object({ message: z.string() }),

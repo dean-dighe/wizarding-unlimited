@@ -8,7 +8,6 @@ interface Message {
   content: string;
   choices?: string[];
   gameTime?: string;
-  imageUrl?: string;
 }
 
 interface StoryProgress {
@@ -27,7 +26,6 @@ interface StreamError {
 export function useChatStream(conversationId: number | null) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [storyProgress, setStoryProgress] = useState<StoryProgress | null>(null);
   const [chapterAdvance, setChapterAdvance] = useState<string | null>(null);
   const [streamError, setStreamError] = useState<StreamError | null>(null);
@@ -64,15 +62,11 @@ export function useChatStream(conversationId: number | null) {
               const choices = choiceMatch ? choiceMatch.map((c: string) => c.replace(/^\[Choice \d+: /, '').replace(/\]$/, '')) : [];
               const timeMatch = m.content.match(/\[TIME: ([^\]]+)\]/);
               const gameTime = timeMatch ? timeMatch[1] : undefined;
-              // Extract image URL from persisted content
-              const imageMatch = m.content.match(/\[IMAGE: ([^\]]+)\]/);
-              const imageUrl = imageMatch ? imageMatch[1] : undefined;
               return {
                 role: m.role,
                 content: m.content,
                 choices: choices.length > 0 ? choices : undefined,
-                gameTime,
-                imageUrl
+                gameTime
               };
             });
           setMessages(formatted);
@@ -134,7 +128,6 @@ export function useChatStream(conversationId: number | null) {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let assistantMessage = "";
-      let currentImageUrl: string | undefined;
       let assistantMessageAdded = false; // Track if we've added the assistant message
 
       while (true) {
@@ -162,8 +155,7 @@ export function useChatStream(conversationId: number | null) {
                   role: "assistant",
                   content: assistantMessage,
                   choices: choices.length > 0 ? choices : undefined,
-                  gameTime,
-                  imageUrl: currentImageUrl
+                  gameTime
                 };
 
                 // Debounce state updates to reduce re-renders during streaming
@@ -186,35 +178,6 @@ export function useChatStream(conversationId: number | null) {
                     });
                   }
                 }, 100);
-              }
-
-              // Handle imagePending event - text is done, image generation starting
-              if (data.imagePending) {
-                setIsGeneratingImage(true);
-              }
-
-              // Handle image URL from the stream
-              if (data.imageUrl) {
-                currentImageUrl = data.imageUrl;
-                // Update ref with image URL
-                if (streamingMessageRef.current) {
-                  streamingMessageRef.current = {
-                    ...streamingMessageRef.current,
-                    imageUrl: data.imageUrl
-                  };
-                }
-                // Immediately commit image URL update (important visual change)
-                setMessages(prev => {
-                  const updated = [...prev];
-                  if (updated.length > 0) {
-                    updated[updated.length - 1] = {
-                      ...updated[updated.length - 1],
-                      imageUrl: data.imageUrl
-                    };
-                  }
-                  return updated;
-                });
-                setIsGeneratingImage(false);
               }
 
               // Handle story progress updates
@@ -244,7 +207,6 @@ export function useChatStream(conversationId: number | null) {
               // When completely done
               if (data.done) {
                 console.log("[Chat] Stream complete");
-                setIsGeneratingImage(false);
               }
             } catch (e) {
               // Skip malformed JSON lines
@@ -286,7 +248,6 @@ export function useChatStream(conversationId: number | null) {
       }
 
       setIsStreaming(false);
-      setIsGeneratingImage(false);
       abortControllerRef.current = null;
       // Invalidate game state to pick up any state changes from the backend action
       // Use the same query key pattern as useGameState
@@ -307,7 +268,6 @@ export function useChatStream(conversationId: number | null) {
     messages, 
     sendMessage, 
     isStreaming, 
-    isGeneratingImage, 
     storyProgress, 
     chapterAdvance,
     clearChapterAdvance,
