@@ -32,9 +32,16 @@ export function useGameState(conversationId: number | null) {
       return api.game.getState.responses[200].parse(await res.json());
     },
     enabled: !!conversationId,
-    // Don't poll - updates come via query invalidation after messages
-    // This prevents flickering from constant re-renders
-    staleTime: Infinity,
+    // Poll while waiting for sprite generation, then stop
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      // Keep polling every 2s if sprite hasn't loaded yet
+      if (data && !data.playerSpriteUrl) {
+        return 2000;
+      }
+      return false;
+    },
+    staleTime: 5000, // Allow some staleness but not infinite
     refetchOnWindowFocus: false,
   });
 }
