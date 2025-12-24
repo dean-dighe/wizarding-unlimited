@@ -212,18 +212,29 @@ CRITICAL REQUIREMENTS:
    - NEVER offer spells the player hasn't learned yet - they are a third-year, not an advanced wizard
    - Known spells: ${knownSpellsList}
 
-5. If the story involves ANY changes to the player's state, include state change tags BEFORE the choices:
+5. STATE CHANGE TAGS - Include these BEFORE the choices when relevant:
    - For health changes: [HEALTH: +10] or [HEALTH: -15] (relative change, can be positive or negative)
    - For new items: [ITEM_ADD: Item Name] (one tag per item)
    - For lost/used items: [ITEM_REMOVE: Item Name] (one tag per item)
    - For learning new spells: [SPELL_LEARN: Spell Name] (one tag per spell)
-   - For location changes: [LOCATION: New Location Name]
    
    Examples:
    [HEALTH: -10]
    [ITEM_ADD: Chocolate Frog]
    [SPELL_LEARN: Lumos]
-   [LOCATION: Hogwarts Express - Compartment 7]
+
+   MANDATORY LOCATION TRACKING:
+   EVERY time the physical setting changes to a new place, you MUST include:
+   [LOCATION: New Location Name]
+   
+   This is REQUIRED when:
+   - The player boards a train → [LOCATION: Hogwarts Express]
+   - The player enters a specific compartment → [LOCATION: Hogwarts Express - Compartment]
+   - The player arrives at a new area → [LOCATION: Great Hall]
+   - The player moves between buildings, rooms, or outdoor areas
+   
+   The location should be descriptive enough to identify where the scene takes place.
+   Examples: "Platform 9¾", "Hogwarts Express", "Great Hall", "Gryffindor Common Room", "Potions Classroom", "Library", "Forbidden Forest"
 
 6. IMPORTANT - CHARACTER INTRODUCTION RULES:
    Every character who appears in a scene must either be:
