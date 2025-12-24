@@ -23,8 +23,6 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
 import { SceneStage } from "@/components/game/SceneStage";
 import { ParchmentCard } from "@/components/ui/parchment-card";
@@ -548,6 +546,10 @@ export default function Game() {
       setReadyMessages([]);
       globalProcessedContent.delete(conversationId);
       resetForNewConversation(conversationId);
+      // Reset story modal state for new conversation
+      lastProcessedMsgCountRef.current = 0;
+      setStoryModalContent("");
+      setStoryModalOpen(false);
     }
   }, [conversationId]);
 
@@ -882,6 +884,18 @@ export default function Game() {
             >
               {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
             </Button>
+            {/* View Story button - mobile only */}
+            {storyModalContent && (
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => setStoryModalOpen(true)}
+                className="lg:hidden h-8 w-8 text-purple-400"
+                data-testid="button-view-story"
+              >
+                <ScrollText className="w-4 h-4" />
+              </Button>
+            )}
             <Button
               size="icon"
               variant="ghost"
