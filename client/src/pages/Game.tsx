@@ -23,7 +23,9 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
 } from "@/components/ui/dialog";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { SceneStage } from "@/components/game/SceneStage";
 import { ParchmentCard } from "@/components/ui/parchment-card";
 import { cn } from "@/lib/utils";
@@ -280,7 +282,10 @@ function StoryModal({
   
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="bg-[#1a0f2e] border-purple-500/30 max-w-[92vw] max-h-[70vh] overflow-hidden p-0 rounded-lg">
+      <DialogContent className="bg-[#1a0f2e] border-purple-500/30 max-w-[92vw] max-h-[70vh] overflow-hidden p-0 rounded-lg" aria-describedby={undefined}>
+        <VisuallyHidden>
+          <DialogTitle>Story Update</DialogTitle>
+        </VisuallyHidden>
         <div className="sticky top-0 z-10 bg-[#1a0f2e] border-b border-purple-500/20 px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2 text-yellow-400">
             <ScrollText className="w-4 h-4" />
@@ -295,7 +300,7 @@ function StoryModal({
           </button>
         </div>
         <div className="px-4 py-3 overflow-y-auto max-h-[calc(70vh-60px)]">
-          <div className="font-serif space-y-3">
+          <div className="space-y-3" style={{ fontFamily: "'Crimson Text', 'EB Garamond', Georgia, serif" }}>
             {paragraphs.map((para, i) => (
               <p 
                 key={i} 
@@ -337,8 +342,8 @@ function StoryHistorySection({
         <ScrollText className="w-3.5 h-3.5" />
         <span className="text-[10px] uppercase tracking-wider">Story History</span>
       </div>
-      <div className="space-y-2 max-h-40 overflow-y-auto">
-        {messages.slice(-6).map((msg, i) => (
+      <div className="space-y-2 max-h-60 overflow-y-auto">
+        {messages.slice(-10).map((msg, i) => (
           <div 
             key={i} 
             className={cn(
@@ -347,14 +352,14 @@ function StoryHistorySection({
                 ? "text-purple-200/80 bg-purple-900/20" 
                 : "text-blue-200/70 bg-blue-900/20 ml-4"
             )}
+            style={{ fontFamily: "'Crimson Text', Georgia, serif" }}
           >
             {msg.role === "assistant" ? (
-              <p className="line-clamp-3">
-                {stripMetadata(msg.content).slice(0, 150)}
-                {stripMetadata(msg.content).length > 150 && "..."}
+              <p className="whitespace-pre-wrap">
+                {stripMetadata(msg.content)}
               </p>
             ) : (
-              <p className="italic">You chose: {msg.content.slice(0, 60)}{msg.content.length > 60 && "..."}</p>
+              <p className="italic">You chose: {msg.content}</p>
             )}
           </div>
         ))}
