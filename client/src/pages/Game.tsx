@@ -1,6 +1,6 @@
 import { useGameState } from "@/hooks/use-game";
 import { useChatStream } from "@/hooks/use-chat-stream";
-import { useGameCanvasData } from "@/hooks/use-game-canvas";
+import { useGameCanvasData, positionToCoordinates } from "@/hooks/use-game-canvas";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useRoute } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
@@ -972,15 +972,33 @@ export default function Game() {
               className="border-b border-purple-500/20 bg-[#0a0412] flex-shrink-0"
             >
               <div className="p-2 sm:p-3 flex justify-center">
-                <GameCanvas
-                  locationName={state.location}
-                  playerName={state.playerName || "Player"}
-                  playerSpriteUrl={playerSpriteUrl}
-                  width={Math.min(640, window.innerWidth - 32)}
-                  height={Math.min(320, (window.innerWidth - 32) * 0.5)}
-                  onPlayerMove={(target) => console.log("Player moving to:", target)}
-                  onInteraction={(npcName) => console.log("Interacting with:", npcName)}
-                />
+                {(() => {
+                  const canvasWidth = Math.min(640, window.innerWidth - 32);
+                  const canvasHeight = Math.min(320, (window.innerWidth - 32) * 0.5);
+                  const npcPositions = state.npcPositions || {};
+                  
+                  const npcsWithPositions = Object.entries(npcPositions).map(([name, posString]) => {
+                    const pixelPos = positionToCoordinates(posString, canvasWidth, canvasHeight);
+                    return {
+                      name,
+                      spriteUrl: "", // NPC sprites are generated in background, rendered as placeholders until available
+                      position: { x: pixelPos.x, y: pixelPos.y, facing: "down" as const }
+                    };
+                  });
+                  
+                  return (
+                    <GameCanvas
+                      locationName={state.location}
+                      playerName={state.playerName || "Player"}
+                      playerSpriteUrl={playerSpriteUrl}
+                      npcs={npcsWithPositions}
+                      width={canvasWidth}
+                      height={canvasHeight}
+                      onPlayerMove={(target) => console.log("Player moving to:", target)}
+                      onInteraction={(npcName) => console.log("Interacting with:", npcName)}
+                    />
+                  );
+                })()}
               </div>
             </motion.div>
           )}

@@ -253,6 +253,24 @@ CRITICAL REQUIREMENTS:
 
 Make choices meaningful - some safe, some risky, some social, some exploratory. At least one choice should relate to the current chapter objective.
 
+7. VISUAL MAP INTEGRATION (for game canvas):
+   When characters appear in a scene, indicate their approximate position for the visual map:
+   [NPC_POSITION: Character Name | position]
+   
+   Valid positions: north, south, east, west, center, northeast, northwest, southeast, southwest
+   
+   Examples:
+   [NPC_POSITION: Harry Potter | northeast]
+   [NPC_POSITION: Professor McGonagall | center]
+   [NPC_POSITION: Bartholomew Griggs | west]
+   
+   Include position tags for up to 3 key characters in each scene. The player always starts at "center".
+   
+   For choices that involve movement to a new location, add a navigation hint:
+   [Choice 2: Walk toward the Ministry officials near the train → west]
+   
+   The arrow (→) followed by direction helps the map show where the player will move.
+
 PLAYER STATE TRACKING:
 You are responsible for tracking the player's current state. When narrative events affect the player:
 - Taking damage or getting healed affects HEALTH (range 0-100)
@@ -288,8 +306,8 @@ You spot several familiar faces in the crowd. A group of your housemates waves e
       // Generate protagonist sprite in background (don't block response)
       // Uses playerName as the unique identifier and characterDescription for visual consistency
       spriteService.getOrCreateSprite(playerName, characterDescription, { isProtagonist: true })
-        .then(spriteUrl => console.log(`Generated protagonist sprite for ${playerName}: ${spriteUrl}`))
-        .catch(err => console.error(`Failed to generate protagonist sprite for ${playerName}:`, err));
+        .then((spriteUrl: string) => console.log(`Generated protagonist sprite for ${playerName}: ${spriteUrl}`))
+        .catch((err: Error) => console.error(`Failed to generate protagonist sprite for ${playerName}:`, err));
 
       res.status(201).json({
         conversationId: conversation.id,
@@ -349,6 +367,7 @@ You spot several familiar faces in the crowd. A group of your housemates waves e
       characterDescription: state.characterDescription ?? null,
       storyArc: state.storyArc ?? null,
       npcDescriptions: state.npcDescriptions ?? null,
+      npcPositions: state.npcPositions ?? {},
       decisionCount: state.decisionCount ?? 0,
     });
   });

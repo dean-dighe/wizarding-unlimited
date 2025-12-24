@@ -8,7 +8,10 @@ import {
   checkChapterProgress,
   buildContextWithSummary 
 } from "../story/engine";
+import { SpriteGenerationService } from "../game_assets/sprites";
 import type { StoryArc } from "@shared/schema";
+
+const spriteService = new SpriteGenerationService();
 
 const openai = new OpenAI({
   apiKey: process.env.OLLAMA_API_KEY || "ollama",
@@ -144,6 +147,43 @@ function parseNPCDescriptions(content: string): Record<string, string> {
 function stripCharacterTags(content: string): string {
   // Remove [CHARACTER: Name | Description] tags and any trailing newline
   return content.replace(/\[CHARACTER:\s*[^|]+\|[^\]]+\]\n?/gi, '');
+}
+
+// Parse NPC positions from [NPC_POSITION: Name | position] tags for game canvas
+function parseNPCPositions(content: string): Record<string, string> {
+  const positions: Record<string, string> = {};
+  const positionRegex = /\[NPC_POSITION:\s*([^|]+)\|([^\]]+)\]/gi;
+  let match;
+  while ((match = positionRegex.exec(content)) !== null) {
+    const name = match[1].trim();
+    const position = match[2].trim().toLowerCase();
+    // Validate position is one of the allowed values
+    const validPositions = ['north', 'south', 'east', 'west', 'center', 'northeast', 'northwest', 'southeast', 'southwest'];
+    if (validPositions.includes(position)) {
+      positions[name] = position;
+      console.log(`[Canvas] NPC Position: "${name}" at ${position}`);
+    }
+  }
+  return positions;
+}
+
+// Strip NPC_POSITION tags from content (they're parsed, not displayed)
+function stripPositionTags(content: string): string {
+  return content.replace(/\[NPC_POSITION:\s*[^|]+\|[^\]]+\]\n?/gi, '');
+}
+
+// Parse choice navigation hints from [Choice N: description → direction] format
+function parseChoiceDirections(content: string): Record<number, string> {
+  const directions: Record<number, string> = {};
+  const choiceRegex = /\[Choice\s*(\d+):\s*([^\]]+?)\s*→\s*(north|south|east|west|center|northeast|northwest|southeast|southwest)\s*\]/gi;
+  let match;
+  while ((match = choiceRegex.exec(content)) !== null) {
+    const choiceNum = parseInt(match[1], 10);
+    const direction = match[3].trim().toLowerCase();
+    directions[choiceNum] = direction;
+    console.log(`[Canvas] Choice ${choiceNum} moves to ${direction}`);
+  }
+  return directions;
 }
 
 // Extract character names mentioned in scene description or story content to find relevant NPC descriptions
@@ -498,8 +538,12 @@ export function registerChatRoutes(app: Express): void {
       // Parse and store any new NPC descriptions BEFORE stripping tags
       const newNPCs = parseNPCDescriptions(fullResponse);
       
-      // Strip CHARACTER tags from visible content (they're indexed, not displayed)
-      const cleanedResponse = stripCharacterTags(fullResponse);
+      // Parse NPC positions for game canvas
+      const npcPositions = parseNPCPositions(fullResponse);
+      
+      // Strip CHARACTER and NPC_POSITION tags from visible content (they're indexed, not displayed)
+      let cleanedResponse = stripCharacterTags(fullResponse);
+      cleanedResponse = stripPositionTags(cleanedResponse);
       
       // Text complete - send cleaned content in one event, then signal image generation starting
       res.write(`data: ${JSON.stringify({ fullContent: cleanedResponse, textDone: true, imagePending: true })}\n\n`);
@@ -512,6 +556,19 @@ export function registerChatRoutes(app: Express): void {
         // Save to database for future turns
         await storage.updateGameState(conversationId, { npcDescriptions: allNPCDescriptions });
         console.log(`[NPC] Stored ${Object.keys(newNPCs).length} new character descriptions: ${Object.keys(newNPCs).join(', ')}`);
+        
+        // Generate sprites for new NPCs in background (fire-and-forget)
+        for (const [npcName, npcDescription] of Object.entries(newNPCs)) {
+          spriteService.getOrCreateSprite(npcName, npcDescription, { isProtagonist: false, isCanon: false })
+            .then((spriteUrl: string) => console.log(`[NPC Sprite] Generated sprite for ${npcName}: ${spriteUrl}`))
+            .catch((err: Error) => console.error(`[NPC Sprite] Failed to generate sprite for ${npcName}:`, err));
+        }
+      }
+      
+      // Store NPC positions for game canvas (replace entirely each turn - only current scene positions matter)
+      if (Object.keys(npcPositions).length > 0) {
+        await storage.updateGameState(conversationId, { npcPositions });
+        console.log(`[Canvas] Stored ${Object.keys(npcPositions).length} NPC positions for scene`);
       }
 
       // Generate scene image based on story content with ALL character descriptions (existing + new)

@@ -106,6 +106,7 @@ export const game_states = pgTable("game_states", {
   gameTime: text("game_time").default("September 1st, 1991 - 10:30 AM"), // In-game date and time
   characterDescription: text("character_description"), // Verbose visual description for consistent image generation
   npcDescriptions: jsonb("npc_descriptions").$type<Record<string, string>>().default({}), // NPC name -> visual description mapping
+  npcPositions: jsonb("npc_positions").$type<Record<string, string>>().default({}), // NPC name -> position (north, south, center, etc.) for game canvas
   
   // Story arc and chapter tracking
   storyArc: jsonb("story_arc").$type<StoryArc>(), // The overarching narrative structure
