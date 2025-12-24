@@ -188,8 +188,9 @@ export class TranslatorService {
     try {
       return ScenePayloadSchema.parse(result);
     } catch (validationError) {
-      console.warn("[Translator] Schema validation failed, returning with defaults");
-      return { ...EmptyScenePayload, narrativeText, cleanedText, location: extracted.location || "Unknown" };
+      console.warn("[Translator] Schema validation failed, using fallback extraction");
+      // Instead of returning empty payload, use robust fallback that preserves narrative and choices
+      return this.fallbackExtraction(narrativeText, previousContext);
     }
   }
 
@@ -199,14 +200,41 @@ export class TranslatorService {
     const locationMatch = narrativeText.match(/\[LOCATION:\s*([^\]]+)\]/i);
     const location = locationMatch?.[1]?.trim() || previousContext.location || "The Undercroft";
 
-    // Try [Choice N: Description] format first (AI output format)
-    const bracketChoiceMatches = narrativeText.matchAll(/\[Choice\s*\d+:\s*([^\]]+)\]/gi);
-    let choices = Array.from(bracketChoiceMatches).map(m => ({ text: m[1].trim() }));
+    // Try multiple choice formats in priority order
+    let choices: Array<{ text: string; spellInvolved?: string }> = [];
     
-    // Fallback to numbered list format if no bracket choices found
+    // Format 1: [Choice N: Description] (AI output format)
+    const bracketChoiceMatches = narrativeText.matchAll(/\[Choice\s*\d+:\s*([^\]]+)\]/gi);
+    choices = Array.from(bracketChoiceMatches).map(m => ({ text: m[1].trim() }));
+    
+    // Format 2: Numbered list with period (1. text)
     if (choices.length === 0) {
-      const numberedChoiceMatches = narrativeText.matchAll(/^\s*\d+\.\s*(.+)$/gm);
-      choices = Array.from(numberedChoiceMatches).map(m => ({ text: m[1].trim() }));
+      const numberedPeriodMatches = narrativeText.matchAll(/^\s*\d+\.\s*(.+)$/gm);
+      choices = Array.from(numberedPeriodMatches).map(m => ({ text: m[1].trim() }));
+    }
+    
+    // Format 3: Numbered list with parenthesis (1) text)
+    if (choices.length === 0) {
+      const numberedParenMatches = narrativeText.matchAll(/^\s*\d+\)\s*(.+)$/gm);
+      choices = Array.from(numberedParenMatches).map(m => ({ text: m[1].trim() }));
+    }
+    
+    // Format 4: Bullet points (- text or * text)
+    if (choices.length === 0) {
+      const bulletMatches = narrativeText.matchAll(/^\s*[-*]\s+(.+)$/gm);
+      choices = Array.from(bulletMatches).map(m => ({ text: m[1].trim() }));
+    }
+    
+    // Format 5: Lettered list (a. text, A) text)
+    if (choices.length === 0) {
+      const letterMatches = narrativeText.matchAll(/^\s*[a-dA-D][.)]\s*(.+)$/gm);
+      choices = Array.from(letterMatches).map(m => ({ text: m[1].trim() }));
+    }
+    
+    // CRITICAL: Always ensure at least one choice exists
+    if (choices.length === 0) {
+      console.warn("[Translator] No choices found, providing default continue option");
+      choices = [{ text: "Continue..." }];
     }
 
     const healthMatch = narrativeText.match(/\[HEALTH:\s*([+-]?\d+)\]/i);
@@ -225,7 +253,7 @@ export class TranslatorService {
       characters: [],
       choices,
       background: { action: "pending" },
-      stateChanges: { healthChange, itemsAdded, itemsRemoved: [], spellsLearned: [] },
+      stateChanges: { healthChange, itemsAdded, itemsRemoved: [], spellsLearned: [], newLocation: undefined, timeAdvance: undefined },
       narratorMood: "ominous",
       trialProgress: {},
       confidence: 0.2,

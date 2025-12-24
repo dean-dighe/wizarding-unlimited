@@ -9,6 +9,16 @@ const openai = new OpenAI({
   baseURL: process.env.OLLAMA_BASE_URL || "https://gpt.netsuite.tech/v1",
 });
 
+// Use environment-based URL for internal API calls (relative URLs work in production)
+const getApiBaseUrl = () => {
+  // In production, use relative URLs or REPLIT_DEV_DOMAIN
+  if (process.env.NODE_ENV === "production" && process.env.REPLIT_DEV_DOMAIN) {
+    return `https://${process.env.REPLIT_DEV_DOMAIN}`;
+  }
+  // Fallback to localhost for development
+  return "http://localhost:5000";
+};
+
 export interface CoordinatedResponse {
   scene: ResolvedScene;
   ttsAudioUrl: string | null;
@@ -53,7 +63,8 @@ async function generateTTS(text: string): Promise<string | null> {
     const paragraphs = text.split(/\n{2,}/);
     const finalParagraph = paragraphs.filter(p => p.trim().length > 20).pop() || text.slice(-500);
     
-    const response = await fetch(`http://localhost:5000/api/tts/speak`, {
+    const baseUrl = getApiBaseUrl();
+    const response = await fetch(`${baseUrl}/api/tts/speak`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: finalParagraph.slice(0, 500) }),
@@ -72,7 +83,8 @@ async function generateTTS(text: string): Promise<string | null> {
 
 async function triggerBackgroundGeneration(locationName: string): Promise<void> {
   try {
-    await fetch(`http://localhost:5000/api/vn-assets/backgrounds/generate`, {
+    const baseUrl = getApiBaseUrl();
+    await fetch(`${baseUrl}/api/vn-assets/backgrounds/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ locationName }),
@@ -89,7 +101,8 @@ async function triggerPortraitGeneration(
   description?: string
 ): Promise<void> {
   try {
-    await fetch(`http://localhost:5000/api/vn-assets/portraits/generate`, {
+    const baseUrl = getApiBaseUrl();
+    await fetch(`${baseUrl}/api/vn-assets/portraits/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ characterName, expression, description }),

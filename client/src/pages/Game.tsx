@@ -91,6 +91,35 @@ let globalProcessedContent = new Map<number, Set<string>>();
 let globalCurrentlyProcessing: string | null = null;
 let globalActiveConversationId: number | null = null;
 let globalTTSLock = false;
+let globalTTSLockTimeout: ReturnType<typeof setTimeout> | null = null;
+
+// Safety reset: Clear TTS lock after 30 seconds to prevent permanent locks
+function acquireTTSLockWithTimeout(timeoutMs = 30000): boolean {
+  if (globalTTSLock) return false;
+  globalTTSLock = true;
+  
+  // Clear any existing timeout
+  if (globalTTSLockTimeout) {
+    clearTimeout(globalTTSLockTimeout);
+  }
+  
+  // Set safety timeout to prevent permanent lock
+  globalTTSLockTimeout = setTimeout(() => {
+    console.warn("[TTS] Safety timeout: Releasing stale TTS lock");
+    globalTTSLock = false;
+    globalTTSLockTimeout = null;
+  }, timeoutMs);
+  
+  return true;
+}
+
+function releaseTTSLockSafe() {
+  globalTTSLock = false;
+  if (globalTTSLockTimeout) {
+    clearTimeout(globalTTSLockTimeout);
+    globalTTSLockTimeout = null;
+  }
+}
 
 function getProcessedSet(conversationId: number): Set<string> {
   if (!globalProcessedContent.has(conversationId)) {
@@ -104,18 +133,16 @@ function resetForNewConversation(conversationId: number) {
     globalNarratorActive = false;
     globalCurrentlyProcessing = null;
     globalActiveConversationId = conversationId;
-    globalTTSLock = false;
+    releaseTTSLockSafe();
   }
 }
 
 function acquireTTSLock(): boolean {
-  if (globalTTSLock) return false;
-  globalTTSLock = true;
-  return true;
+  return acquireTTSLockWithTimeout();
 }
 
 function releaseTTSLock() {
-  globalTTSLock = false;
+  releaseTTSLockSafe();
 }
 
 // Collapsible paragraph for mobile - always fully readable
