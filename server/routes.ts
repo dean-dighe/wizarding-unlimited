@@ -252,6 +252,27 @@ CRITICAL REQUIREMENTS:
    
    Only include this tag the FIRST time a character appears. Do not repeat for characters already introduced.
 
+8. CHARACTER MOOD TAGS (for visual novel portraits):
+   For EVERY character who speaks or is prominently featured in a scene, include a mood tag:
+   [MOOD: Character Name | expression]
+   
+   Valid expressions: neutral, happy, sad, angry, surprised, worried, determined, mysterious, scared
+   
+   Include mood tags for:
+   - Every character who has dialogue in the current response
+   - Characters whose emotional state changes during the scene
+   - The protagonist when their mood is particularly notable
+   
+   Examples:
+   [MOOD: Harry Potter | worried]
+   [MOOD: Hermione Granger | determined]
+   [MOOD: ${playerName} | surprised]
+   [MOOD: Professor Snape | angry]
+   
+   Place mood tags at the START of a scene or when a character's mood CHANGES.
+   If a character appears in dialogue, ALWAYS include their mood tag.
+   The mood should match their emotional state based on what's happening in the narrative.
+
 Make choices meaningful - some safe, some risky, some social, some exploratory. At least one choice should relate to the current chapter objective.
 
 7. VISUAL MAP INTEGRATION (for game canvas):
