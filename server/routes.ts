@@ -6,6 +6,7 @@ import { registerImageRoutes } from "./replit_integrations/image/routes";
 import { registerTTSRoutes } from "./replit_integrations/tts/routes";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { registerGameAssetRoutes, SpriteGenerationService } from "./replit_integrations/game_assets";
+import { characterPortraitService } from "./replit_integrations/game_assets/portraits";
 import { chatStorage } from "./replit_integrations/chat/storage";
 import { generateStoryArc } from "./replit_integrations/story/engine";
 import { api } from "@shared/routes";
@@ -316,6 +317,13 @@ You spot several familiar faces in the crowd. A group of your housemates waves e
           });
         })
         .catch((err: Error) => console.error(`Failed to generate session sprite for ${playerName}:`, err));
+
+      // Preload all 9 expression variants for protagonist portrait in background
+      characterPortraitService.preloadAllExpressions(playerName, characterDescription)
+        .then(({ started, existing }) => {
+          console.log(`[Portraits] Preloaded expressions for ${playerName}: ${started} started, ${existing} existing`);
+        })
+        .catch((err: Error) => console.error(`Failed to preload portraits for ${playerName}:`, err));
 
       res.status(201).json({
         conversationId: conversation.id,
