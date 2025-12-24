@@ -285,36 +285,38 @@ function ChoicePanel({
       animate={{ opacity: 1, y: 0 }}
       className="border-t border-purple-500/30 bg-[#0d0618]/95 backdrop-blur-sm p-2 sm:p-3"
     >
-      <div className="flex flex-col gap-1.5 max-w-2xl mx-auto">
-        {choices.map((choice, i) => {
-          const spellMatch = findSpellInChoice(choice);
-          const isSpellChoice = !!spellMatch;
-          
-          return (
-            <Button
-              key={i}
-              variant="outline"
-              onClick={() => onSelect(choice)}
-              className={cn(
-                "w-full text-left justify-start h-auto min-h-[40px] py-2 px-3 font-serif text-sm leading-normal whitespace-normal",
-                isSpellChoice 
-                  ? "border-blue-400/50 bg-gradient-to-r from-blue-900/40 to-purple-900/40 text-blue-100 shadow-[0_0_12px_rgba(59,130,246,0.25)]" 
-                  : "border-purple-500/30 bg-purple-900/20 text-purple-100"
-              )}
-              data-testid={`button-choice-${i}`}
-            >
-              {isSpellChoice ? (
-                <Wand2 className="w-4 h-4 mr-2 flex-shrink-0 text-blue-300" />
-              ) : (
-                <span className="text-yellow-500/80 mr-2 flex-shrink-0 text-xs">{i + 1}.</span>
-              )}
-              <span className="flex-1"><TextWithHouseIcons text={choice} /></span>
-              {isSpellChoice && (
-                <Sparkles className="w-3 h-3 ml-2 flex-shrink-0 text-blue-300/60" />
-              )}
-            </Button>
-          );
-        })}
+      <div className="max-h-[35vh] overflow-y-auto overscroll-contain scrollbar-thin scrollbar-thumb-purple-500/30 scrollbar-track-transparent">
+        <div className="flex flex-col gap-1.5 max-w-2xl mx-auto">
+          {choices.map((choice, i) => {
+            const spellMatch = findSpellInChoice(choice);
+            const isSpellChoice = !!spellMatch;
+            
+            return (
+              <Button
+                key={i}
+                variant="outline"
+                onClick={() => onSelect(choice)}
+                className={cn(
+                  "w-full text-left justify-start h-auto min-h-[44px] py-2.5 px-3 font-serif text-sm leading-relaxed whitespace-normal",
+                  isSpellChoice 
+                    ? "border-blue-400/50 bg-gradient-to-r from-blue-900/40 to-purple-900/40 text-blue-100 shadow-[0_0_12px_rgba(59,130,246,0.25)]" 
+                    : "border-purple-500/30 bg-purple-900/20 text-purple-100"
+                )}
+                data-testid={`button-choice-${i}`}
+              >
+                {isSpellChoice ? (
+                  <Wand2 className="w-4 h-4 mr-2 flex-shrink-0 text-blue-300" />
+                ) : (
+                  <span className="text-yellow-500/80 mr-2 flex-shrink-0 text-xs">{i + 1}.</span>
+                )}
+                <span className="flex-1"><TextWithHouseIcons text={choice} /></span>
+                {isSpellChoice && (
+                  <Sparkles className="w-3 h-3 ml-2 flex-shrink-0 text-blue-300/60" />
+                )}
+              </Button>
+            );
+          })}
+        </div>
       </div>
     </motion.div>
   );
@@ -683,16 +685,15 @@ export default function Game() {
     const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 1024;
     
     if (isDesktop) {
-      // Desktop: Left panel, fixed size
-      return { width: 480, height: 360 };
+      // Desktop: Game Boy style resolution scaled 2x
+      return { width: 320, height: 288, scale: 1.5 };
     } else if (isMobile) {
-      // Mobile: Full width, shorter
-      const width = Math.min(window.innerWidth - 16, 400);
-      return { width, height: Math.floor(width * 0.6) };
+      // Mobile: Fit to width with proper aspect ratio
+      const baseWidth = Math.min(window.innerWidth - 24, 320);
+      return { width: baseWidth, height: Math.floor(baseWidth * 0.9), scale: 1 };
     } else {
-      // Tablet
-      const width = Math.min(window.innerWidth - 32, 500);
-      return { width, height: Math.floor(width * 0.55) };
+      // Tablet: Slightly larger
+      return { width: 320, height: 288, scale: 1.25 };
     }
   };
 
@@ -787,7 +788,7 @@ export default function Game() {
 
         {/* Game Canvas */}
         {state?.location && (
-          <div className="flex justify-center p-2 sm:p-3 bg-[#050208] lg:flex-1 lg:items-center">
+          <div className="flex justify-center p-2 sm:p-3 bg-[#081820] lg:flex-1 lg:items-center">
             {(() => {
               const npcPositions = state.npcPositions || {};
               const npcsWithPositions = Object.entries(npcPositions).map(([name, posString]) => {
@@ -799,20 +800,29 @@ export default function Game() {
                 };
               });
               
+              const scale = (canvasDimensions as any).scale || 1;
+              
               return (
-                <GameCanvas
-                  locationName={state.location}
-                  playerName={state.playerName || "Player"}
-                  playerSpriteUrl={playerSpriteUrl}
-                  tilesetUrl={tilesetUrl}
-                  tilemapData={tilemapData}
-                  npcs={npcsWithPositions}
-                  width={canvasDimensions.width}
-                  height={canvasDimensions.height}
-                  isMapGenerating={isMapGenerating}
-                  onPlayerMove={(target) => console.log("Player moving to:", target)}
-                  onInteraction={(npcName) => console.log("Interacting with:", npcName)}
-                />
+                <div 
+                  style={{ 
+                    transform: `scale(${scale})`, 
+                    transformOrigin: "center center",
+                  }}
+                >
+                  <GameCanvas
+                    locationName={state.location}
+                    playerName={state.playerName || "Player"}
+                    playerSpriteUrl={playerSpriteUrl}
+                    tilesetUrl={tilesetUrl}
+                    tilemapData={tilemapData}
+                    npcs={npcsWithPositions}
+                    width={canvasDimensions.width}
+                    height={canvasDimensions.height}
+                    isMapGenerating={isMapGenerating}
+                    onPlayerMove={(target) => console.log("Player moving to:", target)}
+                    onInteraction={(npcName) => console.log("Interacting with:", npcName)}
+                  />
+                </div>
               );
             })()}
           </div>
