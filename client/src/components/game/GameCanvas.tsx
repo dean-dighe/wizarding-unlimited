@@ -26,6 +26,7 @@ interface GameCanvasProps {
   width?: number;
   height?: number;
   isMapGenerating?: boolean;
+  spawnPoints?: Record<string, { x: number; y: number }>;
 }
 
 const TILE_SIZE = 16;
@@ -86,6 +87,7 @@ export function GameCanvas({
   width = 320,
   height = 288,
   isMapGenerating = false,
+  spawnPoints,
 }: GameCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
@@ -164,7 +166,13 @@ export function GameCanvas({
           function renderGeneratedTilemap(scene: Phaser.Scene, mapData: TilemapData) {
             const tilesetTexture = scene.textures.get("tileset");
             const texWidth = tilesetTexture.source[0].width;
-            const tilesPerRow = Math.floor(texWidth / TILE_SIZE);
+            const tileW = mapData.tileWidth || 32;
+            const tileH = mapData.tileHeight || 32;
+            const tilesPerRow = Math.floor(texWidth / tileW);
+            
+            const scaleX = width / (mapData.width * tileW);
+            const scaleY = height / (mapData.height * tileH);
+            const scale = Math.min(scaleX, scaleY, 1);
             
             mapData.layers.forEach(layer => {
               if (!layer.visible) return;
@@ -172,14 +180,15 @@ export function GameCanvas({
               layer.data.forEach((tileIndex, i) => {
                 if (tileIndex < 0) return;
                 
-                const tileX = (i % layer.width) * TILE_SIZE;
-                const tileY = Math.floor(i / layer.width) * TILE_SIZE;
+                const tileX = ((i % layer.width) * tileW) * scale;
+                const tileY = (Math.floor(i / layer.width) * tileH) * scale;
                 
-                const srcX = (tileIndex % tilesPerRow) * TILE_SIZE;
-                const srcY = Math.floor(tileIndex / tilesPerRow) * TILE_SIZE;
+                const srcX = (tileIndex % tilesPerRow) * tileW;
+                const srcY = Math.floor(tileIndex / tilesPerRow) * tileH;
                 
-                const tileSprite = scene.add.image(tileX + TILE_SIZE / 2, tileY + TILE_SIZE / 2, "tileset");
-                tileSprite.setCrop(srcX, srcY, TILE_SIZE, TILE_SIZE);
+                const tileSprite = scene.add.image(tileX + (tileW * scale) / 2, tileY + (tileH * scale) / 2, "tileset");
+                tileSprite.setCrop(srcX, srcY, tileW, tileH);
+                tileSprite.setScale(scale);
                 tileSprite.setAlpha(layer.opacity);
                 tileSprite.setDepth(layer.name === "ground" ? 0 : 1);
               });
@@ -296,7 +305,7 @@ export function GameCanvas({
             align: "center",
           }).setOrigin(0.5, 0.5).setDepth(100);
 
-          const spawnPoint = defaultSpawnPoints.entrance;
+          const spawnPoint = spawnPoints?.entrance || defaultSpawnPoints.entrance;
           
           let playerTextureValid = false;
           let useAnimatedSprite = false;
