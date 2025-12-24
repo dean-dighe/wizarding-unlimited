@@ -149,6 +149,16 @@ export class TranslatorService {
       }
     }
 
+    // If AI extraction returned no choices, try regex fallback
+    if (!extracted.choices || extracted.choices.length === 0) {
+      const bracketChoiceMatches = narrativeText.matchAll(/\[Choice\s*\d+:\s*([^\]]+)\]/gi);
+      const regexChoices = Array.from(bracketChoiceMatches).map(m => ({ text: m[1].trim() }));
+      if (regexChoices.length > 0) {
+        extracted.choices = regexChoices;
+        warnings.push("choices extracted via regex fallback");
+      }
+    }
+
     const cleanedText = this.cleanNarrativeText(narrativeText);
 
     const result: ScenePayload = {
@@ -189,8 +199,15 @@ export class TranslatorService {
     const locationMatch = narrativeText.match(/\[LOCATION:\s*([^\]]+)\]/i);
     const location = locationMatch?.[1]?.trim() || previousContext.location || "The Undercroft";
 
-    const choiceMatches = narrativeText.matchAll(/^\s*\d+\.\s*(.+)$/gm);
-    const choices = Array.from(choiceMatches).map(m => ({ text: m[1].trim() }));
+    // Try [Choice N: Description] format first (AI output format)
+    const bracketChoiceMatches = narrativeText.matchAll(/\[Choice\s*\d+:\s*([^\]]+)\]/gi);
+    let choices = Array.from(bracketChoiceMatches).map(m => ({ text: m[1].trim() }));
+    
+    // Fallback to numbered list format if no bracket choices found
+    if (choices.length === 0) {
+      const numberedChoiceMatches = narrativeText.matchAll(/^\s*\d+\.\s*(.+)$/gm);
+      choices = Array.from(numberedChoiceMatches).map(m => ({ text: m[1].trim() }));
+    }
 
     const healthMatch = narrativeText.match(/\[HEALTH:\s*([+-]?\d+)\]/i);
     const healthChange = healthMatch ? parseInt(healthMatch[1], 10) : 0;
@@ -226,6 +243,9 @@ export class TranslatorService {
       .replace(/\[CHARACTER:\s*[^|]+\|[^\]]+\]/gi, '')
       .replace(/\[NPC_POSITION:\s*[^|]+\|[^\]]+\]/gi, '')
       .replace(/\[MOOD:\s*[^|]+\|[^\]]+\]/gi, '')
+      .replace(/\[TIME:\s*[^\]]+\]/gi, '')
+      .replace(/\[SCENE:\s*[^\]]+\]/gi, '')
+      .replace(/\[Choice\s*\d+:\s*[^\]]+\]/gi, '')
       .replace(/\n{3,}/g, '\n\n')
       .trim();
   }
