@@ -256,6 +256,14 @@ CRITICAL REQUIREMENTS:
    [Choice 3: Description]
    [Choice 4: Description]
    
+   CRITICAL CHOICE RULES:
+   - ALL choices are ONLY for the PROTAGONIST (${playerName}) - NEVER for NPCs
+   - Every choice must be an ACTION that ${playerName} takes, not what other characters do
+   - WRONG: "Let Marcus decide what to do" or "Watch as Hermione opens the door"
+   - CORRECT: "Open the door yourself" or "Ask Marcus what he thinks" or "Follow Hermione's lead"
+   - The player controls ONLY their own character - NPCs act on their own based on the story
+   - Choices should be what the PLAYER does, says, or decides - not NPC actions
+   
    SPELL USAGE IN CHOICES:
    - When a choice involves casting a spell, the player can ONLY use spells from their KNOWN SPELLS list
    - Format spell choices with the spell name in the description, e.g.: [Choice 2: Cast Lumos to light your wand and explore the dark passage]

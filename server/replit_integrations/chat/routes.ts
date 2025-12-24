@@ -701,30 +701,19 @@ export function registerChatRoutes(app: Express): void {
         }
       }
 
-      // Check if we should summarize (every 10 decisions)
-      if (storyArc && shouldSummarize(currentDecisionCount, lastSummarizedAt)) {
-        console.log(`[Story] Decision ${currentDecisionCount}: Triggering summarization...`);
-        
-        // Get fresh messages for summarization
-        const allMessages = await chatStorage.getMessagesByConversation(conversationId);
-        const rawMessages = allMessages.map(m => ({ role: m.role, content: m.content }));
-        
-        // Summarize the story
-        const newSummary = await summarizeStory(rawMessages, storyArc, storySummary);
-        
-        // Update game state with new summary
-        await storage.updateGameState(conversationId, {
-          storySummary: newSummary,
-          lastSummarizedAt: currentDecisionCount
-        });
-        
-        console.log(`[Story] Summary updated at decision ${currentDecisionCount}`);
+      // Track if chapter advanced for progress info
+      let currentStoryArc = storyArc;
 
-        // Check for chapter progression with summary context
-        const progressContext = `STORY SUMMARY:\n${newSummary}\n\nLATEST EVENTS:\n${fullResponse}`;
+      // Check for chapter progression on EVERY decision (not just summarization)
+      if (storyArc) {
+        const progressContext = storySummary 
+          ? `STORY SUMMARY:\n${storySummary}\n\nLATEST EVENTS:\n${fullResponse}`
+          : `LATEST EVENTS:\n${fullResponse}`;
+        
         const { shouldAdvance, updatedArc } = await checkChapterProgress(storyArc, progressContext);
         if (shouldAdvance) {
           await storage.updateGameState(conversationId, { storyArc: updatedArc });
+          currentStoryArc = updatedArc;
           const newChapter = updatedArc.chapters[updatedArc.currentChapterIndex];
           console.log(`[Story] Advanced to: ${newChapter.title}`);
           
@@ -738,14 +727,34 @@ export function registerChatRoutes(app: Express): void {
         }
       }
 
+      // Check if we should summarize (every 10 decisions) - separate from chapter progression
+      if (currentStoryArc && shouldSummarize(currentDecisionCount, lastSummarizedAt)) {
+        console.log(`[Story] Decision ${currentDecisionCount}: Triggering summarization...`);
+        
+        // Get fresh messages for summarization
+        const allMessages = await chatStorage.getMessagesByConversation(conversationId);
+        const rawMessages = allMessages.map(m => ({ role: m.role, content: m.content }));
+        
+        // Summarize the story (use currentStoryArc which may have been updated)
+        const newSummary = await summarizeStory(rawMessages, currentStoryArc, storySummary);
+        
+        // Update game state with new summary
+        await storage.updateGameState(conversationId, {
+          storySummary: newSummary,
+          lastSummarizedAt: currentDecisionCount
+        });
+        
+        console.log(`[Story] Summary updated at decision ${currentDecisionCount}`);
+      }
+
       // Send story progress info
-      if (storyArc) {
-        const currentChapter = storyArc.chapters[storyArc.currentChapterIndex];
+      if (currentStoryArc) {
+        const currentChapter = currentStoryArc.chapters[currentStoryArc.currentChapterIndex];
         res.write(`data: ${JSON.stringify({ 
           storyProgress: {
             chapter: currentChapter.title,
-            chapterIndex: storyArc.currentChapterIndex + 1,
-            totalChapters: storyArc.chapters.length,
+            chapterIndex: currentStoryArc.currentChapterIndex + 1,
+            totalChapters: currentStoryArc.chapters.length,
             decisionCount: currentDecisionCount
           }
         })}\n\n`);
@@ -889,30 +898,44 @@ export function registerChatRoutes(app: Express): void {
           });
         }
 
-        if (storyArc && shouldSummarize(currentDecisionCount, lastSummarizedAt)) {
+        // Track if chapter advanced for progress info
+        let currentStoryArc = storyArc;
+
+        // Check for chapter progression on EVERY decision (not just summarization)
+        if (storyArc) {
+          const progressContext = storySummary 
+            ? `STORY SUMMARY:\n${storySummary}\n\nLATEST EVENTS:\n${result.scene.narrativeText}`
+            : `LATEST EVENTS:\n${result.scene.narrativeText}`;
+          
+          const { shouldAdvance, updatedArc } = await checkChapterProgress(storyArc, progressContext);
+          if (shouldAdvance) {
+            await storage.updateGameState(conversationId, { storyArc: updatedArc });
+            currentStoryArc = updatedArc;
+            const newChapter = updatedArc.chapters[updatedArc.currentChapterIndex];
+            console.log(`[Story] Advanced to: ${newChapter.title}`);
+          }
+        }
+
+        // Summarization runs separately (every 10 decisions)
+        if (currentStoryArc && shouldSummarize(currentDecisionCount, lastSummarizedAt)) {
           const allMessages = await chatStorage.getMessagesByConversation(conversationId);
           const rawMessages = allMessages.map(m => ({ role: m.role, content: m.content }));
-          const newSummary = await summarizeStory(rawMessages, storyArc, storySummary);
+          const newSummary = await summarizeStory(rawMessages, currentStoryArc, storySummary);
           await storage.updateGameState(conversationId, {
             storySummary: newSummary,
             lastSummarizedAt: currentDecisionCount
           });
-
-          const progressContext = `STORY SUMMARY:\n${newSummary}\n\nLATEST EVENTS:\n${result.scene.narrativeText}`;
-          const { shouldAdvance, updatedArc } = await checkChapterProgress(storyArc, progressContext);
-          if (shouldAdvance) {
-            await storage.updateGameState(conversationId, { storyArc: updatedArc });
-          }
+          console.log(`[Story] Summary updated at decision ${currentDecisionCount}`);
         }
 
         res.json({
           success: true,
           scene: result.scene,
           ttsAudioUrl: result.ttsAudioUrl,
-          storyProgress: storyArc ? {
-            chapter: storyArc.chapters[storyArc.currentChapterIndex]?.title,
-            chapterIndex: storyArc.currentChapterIndex + 1,
-            totalChapters: storyArc.chapters.length,
+          storyProgress: currentStoryArc ? {
+            chapter: currentStoryArc.chapters[currentStoryArc.currentChapterIndex]?.title,
+            chapterIndex: currentStoryArc.currentChapterIndex + 1,
+            totalChapters: currentStoryArc.chapters.length,
             decisionCount: currentDecisionCount,
           } : null,
           generationTimeMs: result.generationTimeMs,
