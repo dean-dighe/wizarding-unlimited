@@ -2,10 +2,13 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import type { PortraitPosition, PortraitExpression, SceneCharacter } from "@shared/schema";
+import { SpellAnimation } from "./SpellAnimation";
 
 interface SceneStageProps {
   locationName: string;
   characters?: SceneCharacter[];
+  activeSpell?: string | null;
+  onSpellComplete?: () => void;
   width?: number;
   height?: number;
   className?: string;
@@ -32,6 +35,8 @@ const POSITION_STYLES: Record<PortraitPosition, { left: string; transform: strin
 export function SceneStage({
   locationName,
   characters = [],
+  activeSpell = null,
+  onSpellComplete,
   width = 640,
   height = 360,
   className = "",
@@ -259,6 +264,15 @@ export function SceneStage({
           })}
         </AnimatePresence>
       </div>
+
+      {activeSpell && (
+        <SpellAnimation
+          spellName={activeSpell}
+          position={{ x: 50, y: 40 }}
+          scale={1.5}
+          onComplete={onSpellComplete}
+        />
+      )}
 
       <div className="absolute bottom-2 left-2 bg-black/50 backdrop-blur-sm px-2 py-1 rounded text-xs text-white/80 font-serif">
         {locationName}
