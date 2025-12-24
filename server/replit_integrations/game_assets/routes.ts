@@ -1,5 +1,5 @@
 import type { Express } from "express";
-import { SpriteGenerationService } from "./sprites";
+import { SpriteGenerationService, CANON_CHARACTERS } from "./sprites";
 import { MapGenerationService, HARRY_POTTER_LOCATIONS } from "./maps";
 import { storage } from "../../storage";
 import pLimit from "p-limit";
@@ -136,6 +136,117 @@ export function registerGameAssetRoutes(app: Express): void {
     }
   });
 
+  app.post("/api/game-assets/sprites/pregenerate", async (req, res) => {
+    try {
+      const allCharacters = CANON_CHARACTERS;
+      const { characters, concurrency = 2, category } = req.body;
+      
+      let targetCharacters = allCharacters;
+      
+      if (category) {
+        targetCharacters = allCharacters.filter(c => c.category === category);
+      }
+      
+      if (characters && Array.isArray(characters)) {
+        const charNames = new Set(characters);
+        targetCharacters = targetCharacters.filter(c => charNames.has(c.name));
+      }
+      
+      if (targetCharacters.length === 0) {
+        return res.status(400).json({ error: "No valid characters to generate" });
+      }
+      
+      res.json({ 
+        success: true, 
+        message: `Starting sprite pre-generation for ${targetCharacters.length} characters`,
+        characters: targetCharacters.map(c => c.name),
+        estimatedTime: `${Math.ceil(targetCharacters.length / concurrency) * 5} seconds`
+      });
+      
+      const limit = pLimit(concurrency);
+      const results: { character: string; status: string; error?: string }[] = [];
+      
+      const promises = targetCharacters.map((char) => 
+        limit(async () => {
+          try {
+            const existing = await storage.getCharacterSprite(char.name);
+            if (existing) {
+              console.log(`[Sprite-pregen] Skipping (exists): ${char.name}`);
+              results.push({ character: char.name, status: "already_exists" });
+              return;
+            }
+            
+            console.log(`[Sprite-pregen] Starting: ${char.name}`);
+            await spriteService.getOrCreateSprite(char.name, char.description, { isCanon: true });
+            console.log(`[Sprite-pregen] Completed: ${char.name}`);
+            results.push({ character: char.name, status: "ready" });
+          } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : "Unknown error";
+            console.error(`[Sprite-pregen] Failed: ${char.name} - ${errorMsg}`);
+            results.push({ character: char.name, status: "failed", error: errorMsg });
+          }
+        })
+      );
+      
+      Promise.all(promises)
+        .then(() => {
+          const successful = results.filter(r => r.status === "ready").length;
+          const existing = results.filter(r => r.status === "already_exists").length;
+          const failed = results.filter(r => r.status === "failed").length;
+          console.log(`[Sprite-pregen] Complete: ${successful} new, ${existing} existing, ${failed} failed out of ${targetCharacters.length}`);
+        })
+        .catch((err) => {
+          console.error("[Sprite-pregen] Unexpected error in batch processing:", err);
+        });
+      
+    } catch (error) {
+      console.error("Error starting sprite pre-generation:", error);
+      res.status(500).json({ error: "Failed to start sprite pre-generation" });
+    }
+  });
+
+  app.get("/api/game-assets/sprites/status", async (req, res) => {
+    try {
+      const allCharacters = CANON_CHARACTERS;
+      const sprites = await storage.getAllCharacterSprites();
+      
+      const status = allCharacters.map(char => {
+        const existingSprite = sprites.find(s => s.characterName === char.name);
+        return {
+          characterName: char.name,
+          category: char.category,
+          generated: !!existingSprite,
+          hasSpriteSheet: !!existingSprite?.spriteSheetUrl,
+        };
+      });
+      
+      const summary = {
+        total: allCharacters.length,
+        generated: status.filter(s => s.generated).length,
+        pending: status.filter(s => !s.generated).length,
+        byCategory: {
+          student: status.filter(s => s.category === "student").length,
+          staff: status.filter(s => s.category === "staff").length,
+          ghost: status.filter(s => s.category === "ghost").length,
+          adult: status.filter(s => s.category === "adult").length,
+          creature: status.filter(s => s.category === "creature").length,
+        },
+        generatedByCategory: {
+          student: status.filter(s => s.category === "student" && s.generated).length,
+          staff: status.filter(s => s.category === "staff" && s.generated).length,
+          ghost: status.filter(s => s.category === "ghost" && s.generated).length,
+          adult: status.filter(s => s.category === "adult" && s.generated).length,
+          creature: status.filter(s => s.category === "creature" && s.generated).length,
+        },
+      };
+      
+      res.json({ summary, characters: status });
+    } catch (error) {
+      console.error("Error fetching sprite status:", error);
+      res.status(500).json({ error: "Failed to fetch sprite status" });
+    }
+  });
+
   app.post("/api/game-assets/maps/pregenerate", async (req, res) => {
     try {
       const allLocations = Object.keys(HARRY_POTTER_LOCATIONS);
@@ -174,11 +285,15 @@ export function registerGameAssetRoutes(app: Express): void {
         })
       );
       
-      Promise.all(promises).then(() => {
-        const successful = results.filter(r => r.status === "ready").length;
-        const failed = results.filter(r => r.status === "failed").length;
-        console.log(`[Pre-gen] Complete: ${successful} successful, ${failed} failed out of ${targetLocations.length}`);
-      });
+      Promise.all(promises)
+        .then(() => {
+          const successful = results.filter(r => r.status === "ready").length;
+          const failed = results.filter(r => r.status === "failed").length;
+          console.log(`[Pre-gen] Complete: ${successful} successful, ${failed} failed out of ${targetLocations.length}`);
+        })
+        .catch((err) => {
+          console.error("[Pre-gen] Unexpected error in batch map processing:", err);
+        });
       
     } catch (error) {
       console.error("Error starting map pre-generation:", error);
