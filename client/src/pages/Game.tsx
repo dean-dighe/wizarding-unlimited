@@ -1095,6 +1095,18 @@ export default function Game() {
           )}
         </div>
 
+        {/* Mobile Loading Indicator */}
+        {(isStreaming || isPreparingAudio || hasPendingMessages) && (
+          <div className="lg:hidden flex items-center justify-center gap-2 text-purple-300 py-3 bg-[#0a0612]/80 border-t border-purple-500/20">
+            <Sparkles className="w-4 h-4 animate-spin" />
+            <span className="font-serif text-sm animate-pulse">
+              {isPreparingAudio ? "Preparing narration..." :
+               isStreaming ? "The story unfolds..." :
+               "Processing..."}
+            </span>
+          </div>
+        )}
+
         {/* Choice Panel - Fixed at bottom */}
         <ChoicePanel 
           choices={currentChoices}
