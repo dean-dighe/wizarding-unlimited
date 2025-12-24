@@ -545,13 +545,14 @@ export function registerChatRoutes(app: Express): void {
       let cleanedResponse = stripCharacterTags(fullResponse);
       cleanedResponse = stripPositionTags(cleanedResponse);
       
-      // Text complete - send cleaned content in one event, then signal image generation starting
-      res.write(`data: ${JSON.stringify({ fullContent: cleanedResponse, textDone: true, imagePending: true })}\n\n`);
+      // Text complete - send cleaned content (no image generation - canvas is primary visual)
+      res.write(`data: ${JSON.stringify({ fullContent: cleanedResponse, textDone: true })}\n\n`);
+      
       // Start with existing NPCs from database
       let allNPCDescriptions = (gameState?.npcDescriptions as Record<string, string>) || {};
       
       if (Object.keys(newNPCs).length > 0) {
-        // Merge new NPCs with existing ones - use merged version for image generation
+        // Merge new NPCs with existing ones
         allNPCDescriptions = { ...allNPCDescriptions, ...newNPCs };
         // Save to database for future turns
         await storage.updateGameState(conversationId, { npcDescriptions: allNPCDescriptions });
@@ -565,24 +566,16 @@ export function registerChatRoutes(app: Express): void {
         }
       }
       
-      // Store NPC positions for game canvas (replace entirely each turn - only current scene positions matter)
+      // Store NPC positions for game canvas (ALWAYS replace - clears stale positions when no tags present)
+      await storage.updateGameState(conversationId, { npcPositions });
       if (Object.keys(npcPositions).length > 0) {
-        await storage.updateGameState(conversationId, { npcPositions });
         console.log(`[Canvas] Stored ${Object.keys(npcPositions).length} NPC positions for scene`);
+      } else {
+        console.log(`[Canvas] Cleared NPC positions (no positions in this scene)`);
       }
 
-      // Generate scene image based on story content with ALL character descriptions (existing + new)
-      const imageUrl = await generateSceneImage(fullResponse, characterDescription, allNPCDescriptions, newNPCs);
-      
-      // Embed image URL in the message content for persistence (use cleaned content without CHARACTER tags)
-      let finalContent = cleanedResponse;
-      if (imageUrl) {
-        finalContent = `[IMAGE: ${imageUrl}]\n${cleanedResponse}`;
-        res.write(`data: ${JSON.stringify({ imageUrl })}\n\n`);
-      }
-
-      // Save assistant message with embedded image URL
-      await chatStorage.createMessage(conversationId, "assistant", finalContent);
+      // Save assistant message (no image embedding - canvas is the primary visual)
+      await chatStorage.createMessage(conversationId, "assistant", cleanedResponse);
 
       // Parse and apply state changes from AI response
       const stateChanges = parseStateChanges(fullResponse);

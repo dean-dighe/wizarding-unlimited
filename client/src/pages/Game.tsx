@@ -1,6 +1,6 @@
 import { useGameState } from "@/hooks/use-game";
 import { useChatStream } from "@/hooks/use-chat-stream";
-import { useGameCanvasData, positionToCoordinates } from "@/hooks/use-game-canvas";
+import { positionToCoordinates } from "@/hooks/use-game-canvas";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useRoute } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
@@ -192,10 +192,9 @@ export default function Game() {
 
   // Game canvas state - show/hide the visual map
   const [showGameCanvas, setShowGameCanvas] = useState(false);
-  const { playerSpriteUrl, isLoading: canvasDataLoading } = useGameCanvasData(
-    state?.playerName,
-    state?.location
-  );
+  // Sprite URLs now come directly from game state API
+  const playerSpriteUrl = state?.playerSpriteUrl || undefined;
+  const npcSpriteUrls = state?.npcSpriteUrls || {};
 
   // Keep ref in sync with state for async access
   useEffect(() => {
@@ -981,7 +980,7 @@ export default function Game() {
                     const pixelPos = positionToCoordinates(posString, canvasWidth, canvasHeight);
                     return {
                       name,
-                      spriteUrl: "", // NPC sprites are generated in background, rendered as placeholders until available
+                      spriteUrl: npcSpriteUrls[name] || "", // Use real sprite URL from API if available
                       position: { x: pixelPos.x, y: pixelPos.y, facing: "down" as const }
                     };
                   });

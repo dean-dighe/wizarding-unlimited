@@ -53,6 +53,8 @@ export const api = {
           storyArc: StoryArcSchema.nullable(),
           npcDescriptions: z.record(z.string(), z.string()).nullable(),
           npcPositions: z.record(z.string(), z.string()).default({}),
+          npcSpriteUrls: z.record(z.string(), z.string()).default({}),
+          playerSpriteUrl: z.string().nullable(),
           decisionCount: z.number(),
         }),
         404: z.object({ message: z.string() }),

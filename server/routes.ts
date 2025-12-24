@@ -303,11 +303,19 @@ You spot several familiar faces in the crowd. A group of your housemates waves e
 [Choice 4: Search for that friend who owes you five Galleons from last year's bet]`;
       await chatStorage.createMessage(conversation.id, "assistant", introText);
 
-      // Generate protagonist sprite in background (don't block response)
-      // Uses playerName as the unique identifier and characterDescription for visual consistency
-      spriteService.getOrCreateSprite(playerName, characterDescription, { isProtagonist: true })
-        .then((spriteUrl: string) => console.log(`Generated protagonist sprite for ${playerName}: ${spriteUrl}`))
-        .catch((err: Error) => console.error(`Failed to generate protagonist sprite for ${playerName}:`, err));
+      // Generate protagonist sprite in background and store URL in game_state (session-scoped)
+      // Uses conversationId to make sprite unique per session
+      const sessionSpriteKey = `session_${conversation.id}_${playerName}`;
+      spriteService.getOrCreateSprite(sessionSpriteKey, characterDescription, { isProtagonist: true })
+        .then(async (spriteUrl: string) => {
+          console.log(`Generated session sprite for ${playerName}: ${spriteUrl}`);
+          // Store sprite URL in game state for this session
+          await storage.updateGameState(conversation.id, { 
+            playerSpriteUrl: spriteUrl,
+            playerSpriteGenerated: true 
+          });
+        })
+        .catch((err: Error) => console.error(`Failed to generate session sprite for ${playerName}:`, err));
 
       res.status(201).json({
         conversationId: conversation.id,
@@ -356,6 +364,17 @@ You spot several familiar faces in the crowd. A group of your housemates waves e
       return res.status(404).json({ message: "Game state not found" });
     }
 
+    // Fetch sprite URLs for NPCs in current scene positions
+    const npcPositions = (state.npcPositions as Record<string, string>) ?? {};
+    const npcSpriteUrls: Record<string, string> = {};
+    for (const npcName of Object.keys(npcPositions)) {
+      const sprite = await storage.getCharacterSprite(npcName);
+      if (sprite?.spriteSheetUrl) {
+        npcSpriteUrls[npcName] = sprite.spriteSheetUrl;
+      }
+    }
+
+    // Use session-scoped player sprite URL directly from game_state
     res.json({
       playerName: state.playerName,
       house: state.house,
@@ -367,7 +386,10 @@ You spot several familiar faces in the crowd. A group of your housemates waves e
       characterDescription: state.characterDescription ?? null,
       storyArc: state.storyArc ?? null,
       npcDescriptions: state.npcDescriptions ?? null,
-      npcPositions: state.npcPositions ?? {},
+      npcPositions: npcPositions,
+      npcSpriteUrls: npcSpriteUrls,
+      playerSpriteUrl: state.playerSpriteUrl ?? null,
+      playerSpriteGenerated: state.playerSpriteGenerated ?? false,
       decisionCount: state.decisionCount ?? 0,
     });
   });

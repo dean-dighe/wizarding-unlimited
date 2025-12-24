@@ -108,6 +108,10 @@ export const game_states = pgTable("game_states", {
   npcDescriptions: jsonb("npc_descriptions").$type<Record<string, string>>().default({}), // NPC name -> visual description mapping
   npcPositions: jsonb("npc_positions").$type<Record<string, string>>().default({}), // NPC name -> position (north, south, center, etc.) for game canvas
   
+  // Session-scoped player sprite (generated once per game session)
+  playerSpriteUrl: text("player_sprite_url"), // Object Storage URL for this session's player sprite
+  playerSpriteGenerated: boolean("player_sprite_generated").default(false), // Whether sprite generation completed
+  
   // Story arc and chapter tracking
   storyArc: jsonb("story_arc").$type<StoryArc>(), // The overarching narrative structure
   decisionCount: integer("decision_count").default(0), // Track player decisions for summarization triggers

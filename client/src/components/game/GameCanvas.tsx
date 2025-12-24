@@ -126,53 +126,93 @@ export function GameCanvas({
 
           const spawnPoint = defaultSpawnPoints.entrance;
           
-          if (playerSpriteUrl) {
-            const player = this.physics.add.sprite(spawnPoint.x, spawnPoint.y, "player");
-            player.setCollideWorldBounds(true);
-            player.setDepth(10);
-            
-            this.anims.create({
-              key: "player_idle",
-              frames: [{ key: "player", frame: 0 }],
-              frameRate: 1,
-              repeat: -1,
-            });
-            
-            this.anims.create({
-              key: "player_walk_down",
-              frames: this.anims.generateFrameNumbers("player", { start: 0, end: 2 }),
-              frameRate: 8,
-              repeat: -1,
-            });
-            
-            this.anims.create({
-              key: "player_walk_up",
-              frames: this.anims.generateFrameNumbers("player", { start: 3, end: 5 }),
-              frameRate: 8,
-              repeat: -1,
-            });
-            
-            this.anims.create({
-              key: "player_walk_left",
-              frames: this.anims.generateFrameNumbers("player", { start: 6, end: 8 }),
-              frameRate: 8,
-              repeat: -1,
-            });
-            
-            this.anims.create({
-              key: "player_walk_right",
-              frames: this.anims.generateFrameNumbers("player", { start: 9, end: 11 }),
-              frameRate: 8,
-              repeat: -1,
-            });
-            
-            player.play("player_idle");
-            
-            (this as any).player = player;
-          } else {
+          // Check if player texture has valid frame data (not just existence - 404s register empty textures)
+          let playerTextureValid = false;
+          let frameCount = 0;
+          
+          if (playerSpriteUrl && this.textures.exists("player")) {
+            try {
+              const playerTexture = this.textures.get("player");
+              // For spritesheets, check frameTotal; for single images, getFrameNames
+              frameCount = playerTexture?.frameTotal || 0;
+              // Spritesheet loads should have at least some frames
+              playerTextureValid = frameCount >= 1;
+            } catch (e) {
+              console.warn("[GameCanvas] Failed to validate player texture:", e);
+              playerTextureValid = false;
+            }
+          }
+          
+          let useSprite = playerTextureValid && frameCount >= 12;
+          let hasAnimations = false;
+          
+          if (useSprite) {
+            try {
+              const player = this.physics.add.sprite(spawnPoint.x, spawnPoint.y, "player");
+              player.setCollideWorldBounds(true);
+              player.setDepth(10);
+              
+              // Create animations safely
+              this.anims.create({
+                key: "player_idle",
+                frames: [{ key: "player", frame: 0 }],
+                frameRate: 1,
+                repeat: -1,
+              });
+              
+              this.anims.create({
+                key: "player_walk_down",
+                frames: this.anims.generateFrameNumbers("player", { start: 0, end: 2 }),
+                frameRate: 8,
+                repeat: -1,
+              });
+              
+              this.anims.create({
+                key: "player_walk_up",
+                frames: this.anims.generateFrameNumbers("player", { start: 3, end: 5 }),
+                frameRate: 8,
+                repeat: -1,
+              });
+              
+              this.anims.create({
+                key: "player_walk_left",
+                frames: this.anims.generateFrameNumbers("player", { start: 6, end: 8 }),
+                frameRate: 8,
+                repeat: -1,
+              });
+              
+              this.anims.create({
+                key: "player_walk_right",
+                frames: this.anims.generateFrameNumbers("player", { start: 9, end: 11 }),
+                frameRate: 8,
+                repeat: -1,
+              });
+              
+              player.play("player_idle");
+              hasAnimations = true;
+              
+              (this as any).player = player;
+              (this as any).playerHasAnimations = hasAnimations;
+              (this as any).playerIsSprite = true;
+            } catch (e) {
+              console.warn("[GameCanvas] Failed to create player sprite, falling back to rectangle:", e);
+              useSprite = false;
+            }
+          }
+          
+          if (!useSprite) {
+            // Fallback to colored rectangle with physics body for movement
             const playerGraphic = this.add.rectangle(spawnPoint.x, spawnPoint.y, 24, 24, 0x9b4dca);
             playerGraphic.setDepth(10);
+            // Add physics body to rectangle so it can move
+            this.physics.add.existing(playerGraphic);
+            const body = playerGraphic.body as Phaser.Physics.Arcade.Body;
+            if (body) {
+              body.setCollideWorldBounds(true);
+            }
             (this as any).player = playerGraphic;
+            (this as any).playerHasAnimations = false;
+            (this as any).playerIsSprite = false;
           }
 
           npcs.forEach((npc, i) => {
@@ -181,14 +221,37 @@ export function GameCanvas({
               y: height / 2 
             };
             
-            if (npc.spriteUrl) {
-              const npcSprite = this.physics.add.sprite(npcPos.x, npcPos.y, `npc_${i}`);
-              npcSprite.setDepth(5);
-              npcSprite.setInteractive({ useHandCursor: true });
-              npcSprite.on("pointerdown", () => {
-                onInteraction?.(npc.name);
-              });
-            } else {
+            // Check if NPC texture has valid frame data (not just existence)
+            const npcTextureKey = `npc_${i}`;
+            let npcTextureValid = false;
+            
+            if (npc.spriteUrl && this.textures.exists(npcTextureKey)) {
+              try {
+                const npcTexture = this.textures.get(npcTextureKey);
+                const npcFrameCount = npcTexture?.frameTotal || 0;
+                npcTextureValid = npcFrameCount >= 1;
+              } catch (e) {
+                console.warn(`[GameCanvas] Failed to validate NPC texture ${npc.name}:`, e);
+                npcTextureValid = false;
+              }
+            }
+            
+            if (npcTextureValid) {
+              try {
+                const npcSprite = this.physics.add.sprite(npcPos.x, npcPos.y, npcTextureKey);
+                npcSprite.setDepth(5);
+                npcSprite.setInteractive({ useHandCursor: true });
+                npcSprite.on("pointerdown", () => {
+                  onInteraction?.(npc.name);
+                });
+              } catch (e) {
+                console.warn(`[GameCanvas] Failed to create NPC sprite ${npc.name}, using fallback:`, e);
+                npcTextureValid = false;
+              }
+            }
+            
+            if (!npcTextureValid) {
+              // Fallback to colored rectangle when sprite didn't load
               const npcGraphic = this.add.rectangle(npcPos.x, npcPos.y, 20, 20, 0x4169e1);
               npcGraphic.setDepth(5);
               npcGraphic.setInteractive({ useHandCursor: true });
@@ -200,6 +263,7 @@ export function GameCanvas({
 
           this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
             const player = (this as any).player;
+            const hasAnimations = (this as any).playerHasAnimations;
             if (!player) return;
             
             const targetX = pointer.worldX;
@@ -215,13 +279,16 @@ export function GameCanvas({
             if (player.body) {
               this.physics.moveTo(player, targetX, targetY, 100);
               
-              const dx = targetX - player.x;
-              const dy = targetY - player.y;
-              
-              if (Math.abs(dx) > Math.abs(dy)) {
-                player.play(dx > 0 ? "player_walk_right" : "player_walk_left", true);
-              } else {
-                player.play(dy > 0 ? "player_walk_down" : "player_walk_up", true);
+              // Only play animations if they exist
+              if (hasAnimations && player.play) {
+                const dx = targetX - player.x;
+                const dy = targetY - player.y;
+                
+                if (Math.abs(dx) > Math.abs(dy)) {
+                  player.play(dx > 0 ? "player_walk_right" : "player_walk_left", true);
+                } else {
+                  player.play(dy > 0 ? "player_walk_down" : "player_walk_up", true);
+                }
               }
               
               const distance = Phaser.Math.Distance.Between(player.x, player.y, targetX, targetY);
@@ -230,7 +297,9 @@ export function GameCanvas({
               this.time.delayedCall(duration, () => {
                 if (player.body) {
                   player.body.setVelocity(0, 0);
-                  player.play("player_idle");
+                  if (hasAnimations && player.play) {
+                    player.play("player_idle");
+                  }
                 }
               });
             }
