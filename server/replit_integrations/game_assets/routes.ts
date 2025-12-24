@@ -542,6 +542,44 @@ export function registerGameAssetRoutes(app: Express): void {
     }
   });
 
+  app.post("/api/vn-assets/portrait/:characterName/preload-all", async (req, res) => {
+    try {
+      const { characterName } = req.params;
+      const { characterDescription } = req.body;
+      
+      const result = await characterPortraitService.preloadAllExpressions(
+        decodeURIComponent(characterName),
+        characterDescription
+      );
+      
+      res.json({
+        success: true,
+        characterName: decodeURIComponent(characterName),
+        started: result.started,
+        existing: result.existing,
+        message: `Started generating ${result.started} expressions, ${result.existing} already exist`,
+      });
+    } catch (error) {
+      console.error("Error preloading portraits:", error);
+      res.status(500).json({ error: "Failed to preload portraits" });
+    }
+  });
+
+  app.post("/api/vn-assets/portraits/regenerate-all", async (req, res) => {
+    try {
+      const result = await characterPortraitService.regenerateAllPortraitsWithTransparency();
+      
+      res.json({
+        success: true,
+        regenerating: result.regenerating,
+        message: `Started regenerating ${result.regenerating} portraits with transparent backgrounds`,
+      });
+    } catch (error) {
+      console.error("Error regenerating portraits:", error);
+      res.status(500).json({ error: "Failed to regenerate portraits" });
+    }
+  });
+
   // ===== VN ASSET PRE-GENERATION ROUTES =====
 
   app.post("/api/vn-assets/backgrounds/pregenerate", async (req, res) => {
