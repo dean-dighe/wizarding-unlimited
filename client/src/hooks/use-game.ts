@@ -23,7 +23,11 @@ export function useGameState(conversationId: number | null) {
     queryFn: async () => {
       if (!conversationId) return null;
       const url = buildUrl(api.game.getState.path, { conversationId });
-      const res = await fetch(url, { credentials: "include" });
+      const token = getSessionToken(conversationId);
+      const res = await fetch(url, {
+        credentials: "include",
+        headers: token ? { 'x-session-token': token } : {},
+      });
       if (!res.ok) throw new Error("Failed to fetch game state");
       return api.game.getState.responses[200].parse(await res.json());
     },

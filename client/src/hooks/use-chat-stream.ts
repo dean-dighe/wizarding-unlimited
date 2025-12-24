@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getAuthHeaders } from "./use-game";
+import { api } from "@shared/routes";
 
 interface Message {
   role: "user" | "assistant";
@@ -37,10 +38,13 @@ export function useChatStream(conversationId: number | null) {
   // Load initial history
   useEffect(() => {
     if (!conversationId) return;
-    
-    fetch(`/api/conversations/${conversationId}`, { 
+
+    const controller = new AbortController();
+
+    fetch(`/api/conversations/${conversationId}`, {
       credentials: "include",
-      headers: getAuthHeaders(conversationId)
+      headers: getAuthHeaders(conversationId),
+      signal: controller.signal,
     })
       .then(res => {
         if (!res.ok) throw new Error("Failed to fetch conversation");
@@ -58,8 +62,8 @@ export function useChatStream(conversationId: number | null) {
               // Extract image URL from persisted content
               const imageMatch = m.content.match(/\[IMAGE: ([^\]]+)\]/);
               const imageUrl = imageMatch ? imageMatch[1] : undefined;
-              return { 
-                role: m.role, 
+              return {
+                role: m.role,
                 content: m.content,
                 choices: choices.length > 0 ? choices : undefined,
                 gameTime,
@@ -69,7 +73,15 @@ export function useChatStream(conversationId: number | null) {
           setMessages(formatted);
         }
       })
-      .catch(console.error);
+      .catch(err => {
+        // Don't log abort errors - they're expected during cleanup
+        if (err.name !== 'AbortError') {
+          console.error("Failed to load conversation history:", err);
+        }
+      });
+
+    // Cleanup: abort fetch if component unmounts or conversationId changes
+    return () => controller.abort();
   }, [conversationId]);
 
   const sendMessage = async (content: string) => {
@@ -237,7 +249,8 @@ export function useChatStream(conversationId: number | null) {
       setIsGeneratingImage(false);
       abortControllerRef.current = null;
       // Invalidate game state to pick up any state changes from the backend action
-      queryClient.invalidateQueries({ queryKey: [`/api/game/${conversationId}/state`] });
+      // Use the same query key pattern as useGameState
+      queryClient.invalidateQueries({ queryKey: [api.game.getState.path, conversationId] });
     }
   };
 

@@ -172,15 +172,22 @@ export default function Game() {
   
   // Mute state with localStorage persistence
   const [isMuted, setIsMuted] = useState(() => {
-    const stored = localStorage.getItem("hogwarts-muted");
-    return stored === "true";
+    try {
+      const stored = localStorage.getItem("hogwarts-muted");
+      return stored === "true";
+    } catch {
+      // localStorage may be unavailable in private browsing
+      return false;
+    }
   });
+  // Use ref to access current mute state in async callbacks without adding
+  // isMuted to effect dependencies (which would cause re-processing of messages)
   const isMutedRef = useRef(isMuted);
-  
+
   // Mobile drawer state
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
-  
-  // Keep ref in sync with state
+
+  // Keep ref in sync with state for async access
   useEffect(() => {
     isMutedRef.current = isMuted;
   }, [isMuted]);
@@ -205,7 +212,11 @@ export default function Game() {
   const toggleMute = useCallback(() => {
     setIsMuted(prev => {
       const newValue = !prev;
-      localStorage.setItem("hogwarts-muted", String(newValue));
+      try {
+        localStorage.setItem("hogwarts-muted", String(newValue));
+      } catch {
+        // localStorage may be unavailable in private browsing
+      }
       isMutedRef.current = newValue;
       if (newValue) {
         cleanupAudio();

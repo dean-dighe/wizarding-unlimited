@@ -1,7 +1,7 @@
 import { db } from "../../db";
 import { conversations, messages } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
-import crypto from "crypto";
+import crypto, { timingSafeEqual } from "crypto";
 
 function generateSessionToken(): string {
   return crypto.randomBytes(32).toString('hex');
@@ -59,8 +59,13 @@ export const chatStorage: IChatStorage = {
   async validateSessionToken(conversationId: number, token: string) {
     if (!token) return false;
     const [conversation] = await db.select().from(conversations).where(eq(conversations.id, conversationId));
-    if (!conversation) return false;
-    return conversation.sessionToken === token;
+    if (!conversation || !conversation.sessionToken) return false;
+
+    // Use timing-safe comparison to prevent timing attacks
+    const storedBuffer = Buffer.from(conversation.sessionToken, 'utf8');
+    const providedBuffer = Buffer.from(token, 'utf8');
+    if (storedBuffer.length !== providedBuffer.length) return false;
+    return timingSafeEqual(storedBuffer, providedBuffer);
   },
 };
 

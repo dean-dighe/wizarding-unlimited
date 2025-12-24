@@ -6,6 +6,7 @@ import wandLogo from "@assets/generated_images/magical_wand_app_logo.png";
 import { MagicalButton } from "@/components/ui/magical-button";
 import { useInitGame } from "@/hooks/use-game";
 import { useToast } from "@/hooks/use-toast";
+import { type HogwartsHouse, HogwartsHouses } from "@shared/routes";
 
 import gryffindorIcon from "@assets/generated_images/gryffindor_lion_crest_icon.png";
 import slytherinIcon from "@assets/generated_images/slytherin_snake_crest_icon.png";
@@ -21,7 +22,7 @@ const houseIcons: Record<string, string> = {
 
 export default function Landing() {
   const [name, setName] = useState("");
-  const [house, setHouse] = useState<string | undefined>(undefined);
+  const [house, setHouse] = useState<HogwartsHouse | undefined>(undefined);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const initGame = useInitGame();
@@ -93,7 +94,7 @@ export default function Landing() {
                 Choose Your House
               </label>
               <div className="grid grid-cols-2 gap-2">
-                {["Gryffindor", "Slytherin", "Ravenclaw", "Hufflepuff"].map((h) => (
+                {HogwartsHouses.map((h) => (
                   <button
                     key={h}
                     type="button"

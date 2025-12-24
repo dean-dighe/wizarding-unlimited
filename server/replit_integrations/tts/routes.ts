@@ -195,7 +195,8 @@ Simply read the narrative text with your enchanting storyteller voice, performin
         console.error("[TTS] WebSocket error:", error.message, error.code || '');
         cleanup();
         if (!res.headersSent) {
-          res.status(500).json({ error: `WebSocket connection failed: ${error.message}` });
+          // Don't expose internal error details to client
+          res.status(500).json({ error: "Text-to-speech service unavailable" });
         }
       });
 

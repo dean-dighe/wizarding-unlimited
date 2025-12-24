@@ -19,12 +19,15 @@ async function generateCharacterDescription(playerName: string, house: string | 
   try {
     const houseColors: Record<string, string> = {
       "Gryffindor": "crimson and gold",
-      "Slytherin": "emerald and silver", 
+      "Slytherin": "emerald and silver",
       "Ravenclaw": "blue and bronze",
       "Hufflepuff": "yellow and black"
     };
-    
-    const prompt = `Generate a detailed visual description of a third-year Hogwarts student (age 13) named ${playerName}${house ? ` in House ${house}` : ''} for consistent illustration purposes. 
+
+    // Sanitize player name to prevent prompt injection
+    const sanitizedName = playerName.replace(/[^\w\s'-]/g, '').slice(0, 50);
+
+    const prompt = `Generate a detailed visual description of a third-year Hogwarts student (age 13) named ${sanitizedName}${house ? ` in House ${house}` : ''} for consistent illustration purposes. 
 
 Include SPECIFIC details about:
 - Hair: color, length, texture, style
@@ -289,9 +292,25 @@ You spot several familiar faces in the crowd. A group of your housemates waves e
 
   // Get Game State
   app.get(api.game.getState.path, async (req, res) => {
-    const conversationId = Number(req.params.conversationId);
+    // Validate conversationId is a positive integer
+    const conversationIdRaw = req.params.conversationId;
+    const conversationId = Number(conversationIdRaw);
+    if (!Number.isInteger(conversationId) || conversationId <= 0) {
+      return res.status(400).json({ message: "Invalid conversation ID" });
+    }
+
+    // Session token validation for authorization
+    const sessionToken = req.headers['x-session-token'] as string;
+    if (!sessionToken) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+    const isValid = await chatStorage.validateSessionToken(conversationId, sessionToken);
+    if (!isValid) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const state = await storage.getGameState(conversationId);
-    
+
     if (!state) {
       return res.status(404).json({ message: "Game state not found" });
     }
@@ -304,6 +323,10 @@ You spot several familiar faces in the crowd. A group of your housemates waves e
       spells: (state.spells as string[]) ?? [],
       location: state.location ?? "Unknown",
       gameTime: state.gameTime ?? "Unknown",
+      characterDescription: state.characterDescription ?? null,
+      storyArc: state.storyArc ?? null,
+      npcDescriptions: state.npcDescriptions ?? null,
+      decisionCount: state.decisionCount ?? 0,
     });
   });
 
