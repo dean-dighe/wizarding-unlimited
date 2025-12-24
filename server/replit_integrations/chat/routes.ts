@@ -174,6 +174,29 @@ function stripPositionTags(content: string): string {
   return content.replace(/\[NPC_POSITION:\s*[^|]+\|[^\]]+\]\n?/gi, '');
 }
 
+// Parse character moods from [MOOD: Name | expression] tags for VN portraits
+function parseCharacterMoods(content: string): Record<string, string> {
+  const moods: Record<string, string> = {};
+  const moodRegex = /\[MOOD:\s*([^|]+)\|([^\]]+)\]/gi;
+  let match;
+  while ((match = moodRegex.exec(content)) !== null) {
+    const name = match[1].trim();
+    const expression = match[2].trim().toLowerCase();
+    // Validate expression is one of the allowed values
+    const validExpressions = ['neutral', 'happy', 'sad', 'angry', 'surprised', 'worried', 'determined', 'mysterious', 'scared'];
+    if (validExpressions.includes(expression)) {
+      moods[name] = expression;
+      console.log(`[VN] Character Mood: "${name}" is ${expression}`);
+    }
+  }
+  return moods;
+}
+
+// Strip MOOD tags from content (they're parsed, not displayed)
+function stripMoodTags(content: string): string {
+  return content.replace(/\[MOOD:\s*[^|]+\|[^\]]+\]\n?/gi, '');
+}
+
 // Parse choice navigation hints from [Choice N: description → direction] format
 function parseChoiceDirections(content: string): Record<number, string> {
   const directions: Record<number, string> = {};
@@ -543,9 +566,13 @@ export function registerChatRoutes(app: Express): void {
       // Parse NPC positions for game canvas
       const npcPositions = parseNPCPositions(fullResponse);
       
-      // Strip CHARACTER and NPC_POSITION tags from visible content (they're indexed, not displayed)
+      // Parse character moods for VN portraits
+      const characterMoods = parseCharacterMoods(fullResponse);
+      
+      // Strip CHARACTER, NPC_POSITION, and MOOD tags from visible content (they're indexed, not displayed)
       let cleanedResponse = stripCharacterTags(fullResponse);
       cleanedResponse = stripPositionTags(cleanedResponse);
+      cleanedResponse = stripMoodTags(cleanedResponse);
       
       // Text complete - send cleaned content (no image generation - canvas is primary visual)
       res.write(`data: ${JSON.stringify({ fullContent: cleanedResponse, textDone: true })}\n\n`);
@@ -574,6 +601,12 @@ export function registerChatRoutes(app: Express): void {
         console.log(`[Canvas] Stored ${Object.keys(npcPositions).length} NPC positions for scene`);
       } else {
         console.log(`[Canvas] Cleared NPC positions (no positions in this scene)`);
+      }
+      
+      // Store character moods for VN portraits (ALWAYS replace)
+      await storage.updateGameState(conversationId, { characterMoods });
+      if (Object.keys(characterMoods).length > 0) {
+        console.log(`[VN] Stored ${Object.keys(characterMoods).length} character moods for scene`);
       }
 
       // Save assistant message (no image embedding - canvas is the primary visual)

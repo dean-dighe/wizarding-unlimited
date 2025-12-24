@@ -53,6 +53,7 @@ export const api = {
           storyArc: StoryArcSchema.nullable(),
           npcDescriptions: z.record(z.string(), z.string()).nullable(),
           npcPositions: z.record(z.string(), z.string()).default({}),
+          characterMoods: z.record(z.string(), z.string()).default({}),
           npcSpriteUrls: z.record(z.string(), z.string()).default({}),
           playerSpriteUrl: z.string().nullable(),
           playerSpriteGenerated: z.boolean().default(false),

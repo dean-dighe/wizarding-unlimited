@@ -476,13 +476,31 @@ export default function Game() {
       "right": "right",
     };
     
-    return Object.entries(state.npcPositions).map(([name, posString]) => ({
-      characterName: name,
-      position: positionMap[posString as string] || "center",
-      expression: "neutral" as const,
-      speaking: false,
-    }));
-  }, [state?.npcPositions]);
+    // Get character moods from game state (parsed from AI [MOOD: Name | expression] tags)
+    const moods = (state.characterMoods as Record<string, string>) || {};
+    const validExpressions = ['neutral', 'happy', 'sad', 'angry', 'surprised', 'worried', 'determined', 'mysterious', 'scared'] as const;
+    type Expression = typeof validExpressions[number];
+    
+    return Object.entries(state.npcPositions).map(([name, posString]) => {
+      // Look up mood by character name (case-insensitive match)
+      let expression: Expression = "neutral";
+      const moodEntry = Object.entries(moods).find(([moodName]) => 
+        moodName.toLowerCase() === name.toLowerCase() || 
+        name.toLowerCase().includes(moodName.toLowerCase()) ||
+        moodName.toLowerCase().includes(name.toLowerCase())
+      );
+      if (moodEntry && validExpressions.includes(moodEntry[1] as Expression)) {
+        expression = moodEntry[1] as Expression;
+      }
+      
+      return {
+        characterName: name,
+        position: positionMap[posString as string] || "center",
+        expression,
+        speaking: false,
+      };
+    });
+  }, [state?.npcPositions, state?.characterMoods]);
 
   useEffect(() => {
     isMutedRef.current = isMuted;

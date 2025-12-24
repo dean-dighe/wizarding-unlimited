@@ -249,6 +249,7 @@ export const game_states = pgTable("game_states", {
   characterDescription: text("character_description"), // Verbose visual description for consistent image generation
   npcDescriptions: jsonb("npc_descriptions").$type<Record<string, string>>().default({}), // NPC name -> visual description mapping
   npcPositions: jsonb("npc_positions").$type<Record<string, string>>().default({}), // NPC name -> position (north, south, center, etc.) for game canvas
+  characterMoods: jsonb("character_moods").$type<Record<string, string>>().default({}), // Character name -> expression (neutral, happy, sad, etc.) for VN portraits
   
   // Session-scoped player sprite (generated once per game session)
   playerSpriteUrl: text("player_sprite_url"), // Object Storage URL for this session's player sprite

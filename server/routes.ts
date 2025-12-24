@@ -416,6 +416,7 @@ You spot several familiar faces in the crowd. A group of your housemates waves e
       storyArc: state.storyArc ?? null,
       npcDescriptions: state.npcDescriptions ?? null,
       npcPositions: npcPositions,
+      characterMoods: (state.characterMoods as Record<string, string>) ?? {},
       npcSpriteUrls: npcSpriteUrls,
       playerSpriteUrl: state.playerSpriteUrl ?? null,
       playerSpriteGenerated: state.playerSpriteGenerated ?? false,
