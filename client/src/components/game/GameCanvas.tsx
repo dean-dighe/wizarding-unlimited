@@ -29,7 +29,7 @@ interface GameCanvasProps {
   spawnPoints?: Record<string, { x: number; y: number }>;
 }
 
-const TILE_SIZE = 16;
+const TILE_SIZE = 32;
 
 const POKEMON_PALETTE = {
   black: 0x081820,
@@ -135,8 +135,8 @@ export function GameCanvas({
         preload: function(this: Phaser.Scene) {
           if (playerSpriteUrl) {
             this.load.spritesheet("player", playerSpriteUrl, {
-              frameWidth: 16,
-              frameHeight: 16,
+              frameWidth: 32,
+              frameHeight: 32,
             });
           }
           
@@ -147,8 +147,8 @@ export function GameCanvas({
           npcs.forEach((npc, i) => {
             if (npc.spriteUrl) {
               this.load.spritesheet(`npc_${i}`, npc.spriteUrl, {
-                frameWidth: 16,
-                frameHeight: 16,
+                frameWidth: 32,
+                frameHeight: 32,
               });
             }
           });

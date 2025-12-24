@@ -8,12 +8,25 @@ const xai = new OpenAI({
   baseURL: "https://api.x.ai/v1",
 });
 
-const SPRITE_STYLE_PROMPT = `16-bit pixel art sprite sheet, top-down RPG style, Nintendo Game Boy Advance/Pokemon aesthetic, 
-32x32 pixel character, 4 rows of 3 frames each (12 total frames), 
-walking animations: row 1 = walk down (3 frames), row 2 = walk up (3 frames), 
-row 3 = walk left (3 frames), row 4 = walk right (3 frames), 
-clean pixel edges, limited color palette, dark outlines, no anti-aliasing, 
-transparent background or solid color background for easy removal`;
+const SPRITE_STYLE_PROMPT = `Pokemon FireRed/LeafGreen style character sprite sheet.
+EXACT FORMAT: 4 rows x 3 columns grid = 12 frames total, each frame 32x32 pixels.
+Total image size: 96 pixels wide x 128 pixels tall.
+
+LAYOUT (from top to bottom):
+Row 1: Character facing DOWN - idle, left foot, right foot (walking cycle)
+Row 2: Character facing UP - idle, left foot, right foot (walking cycle)  
+Row 3: Character facing LEFT - idle, left foot, right foot (walking cycle)
+Row 4: Character facing RIGHT - idle, left foot, right foot (walking cycle)
+
+STYLE REQUIREMENTS:
+- Game Boy Advance pixel art aesthetic
+- Bold black 1-2 pixel outlines around character
+- 16-color palette maximum
+- NO anti-aliasing, NO gradients
+- Top-down RPG perspective (3/4 view)
+- Character fills most of each 32x32 frame
+- Clean grid separation between frames
+- Solid single-color background (green or magenta for transparency)`;
 
 export class SpriteGenerationService {
   private assetStorage: GameAssetStorageService;
@@ -83,15 +96,16 @@ export class SpriteGenerationService {
   }
 
   private buildSpritePrompt(characterName: string, description: string): string {
-    const cleanDescription = description.slice(0, 300);
+    const cleanDescription = description.slice(0, 200);
     
     return `${SPRITE_STYLE_PROMPT}
 
-Character: ${characterName}
-Description: ${cleanDescription}
+CHARACTER TO DRAW: ${characterName}
+APPEARANCE: ${cleanDescription}
 
-Hogwarts student in robes, wand at side, young wizard/witch character, 
-magical school uniform, fantasy RPG character sprite sheet format`;
+Draw this Harry Potter character as a cute chibi-style RPG sprite.
+The character should be recognizable with their key visual features.
+Hogwarts robes, wand visible, magical fantasy style.`;
   }
 
   private async downloadImage(url: string): Promise<Buffer> {

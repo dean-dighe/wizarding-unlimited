@@ -8,15 +8,18 @@ const xai = new OpenAI({
   baseURL: "https://api.x.ai/v1",
 });
 
-const TILESET_STYLE_PROMPT = `16-bit pixel art tileset, top-down RPG style, Nintendo Game Boy Color/Advance aesthetic,
-32x32 pixel tiles arranged in a 4x4 grid (16 tiles total),
-Harry Potter Hogwarts castle interior theme,
-Row 1: floor tiles (4 variations of stone/wood floor),
-Row 2: wall tiles (4 variations of stone walls),
-Row 3: decoration tiles (table, chair, torch, window),
-Row 4: special tiles (door, stairs, rug, magic item),
-limited color palette, dark outlines, no anti-aliasing,
-seamless tiles, tileset sheet format`;
+const TILESET_STYLE_PROMPT = `Pokemon FireRed/LeafGreen style tileset for a top-down 2D RPG game.
+EXACT FORMAT: 4x4 grid of tiles = 16 tiles, each tile 32x32 pixels.
+Total image size: 128 pixels wide x 128 pixels tall.
+
+STYLE REQUIREMENTS:
+- Game Boy Advance pixel art aesthetic
+- Bold 1-pixel black outlines on objects
+- 16-32 color palette maximum
+- NO anti-aliasing, NO gradients, NO realistic shading
+- Top-down RPG perspective
+- Clean grid separation between tiles
+- Each tile should be seamless/tileable where appropriate`;
 
 export interface MapResult {
   tilesetUrl: string | null;
@@ -177,12 +180,23 @@ export class MapGenerationService {
   private async generateTileset(locationName: string): Promise<string | null> {
     const locationDetails = this.getLocationDetails(locationName);
     
+    const landmarkFeature = locationDetails.features[0] || "magical element";
+    const otherFeatures = locationDetails.features.slice(1, 4).join(", ");
+    
     const prompt = `${TILESET_STYLE_PROMPT}
 
-Location: ${locationName} in Hogwarts castle
-Style: ${locationDetails.style}
-Color scheme: ${locationDetails.lighting}
-Key elements: ${locationDetails.features.slice(0, 4).join(", ")}`;
+LOCATION: ${locationName}
+THEME: ${locationDetails.style}
+LIGHTING/COLORS: ${locationDetails.lighting}
+
+TILE LAYOUT (4x4 grid):
+Row 1: Floor/ground tiles (4 variations matching ${locationDetails.style})
+Row 2: Wall/boundary tiles (4 variations)
+Row 3: MUST INCLUDE "${landmarkFeature}" as a tile, plus ${otherFeatures}
+Row 4: Additional props and details for ${locationName}
+
+IMPORTANT: This tileset must be clearly recognizable as "${locationName}".
+The signature element "${landmarkFeature}" should be prominent.`;
 
     try {
       const response = await xai.images.generate({
