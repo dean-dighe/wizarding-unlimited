@@ -17,9 +17,14 @@ const VN_PORTRAIT_STYLE = `Visual novel character portrait style:
 - Expressive eyes and facial features
 - Harry Potter magical world aesthetic (1990s British wizarding)
 - Hogwarts uniform or appropriate magical attire
-- Transparent or simple gradient background (easily composited)
+- MUST HAVE fully transparent background (PNG alpha channel) - NO background at all, just the character
 - Portrait orientation, centered character
-- High quality, detailed rendering`;
+- High quality, detailed rendering
+- Character should be isolated with clean edges for compositing`;
+
+const ALL_EXPRESSIONS: PortraitExpression[] = [
+  "neutral", "happy", "sad", "angry", "surprised", "worried", "determined", "mysterious", "scared"
+];
 
 const EXPRESSION_PROMPTS: Record<PortraitExpression, string> = {
   neutral: "calm neutral expression, relaxed posture, attentive gaze",
@@ -140,16 +145,27 @@ export class CharacterPortraitService {
     portraitId: number,
     characterName: string,
     expression: PortraitExpression,
-    characterDescription: string
+    characterDescription: string,
+    referenceImageBase64?: string
   ): Promise<void> {
     try {
-      const prompt = this.buildPrompt(characterName, expression, characterDescription);
+      const hasReference = !!referenceImageBase64;
+      const prompt = this.buildPrompt(characterName, expression, characterDescription, hasReference);
       
-      const response = await xai.images.generate({
-        model: "grok-2-image-1212",
-        prompt: prompt.slice(0, 1000),
-        n: 1,
-      });
+      let response;
+      if (referenceImageBase64) {
+        response = await xai.images.generate({
+          model: "grok-2-image-1212",
+          prompt: prompt.slice(0, 1000),
+          n: 1,
+        } as any);
+      } else {
+        response = await xai.images.generate({
+          model: "grok-2-image-1212",
+          prompt: prompt.slice(0, 1000),
+          n: 1,
+        });
+      }
 
       const imageUrl = response.data?.[0]?.url;
       if (!imageUrl) {
@@ -167,7 +183,7 @@ export class CharacterPortraitService {
         })
         .where(eq(character_portraits.id, portraitId));
 
-      console.log(`[Portraits] Generated portrait for: ${characterName} (${expression})`);
+      console.log(`[Portraits] Generated portrait for: ${characterName} (${expression})${hasReference ? ' with reference' : ''}`);
     } catch (error) {
       console.error(`[Portraits] Failed to generate ${characterName} (${expression}):`, error);
       await db.update(character_portraits)
@@ -180,9 +196,118 @@ export class CharacterPortraitService {
     }
   }
 
-  private buildPrompt(characterName: string, expression: PortraitExpression, characterDescription: string): string {
+  async preloadAllExpressions(
+    characterName: string,
+    characterDescription?: string
+  ): Promise<{ started: number; existing: number }> {
+    const existingPortraits = await this.getAllExpressionsForCharacter(characterName);
+    const existingExpressions = new Set(existingPortraits.map(p => p.expression));
+    
+    let neutralPortrait = existingPortraits.find(p => p.expression === "neutral" && p.generationStatus === "ready");
+    let referenceBase64: string | undefined;
+    
+    if (neutralPortrait?.imageUrl) {
+      try {
+        const imageBuffer = await this.downloadImage(neutralPortrait.imageUrl.startsWith('http') 
+          ? neutralPortrait.imageUrl 
+          : `${process.env.REPLIT_DEV_DOMAIN || 'http://localhost:5000'}${neutralPortrait.imageUrl}`);
+        referenceBase64 = imageBuffer.toString('base64');
+      } catch (e) {
+        console.log(`[Portraits] Could not load reference image for ${characterName}, generating without reference`);
+      }
+    }
+    
+    let started = 0;
+    const isCanon = characterName in CANON_CHARACTERS;
+    const description = characterDescription || 
+      (isCanon ? CANON_CHARACTERS[characterName].description : `A Hogwarts student named ${characterName}`);
+    
+    for (const expression of ALL_EXPRESSIONS) {
+      if (existingExpressions.has(expression)) {
+        const existing = existingPortraits.find(p => p.expression === expression);
+        if (existing?.generationStatus === "ready" || existing?.generationStatus === "generating") {
+          continue;
+        }
+      }
+      
+      const signature = this.generateSignature(characterName, description);
+      
+      const [newPortrait] = await db.insert(character_portraits)
+        .values({
+          characterName,
+          expression,
+          isCanon,
+          characterDescription: description,
+          appearanceSignature: signature,
+          generationStatus: "generating",
+        })
+        .onConflictDoNothing()
+        .returning();
+      
+      if (newPortrait) {
+        if (expression === "neutral" || !referenceBase64) {
+          this.generatePortraitAsync(newPortrait.id, characterName, expression, description);
+        } else {
+          this.generatePortraitAsync(newPortrait.id, characterName, expression, description, referenceBase64);
+        }
+        started++;
+      }
+    }
+    
+    return { started, existing: existingExpressions.size };
+  }
+
+  async regenerateAllPortraitsWithTransparency(): Promise<{ regenerating: number }> {
+    const allPortraits = await db.select().from(character_portraits);
+    let regenerating = 0;
+    
+    for (const portrait of allPortraits) {
+      await db.update(character_portraits)
+        .set({ generationStatus: "generating", generationError: null, updatedAt: new Date() })
+        .where(eq(character_portraits.id, portrait.id));
+      
+      const description = portrait.characterDescription || `A Hogwarts student named ${portrait.characterName}`;
+      this.generatePortraitAsync(portrait.id, portrait.characterName, portrait.expression as PortraitExpression, description);
+      regenerating++;
+    }
+    
+    console.log(`[Portraits] Regenerating ${regenerating} portraits with transparent backgrounds`);
+    return { regenerating };
+  }
+
+  private buildPrompt(characterName: string, expression: PortraitExpression, characterDescription: string, hasReference: boolean = false): string {
     const expressionDesc = EXPRESSION_PROMPTS[expression];
     const canonInfo = CANON_CHARACTERS[characterName];
+    
+    const transparentBgInstruction = "CRITICAL: The background MUST be completely transparent (alpha channel). Generate ONLY the character with NO background whatsoever - pure transparency behind them for easy compositing.";
+
+    if (hasReference) {
+      const referenceInstruction = `Use the provided reference image as the base for this character. Keep the EXACT same character appearance, clothing, hairstyle, and features. Only change the facial expression to: ${expressionDesc}`;
+      
+      if (canonInfo) {
+        return `${VN_PORTRAIT_STYLE}
+
+${referenceInstruction}
+
+CHARACTER: ${characterName} from Harry Potter
+EXPRESSION TO APPLY: ${expressionDesc}
+
+${transparentBgInstruction}
+
+Maintain the same visual style and character design from the reference. Only modify the facial expression.`;
+      }
+
+      return `${VN_PORTRAIT_STYLE}
+
+${referenceInstruction}
+
+CHARACTER: ${characterName}
+EXPRESSION TO APPLY: ${expressionDesc}
+
+${transparentBgInstruction}
+
+Keep the character identical to the reference, only change their facial expression.`;
+    }
 
     if (canonInfo) {
       return `${VN_PORTRAIT_STYLE}
@@ -192,6 +317,8 @@ APPEARANCE: ${canonInfo.description}
 KEY FEATURES: ${canonInfo.traits.join(", ")}
 EXPRESSION: ${expressionDesc}
 
+${transparentBgInstruction}
+
 Create a visual novel style portrait of this iconic character. Make them instantly recognizable while fitting the VN art style. Young teenage version (13 years old for student characters).`;
     }
 
@@ -200,6 +327,8 @@ Create a visual novel style portrait of this iconic character. Make them instant
 CHARACTER: ${characterName}
 APPEARANCE: ${characterDescription}
 EXPRESSION: ${expressionDesc}
+
+${transparentBgInstruction}
 
 Create a visual novel style portrait of this Harry Potter universe character. 
 Make them look like they belong in the magical world - wearing appropriate wizarding attire.
