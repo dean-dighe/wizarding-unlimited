@@ -17,7 +17,15 @@ import {
   ChevronUp,
   AlertTriangle,
   RefreshCw,
+  X,
+  ScrollText,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { SceneStage } from "@/components/game/SceneStage";
 import { ParchmentCard } from "@/components/ui/parchment-card";
 import { cn } from "@/lib/utils";
@@ -141,13 +149,17 @@ function DetailPanel({
   onToggle, 
   state, 
   storyProgress, 
-  currentGameTime 
+  currentGameTime,
+  messages,
+  stripMetadata,
 }: { 
   isOpen: boolean; 
   onToggle: () => void; 
   state: any;
   storyProgress: any;
   currentGameTime: string;
+  messages: ReadyMessage[];
+  stripMetadata: (content: string) => string;
 }) {
   return (
     <AnimatePresence>
@@ -236,6 +248,9 @@ function DetailPanel({
               </div>
             )}
 
+            {/* Story History */}
+            <StoryHistorySection messages={messages} stripMetadata={stripMetadata} />
+
             <button 
               onClick={onToggle}
               className="w-full flex items-center justify-center gap-1 text-[10px] text-white/30 pt-1"
@@ -247,6 +262,106 @@ function DetailPanel({
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+// Story Modal for mobile - shows latest story paragraph after choice/init
+function StoryModal({
+  isOpen,
+  onClose,
+  content,
+  stripMetadata,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  content: string;
+  stripMetadata: (content: string) => string;
+}) {
+  const cleanContent = stripMetadata(content);
+  const paragraphs = cleanContent.split('\n\n').filter(p => p.trim());
+  
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="bg-[#1a0f2e] border-purple-500/30 max-w-[92vw] max-h-[70vh] overflow-hidden p-0 rounded-lg">
+        <div className="sticky top-0 z-10 bg-[#1a0f2e] border-b border-purple-500/20 px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-yellow-400">
+            <ScrollText className="w-4 h-4" />
+            <span className="font-serif text-sm">The Story Continues...</span>
+          </div>
+          <button 
+            onClick={onClose}
+            className="text-white/50 hover:text-white/80 transition-colors"
+            data-testid="button-close-story-modal"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="px-4 py-3 overflow-y-auto max-h-[calc(70vh-60px)]">
+          <div className="font-serif space-y-3">
+            {paragraphs.map((para, i) => (
+              <p 
+                key={i} 
+                className="text-[#e8e0d0] text-[15px] leading-[1.7]"
+                data-testid={`modal-paragraph-${i}`}
+              >
+                <TextWithHouseIcons text={para} />
+              </p>
+            ))}
+          </div>
+        </div>
+        <div className="sticky bottom-0 bg-[#1a0f2e] border-t border-purple-500/20 px-4 py-3">
+          <Button 
+            onClick={onClose} 
+            className="w-full bg-purple-600 hover:bg-purple-500 text-white font-serif"
+            data-testid="button-continue-story"
+          >
+            Continue
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Story History Panel for mobile drawer - shows all past messages
+function StoryHistorySection({
+  messages,
+  stripMetadata,
+}: {
+  messages: ReadyMessage[];
+  stripMetadata: (content: string) => string;
+}) {
+  if (messages.length === 0) return null;
+  
+  return (
+    <div className="pt-2 border-t border-white/10">
+      <div className="flex items-center gap-1.5 text-purple-400 mb-2">
+        <ScrollText className="w-3.5 h-3.5" />
+        <span className="text-[10px] uppercase tracking-wider">Story History</span>
+      </div>
+      <div className="space-y-2 max-h-40 overflow-y-auto">
+        {messages.slice(-6).map((msg, i) => (
+          <div 
+            key={i} 
+            className={cn(
+              "text-[11px] leading-relaxed rounded px-2 py-1.5",
+              msg.role === "assistant" 
+                ? "text-purple-200/80 bg-purple-900/20" 
+                : "text-blue-200/70 bg-blue-900/20 ml-4"
+            )}
+          >
+            {msg.role === "assistant" ? (
+              <p className="line-clamp-3">
+                {stripMetadata(msg.content).slice(0, 150)}
+                {stripMetadata(msg.content).length > 150 && "..."}
+              </p>
+            ) : (
+              <p className="italic">You chose: {msg.content.slice(0, 60)}{msg.content.length > 60 && "..."}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -338,6 +453,11 @@ export default function Game() {
 
   // Detail panel state (for mobile)
   const [detailsOpen, setDetailsOpen] = useState(false);
+  
+  // Story modal state (for mobile - shows after choice/init)
+  const [storyModalOpen, setStoryModalOpen] = useState(false);
+  const [storyModalContent, setStoryModalContent] = useState("");
+  const lastProcessedMsgCountRef = useRef(0);
 
   // Scene characters for visual novel display
   const sceneCharacters: SceneCharacter[] = useMemo(() => {
@@ -610,10 +730,23 @@ export default function Game() {
       
   }, [messages, isStreaming, stripMetadata, getMessageKey, cleanupAudio, conversationId, processingTrigger]);
 
-  // Scroll to bottom
+  // Scroll to bottom (desktop only)
   useEffect(() => {
-    if (scrollRef.current) {
+    if (scrollRef.current && typeof window !== 'undefined' && window.innerWidth >= 1024) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [readyMessages]);
+
+  // Show story modal on mobile when new assistant message arrives
+  useEffect(() => {
+    if (typeof window === 'undefined' || window.innerWidth >= 1024) return;
+    
+    const assistantMessages = readyMessages.filter(m => m.role === "assistant");
+    if (assistantMessages.length > 0 && assistantMessages.length > lastProcessedMsgCountRef.current) {
+      const latestContent = assistantMessages[assistantMessages.length - 1].content;
+      setStoryModalContent(latestContent);
+      setStoryModalOpen(true);
+      lastProcessedMsgCountRef.current = assistantMessages.length;
     }
   }, [readyMessages]);
 
@@ -769,6 +902,8 @@ export default function Game() {
             state={state}
             storyProgress={storyProgress}
             currentGameTime={currentGameTime}
+            messages={readyMessages}
+            stripMetadata={stripMetadata}
           />
         </div>
 
@@ -849,13 +984,21 @@ export default function Game() {
         </div>
       </div>
 
-      {/* RIGHT PANEL - Story & Choices */}
+      {/* Story Modal for Mobile */}
+      <StoryModal
+        isOpen={storyModalOpen}
+        onClose={() => setStoryModalOpen(false)}
+        content={storyModalContent}
+        stripMetadata={stripMetadata}
+      />
+
+      {/* RIGHT PANEL - Story & Choices (Desktop) / Just Choices (Mobile) */}
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
         
-        {/* Story Scroll Area */}
+        {/* Story Scroll Area - Desktop Only */}
         <div 
           ref={scrollRef}
-          className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6 space-y-4"
+          className="hidden lg:block flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6 space-y-4"
         >
           {readyMessages.map((message, i) => (
             <motion.div
