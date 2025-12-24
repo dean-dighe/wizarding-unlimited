@@ -35,6 +35,11 @@ export function useChatStream(conversationId: number | null) {
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastSentMessageRef = useRef<string>("");
 
+  // Use ref to accumulate streaming message, only commit to state when content stabilizes
+  // This prevents excessive re-renders during streaming
+  const streamingMessageRef = useRef<Message | null>(null);
+  const pendingUpdateRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Load initial history
   useEffect(() => {
     if (!conversationId) return;
@@ -151,30 +156,36 @@ export function useChatStream(conversationId: number | null) {
                 const choices = choiceMatch ? choiceMatch.map(c => c.replace(/^\[Choice \d+: /, '').replace(/\]$/, '')) : [];
                 const timeMatch = assistantMessage.match(/\[TIME: ([^\]]+)\]/);
                 const gameTime = timeMatch ? timeMatch[1] : undefined;
-                
-                if (!assistantMessageAdded) {
-                  // First fullContent - add new message
-                  assistantMessageAdded = true;
-                  setMessages(prev => [...prev, { 
-                    role: "assistant", 
-                    content: assistantMessage,
-                    choices: choices.length > 0 ? choices : undefined,
-                    gameTime,
-                    imageUrl: currentImageUrl
-                  }]);
-                } else {
-                  // Subsequent fullContent - update existing message
-                  setMessages(prev => {
-                    const updated = [...prev];
-                    updated[updated.length - 1] = { 
-                      ...updated[updated.length - 1],
-                      content: assistantMessage,
-                      choices: choices.length > 0 ? choices : undefined,
-                      gameTime,
-                    };
-                    return updated;
-                  });
+
+                // Update the ref with latest content
+                streamingMessageRef.current = {
+                  role: "assistant",
+                  content: assistantMessage,
+                  choices: choices.length > 0 ? choices : undefined,
+                  gameTime,
+                  imageUrl: currentImageUrl
+                };
+
+                // Debounce state updates to reduce re-renders during streaming
+                // Only update state every 100ms instead of on every chunk
+                if (pendingUpdateRef.current) {
+                  clearTimeout(pendingUpdateRef.current);
                 }
+                pendingUpdateRef.current = setTimeout(() => {
+                  const msg = streamingMessageRef.current;
+                  if (!msg) return;
+
+                  if (!assistantMessageAdded) {
+                    assistantMessageAdded = true;
+                    setMessages(prev => [...prev, msg]);
+                  } else {
+                    setMessages(prev => {
+                      const updated = [...prev];
+                      updated[updated.length - 1] = msg;
+                      return updated;
+                    });
+                  }
+                }, 100);
               }
 
               // Handle imagePending event - text is done, image generation starting
@@ -185,10 +196,18 @@ export function useChatStream(conversationId: number | null) {
               // Handle image URL from the stream
               if (data.imageUrl) {
                 currentImageUrl = data.imageUrl;
+                // Update ref with image URL
+                if (streamingMessageRef.current) {
+                  streamingMessageRef.current = {
+                    ...streamingMessageRef.current,
+                    imageUrl: data.imageUrl
+                  };
+                }
+                // Immediately commit image URL update (important visual change)
                 setMessages(prev => {
                   const updated = [...prev];
                   if (updated.length > 0) {
-                    updated[updated.length - 1] = { 
+                    updated[updated.length - 1] = {
                       ...updated[updated.length - 1],
                       imageUrl: data.imageUrl
                     };
@@ -245,6 +264,27 @@ export function useChatStream(conversationId: number | null) {
         });
       }
     } finally {
+      // Clear any pending debounced update
+      if (pendingUpdateRef.current) {
+        clearTimeout(pendingUpdateRef.current);
+        pendingUpdateRef.current = null;
+      }
+
+      // Commit final message state if there's pending content
+      if (streamingMessageRef.current) {
+        const finalMsg = streamingMessageRef.current;
+        setMessages(prev => {
+          // Check if we already have this message
+          if (prev.length > 0 && prev[prev.length - 1].role === 'assistant') {
+            const updated = [...prev];
+            updated[updated.length - 1] = finalMsg;
+            return updated;
+          }
+          return [...prev, finalMsg];
+        });
+        streamingMessageRef.current = null;
+      }
+
       setIsStreaming(false);
       setIsGeneratingImage(false);
       abortControllerRef.current = null;

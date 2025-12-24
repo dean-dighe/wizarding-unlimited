@@ -944,7 +944,8 @@ export default function Game() {
         >
           {readyMessages.map((message, i) => (
             <motion.div
-              key={i}
+              // Use stable key based on role + content prefix to prevent remounting
+              key={`${message.role}-${i}-${message.content.slice(0, 50)}`}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}

@@ -32,7 +32,10 @@ export function useGameState(conversationId: number | null) {
       return api.game.getState.responses[200].parse(await res.json());
     },
     enabled: !!conversationId,
-    refetchInterval: 5000, // Poll every 5s for updates
+    // Don't poll - updates come via query invalidation after messages
+    // This prevents flickering from constant re-renders
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
   });
 }
 
