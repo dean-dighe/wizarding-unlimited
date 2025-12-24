@@ -33,6 +33,3 @@ export type InsertConversation = z.infer<typeof insertConversationSchema>;
 export type Message = typeof messages.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 
-// Database indexes for foreign key columns (improves query performance)
-export const messagesConversationIdIdx = index('messages_conversation_id_idx').on(messages.conversationId);
-

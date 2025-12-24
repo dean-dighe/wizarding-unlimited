@@ -56,6 +56,3 @@ export const insertGameStateSchema = createInsertSchema(game_states).omit({
 
 export type GameState = typeof game_states.$inferSelect;
 export type InsertGameState = z.infer<typeof insertGameStateSchema>;
-
-// Database indexes for foreign key columns (improves query performance)
-export const gameStatesConversationIdIdx = index('game_states_conversation_id_idx').on(game_states.conversationId);
