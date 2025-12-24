@@ -130,16 +130,20 @@ function CollapsibleParagraph({ text, testId }: { text: string; testId: string }
 }
 
 // Compact stat badge for header
-function StatBadge({ icon: Icon, value, color, label }: { 
+function StatBadge({ icon: Icon, value, color, label, showFullOnMobile = false }: { 
   icon: any; 
   value: string | number; 
   color: string;
   label?: string;
+  showFullOnMobile?: boolean;
 }) {
   return (
     <div className={cn("flex items-center gap-1", color)} title={label}>
-      <Icon className="w-3.5 h-3.5" />
-      <span className="text-xs font-medium truncate max-w-[60px]">{value}</span>
+      <Icon className="w-3.5 h-3.5 flex-shrink-0" />
+      <span className={cn(
+        "text-xs font-medium",
+        showFullOnMobile ? "break-words" : "truncate max-w-[80px] sm:max-w-[120px]"
+      )}>{value}</span>
     </div>
   );
 }
@@ -197,21 +201,18 @@ function DetailPanel({
               </div>
             </div>
 
-            {/* Inventory & Spells in grid */}
+            {/* Inventory & Spells in grid - scrollable, no limits */}
             <div className="grid grid-cols-2 gap-3">
               {/* Inventory */}
               <div>
                 <div className="flex items-center gap-1.5 text-purple-400 mb-1.5">
                   <Backpack className="w-3.5 h-3.5" />
-                  <span className="text-[10px] uppercase tracking-wider">Inventory</span>
+                  <span className="text-[10px] uppercase tracking-wider">Inventory ({state?.inventory?.length || 0})</span>
                 </div>
-                <div className="space-y-0.5 max-h-20 overflow-y-auto">
-                  {state?.inventory?.length ? state.inventory.slice(0, 5).map((item: string, i: number) => (
-                    <div key={i} className="text-[11px] text-purple-200/70 truncate">{item}</div>
+                <div className="space-y-0.5 max-h-32 overflow-y-auto scrollbar-thin scrollbar-thumb-purple-500/30 scrollbar-track-transparent">
+                  {state?.inventory?.length ? state.inventory.map((item: string, i: number) => (
+                    <div key={i} className="text-[11px] text-purple-200/70 py-0.5">{item}</div>
                   )) : <span className="text-[11px] text-white/30">Empty</span>}
-                  {state?.inventory?.length > 5 && (
-                    <span className="text-[10px] text-white/40">+{state.inventory.length - 5} more</span>
-                  )}
                 </div>
               </div>
 
@@ -219,15 +220,12 @@ function DetailPanel({
               <div>
                 <div className="flex items-center gap-1.5 text-blue-400 mb-1.5">
                   <Wand2 className="w-3.5 h-3.5" />
-                  <span className="text-[10px] uppercase tracking-wider">Spells</span>
+                  <span className="text-[10px] uppercase tracking-wider">Spells ({state?.spells?.length || 0})</span>
                 </div>
-                <div className="space-y-0.5 max-h-20 overflow-y-auto">
-                  {state?.spells?.length ? state.spells.slice(0, 5).map((spell: string, i: number) => (
-                    <div key={i} className="text-[11px] text-blue-200/70 truncate">{spell}</div>
+                <div className="space-y-0.5 max-h-32 overflow-y-auto scrollbar-thin scrollbar-thumb-blue-500/30 scrollbar-track-transparent">
+                  {state?.spells?.length ? state.spells.map((spell: string, i: number) => (
+                    <div key={i} className="text-[11px] text-blue-200/70 py-0.5">{spell}</div>
                   )) : <span className="text-[11px] text-white/30">None</span>}
-                  {state?.spells?.length > 5 && (
-                    <span className="text-[10px] text-white/40">+{state.spells.length - 5} more</span>
-                  )}
                 </div>
               </div>
             </div>
@@ -874,26 +872,6 @@ export default function Game() {
     );
   }
 
-  // Calculate canvas dimensions based on screen size
-  const getCanvasDimensions = () => {
-    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-    const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 1024;
-    
-    if (isDesktop) {
-      // Desktop: Game Boy style resolution scaled 2x
-      return { width: 320, height: 288, scale: 1.5 };
-    } else if (isMobile) {
-      // Mobile: Fit to width with proper aspect ratio
-      const baseWidth = Math.min(window.innerWidth - 24, 320);
-      return { width: baseWidth, height: Math.floor(baseWidth * 0.9), scale: 1 };
-    } else {
-      // Tablet: Slightly larger
-      return { width: 320, height: 288, scale: 1.25 };
-    }
-  };
-
-  const canvasDimensions = getCanvasDimensions();
-
   return (
     <div className="h-screen flex flex-col lg:flex-row bg-[#0d0618] text-[#fdfbf7] overflow-hidden relative">
       
@@ -943,11 +921,14 @@ export default function Game() {
             </span>
           </div>
 
-          {/* Center: Stats */}
-          <div className="flex items-center gap-3">
+          {/* Center: Stats - responsive layout */}
+          <div className="flex items-center gap-2 sm:gap-3 flex-1 justify-center min-w-0 px-2">
             <StatBadge icon={Heart} value={`${state?.health ?? 100}%`} color="text-red-400" label="Health" />
-            <StatBadge icon={MapPin} value={state?.location?.split(' ').slice(0, 2).join(' ') || "?"} color="text-emerald-400" label={state?.location} />
-            <div className="hidden sm:flex items-center gap-1 text-yellow-400/70">
+            <div className="flex items-center gap-1 text-emerald-400 min-w-0 flex-shrink" title={state?.location}>
+              <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className="text-xs font-medium line-clamp-2 sm:line-clamp-1 leading-tight">{state?.location || "?"}</span>
+            </div>
+            <div className="hidden sm:flex items-center gap-1 text-yellow-400/70 flex-shrink-0">
               <Clock className="w-3.5 h-3.5" />
               <span className="text-xs">{currentGameTime.split(' - ')[1] || currentGameTime}</span>
             </div>
@@ -1021,13 +1002,11 @@ export default function Game() {
 
         {/* Visual Novel Scene Stage */}
         {state?.location && (
-          <div className="flex justify-center p-2 sm:p-3 bg-[#081820] lg:flex-1 lg:items-center">
+          <div className="w-full p-2 sm:p-3 bg-[#081820] lg:flex-1 lg:flex lg:items-center lg:justify-center">
             <SceneStage
               locationName={state.location}
               characters={sceneCharacters}
-              width={canvasDimensions.width}
-              height={canvasDimensions.height}
-              className="shadow-xl"
+              className="shadow-xl max-w-full lg:max-w-[480px]"
             />
           </div>
         )}
@@ -1179,17 +1158,100 @@ export default function Game() {
           )}
         </div>
 
-        {/* Mobile Loading Indicator */}
-        {(isStreaming || isPreparingAudio || hasPendingMessages) && (
-          <div className="lg:hidden flex items-center justify-center gap-2 text-purple-300 py-3 bg-[#0a0612]/80 border-t border-purple-500/20">
-            <Sparkles className="w-4 h-4 animate-spin" />
-            <span className="font-serif text-sm animate-pulse">
-              {isPreparingAudio ? "Preparing narration..." :
-               isStreaming ? "The story unfolds..." :
-               "Processing..."}
-            </span>
+        {/* Mobile Story Section - Shows latest story inline */}
+        {/* Bottom padding accounts for sticky ChoicePanel which can be up to 40vh + padding */}
+        <div className="lg:hidden flex-1 overflow-y-auto min-h-0 pb-[45vh]">
+          <div className="p-3 space-y-3">
+            {readyMessages.length > 0 && (
+              <>
+                {/* Latest Story Content */}
+                {readyMessages.filter(m => m.role === 'assistant').slice(-2).map((message, i) => (
+                  <motion.div
+                    key={`mobile-${i}`}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <ParchmentCard className="relative">
+                      <div className="font-serif space-y-3">
+                        {stripMetadata(message.content).split('\n\n').slice(0, 4).map((para, j) => (
+                          <p key={j} className="text-[#3d2914] text-[15px] leading-[1.6]">
+                            <TextWithHouseIcons text={para} />
+                          </p>
+                        ))}
+                        {stripMetadata(message.content).split('\n\n').length > 4 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setStoryModalContent(message.content);
+                              setStoryModalOpen(true);
+                            }}
+                            className="text-purple-600 text-xs p-0 h-auto"
+                            data-testid="button-read-more"
+                          >
+                            Read more...
+                          </Button>
+                        )}
+                      </div>
+                    </ParchmentCard>
+                  </motion.div>
+                ))}
+              </>
+            )}
+            
+            {/* Loading indicator */}
+            {(isStreaming || isPreparingAudio || hasPendingMessages) && (
+              <div className="flex items-center justify-center gap-2 text-purple-300 py-3">
+                <Sparkles className="w-4 h-4 animate-spin" />
+                <span className="font-serif text-sm animate-pulse">
+                  {isPreparingAudio ? "Preparing narration..." :
+                   isStreaming ? "The story unfolds..." :
+                   "Processing..."}
+                </span>
+              </div>
+            )}
+            
+            {/* Error State */}
+            {streamError && !isStreaming && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-red-900/30 border border-red-500/30 rounded-lg p-3"
+              >
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-red-200 font-serif text-sm mb-2">{streamError.message}</p>
+                    {streamError.canRetry && (
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={retryLastMessage}
+                          className="border-red-500/30 text-red-200 text-xs"
+                          data-testid="button-mobile-retry"
+                        >
+                          <RefreshCw className="w-3 h-3 mr-1" />
+                          Retry
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={clearError}
+                          className="text-red-200/60 text-xs"
+                          data-testid="button-mobile-dismiss"
+                        >
+                          Dismiss
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            )}
           </div>
-        )}
+        </div>
 
         {/* Choice Panel - Fixed at bottom */}
         <ChoicePanel 

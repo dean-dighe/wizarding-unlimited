@@ -9,8 +9,6 @@ interface SceneStageProps {
   characters?: SceneCharacter[];
   activeSpell?: string | null;
   onSpellComplete?: () => void;
-  width?: number;
-  height?: number;
   className?: string;
 }
 
@@ -157,8 +155,6 @@ export function SceneStage({
   characters = [],
   activeSpell = null,
   onSpellComplete,
-  width = 640,
-  height = 360,
   className = "",
 }: SceneStageProps) {
   const [background, setBackground] = useState<BackgroundData>({ status: "pending" });
@@ -301,8 +297,7 @@ export function SceneStage({
 
   return (
     <div
-      className={`relative overflow-hidden rounded-md ${className}`}
-      style={{ width, height }}
+      className={`relative overflow-hidden rounded-md w-full aspect-video ${className}`}
       data-testid="scene-stage"
     >
       <div className="absolute inset-0 bg-gradient-to-b from-slate-800 to-slate-900">
