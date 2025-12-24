@@ -136,7 +136,7 @@ export const insertEnvironmentSpriteSchema = createInsertSchema(environment_spri
 export type EnvironmentSprite = typeof environment_sprites.$inferSelect;
 export type InsertEnvironmentSprite = z.infer<typeof insertEnvironmentSpriteSchema>;
 
-// Standard animation definitions - bundled config for consistent animations
+// Standard animation definitions - bundled config for consistent animations (deprecated - pixel art)
 export const DEFAULT_ANIMATION_CONFIG = {
   idle: { start: 0, end: 0, frameRate: 1 },
   walkDown: { start: 0, end: 2, frameRate: 8 },
@@ -145,6 +145,79 @@ export const DEFAULT_ANIMATION_CONFIG = {
   walkRight: { start: 9, end: 11, frameRate: 8 },
   cast: { start: 0, end: 2, frameRate: 6 },
 } as const;
+
+// ===== VISUAL NOVEL STYLE ASSETS =====
+
+// Background generation status
+export type BackgroundStatus = "pending" | "generating" | "ready" | "failed";
+
+// Character portrait positions on screen
+export type PortraitPosition = "left" | "center" | "right" | "far-left" | "far-right";
+
+// Expression types for character portraits
+export type PortraitExpression = "neutral" | "happy" | "sad" | "angry" | "surprised" | "worried" | "determined" | "mysterious" | "scared";
+
+// Background scenes - VN-style location backgrounds
+// Game-wide persistence: shared across all players
+export const background_scenes = pgTable("background_scenes", {
+  id: serial("id").primaryKey(),
+  locationName: text("location_name").notNull().unique(), // e.g., "Great Hall", "Forbidden Forest"
+  imageUrl: text("image_url"), // Object Storage URL for background image
+  promptUsed: text("prompt_used"), // The prompt used to generate this background
+  style: text("style").default("fantasy_illustration"), // Art style category
+  timeOfDay: text("time_of_day").default("day"), // day, night, dusk, dawn for lighting variations
+  weather: text("weather").default("clear"), // clear, rain, snow, fog for atmosphere
+  generationStatus: text("generation_status").$type<BackgroundStatus>().default("pending"),
+  generationError: text("generation_error"),
+  aspectRatio: text("aspect_ratio").default("16:9"), // Standard VN aspect ratio
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertBackgroundSceneSchema = createInsertSchema(background_scenes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type BackgroundScene = typeof background_scenes.$inferSelect;
+export type InsertBackgroundScene = z.infer<typeof insertBackgroundSceneSchema>;
+
+// Character portraits - VN-style character art
+// Game-wide persistence: shared across all players, with expression variants
+export const character_portraits = pgTable("character_portraits", {
+  id: serial("id").primaryKey(),
+  characterName: text("character_name").notNull(), // e.g., "Harry Potter", "Hermione Granger"
+  expression: text("expression").$type<PortraitExpression>().default("neutral"),
+  isProtagonist: boolean("is_protagonist").default(false),
+  isCanon: boolean("is_canon").default(false), // True for HP canon characters
+  imageUrl: text("image_url"), // Object Storage URL for portrait image
+  characterDescription: text("character_description"), // Visual description for generation
+  appearanceSignature: text("appearance_signature"), // Hash for reuse detection
+  pose: text("pose").default("front"), // front, three-quarter, side
+  costume: text("costume").default("hogwarts_robes"), // Current outfit
+  generationStatus: text("generation_status").$type<BackgroundStatus>().default("pending"),
+  generationError: text("generation_error"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertCharacterPortraitSchema = createInsertSchema(character_portraits).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type CharacterPortrait = typeof character_portraits.$inferSelect;
+export type InsertCharacterPortrait = z.infer<typeof insertCharacterPortraitSchema>;
+
+// Scene composition - which characters are visible in current scene
+export interface SceneCharacter {
+  characterName: string;
+  position: PortraitPosition;
+  expression: PortraitExpression;
+  speaking?: boolean; // Highlighted when speaking
+}
 
 // Story Arc structure for narrative planning
 export interface StoryArc {

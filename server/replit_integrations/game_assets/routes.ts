@@ -2,8 +2,11 @@ import type { Express } from "express";
 import { SpriteGenerationService, CANON_CHARACTERS } from "./sprites";
 import { MapGenerationService, HARRY_POTTER_LOCATIONS } from "./maps";
 import { environmentAssetService, ENVIRONMENT_ASSETS } from "./environment";
+import { backgroundSceneService } from "./backgrounds";
+import { characterPortraitService } from "./portraits";
 import { storage } from "../../storage";
 import pLimit from "p-limit";
+import type { PortraitExpression } from "@shared/schema";
 
 export function registerGameAssetRoutes(app: Express): void {
   const spriteService = new SpriteGenerationService();
@@ -441,6 +444,100 @@ export function registerGameAssetRoutes(app: Express): void {
     } catch (error) {
       console.error("Error fetching environment status:", error);
       res.status(500).json({ error: "Failed to fetch environment status" });
+    }
+  });
+
+  // ===== VISUAL NOVEL ASSET ROUTES =====
+
+  app.get("/api/vn-assets/background/:locationName", async (req, res) => {
+    try {
+      const { locationName } = req.params;
+      const background = await backgroundSceneService.getOrGenerateBackground(
+        decodeURIComponent(locationName)
+      );
+      
+      if (!background) {
+        return res.status(500).json({ error: "Failed to get or generate background" });
+      }
+      
+      res.json({
+        status: background.generationStatus,
+        imageUrl: background.imageUrl,
+        locationName: background.locationName,
+      });
+    } catch (error) {
+      console.error("Error fetching background:", error);
+      res.status(500).json({ error: "Failed to fetch background" });
+    }
+  });
+
+  app.get("/api/vn-assets/background/:locationName/status", async (req, res) => {
+    try {
+      const { locationName } = req.params;
+      const result = await backgroundSceneService.getBackgroundStatus(
+        decodeURIComponent(locationName)
+      );
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching background status:", error);
+      res.status(500).json({ error: "Failed to fetch background status" });
+    }
+  });
+
+  app.get("/api/vn-assets/portrait/:characterName", async (req, res) => {
+    try {
+      const { characterName } = req.params;
+      const expression = (req.query.expression as PortraitExpression) || "neutral";
+      const description = req.query.description as string | undefined;
+      
+      const portrait = await characterPortraitService.getOrGeneratePortrait(
+        decodeURIComponent(characterName),
+        expression,
+        description
+      );
+      
+      if (!portrait) {
+        return res.status(500).json({ error: "Failed to get or generate portrait" });
+      }
+      
+      res.json({
+        status: portrait.generationStatus,
+        imageUrl: portrait.imageUrl,
+        characterName: portrait.characterName,
+        expression: portrait.expression,
+      });
+    } catch (error) {
+      console.error("Error fetching portrait:", error);
+      res.status(500).json({ error: "Failed to fetch portrait" });
+    }
+  });
+
+  app.get("/api/vn-assets/portrait/:characterName/status", async (req, res) => {
+    try {
+      const { characterName } = req.params;
+      const expression = (req.query.expression as PortraitExpression) || "neutral";
+      
+      const result = await characterPortraitService.getPortraitStatus(
+        decodeURIComponent(characterName),
+        expression
+      );
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching portrait status:", error);
+      res.status(500).json({ error: "Failed to fetch portrait status" });
+    }
+  });
+
+  app.get("/api/vn-assets/portrait/:characterName/all", async (req, res) => {
+    try {
+      const { characterName } = req.params;
+      const portraits = await characterPortraitService.getAllExpressionsForCharacter(
+        decodeURIComponent(characterName)
+      );
+      res.json(portraits);
+    } catch (error) {
+      console.error("Error fetching all portraits:", error);
+      res.status(500).json({ error: "Failed to fetch portraits" });
     }
   });
 }

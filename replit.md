@@ -28,21 +28,19 @@ Preferred communication style: Simple, everyday language.
   - `use-game.ts` - Game state and initialization
   - `use-chat-stream.ts` - Streaming AI responses and message history
   - `use-game-canvas.ts` - Phaser.js game canvas data fetching
-- **Game Canvas (Phaser.js)**:
-  - `GameCanvas.tsx` - 2D visual map component using Phaser.js
-  - Toggle button in header to show/hide the visual map
-  - GBA Pokemon FireRed/LeafGreen meets Fallout 1/2 style pixel art (32x32 sprites)
-  - Three-layer procedural tilemap (ground, decoration, atmosphere)
-  - AI-generated tilesets with rich visual detail and dithering
-  - Environment sprites (40+ objects) placed dynamically on maps
-  - Player sprite with walk animations (4 directions, 3 frames each)
-  - Click-to-move player navigation with physics
-- **Character Sprite Versioning (December 2024)**:
-  - Sprites are found in database first, only created if missing
-  - `appearanceSignature` hash for description matching
-  - `updateSprite()` regenerates when significant appearance changes detected
-  - Keywords tracked: scars, transformations, new robes, injuries, etc.
-  - Version history preserved with `previousSpriteUrl` and `variantVersion`
+- **Visual Novel Scene System (December 2024)**:
+  - `SceneStage.tsx` - Visual novel style scene renderer
+  - AI-generated background images for each location via xAI Grok Aurora
+  - Character portraits with expression variants (neutral, happy, sad, angry, surprised, worried, determined, mysterious, scared)
+  - Characters overlay on backgrounds based on scene composition
+  - Smooth transitions using Framer Motion
+  - Async generation with status polling and proper cleanup
+- **Character Portrait System (December 2024)**:
+  - `character_portraits` table stores VN-style character art
+  - Multiple expressions per character (9 expression types)
+  - Canon character definitions with description and traits
+  - `appearanceSignature` hash for reuse detection
+  - Portraits generated via xAI Grok Aurora with VN art style prompts
 - **Responsive Design (Refactored December 2024)**:
   - **Desktop (lg+)**: Two-column layout - fixed canvas (480x360) on left, scrollable story on right
   - **Mobile/Tablet**: Stacked layout - canvas on top, scrollable story, sticky choice panel at bottom

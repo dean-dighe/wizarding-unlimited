@@ -1,6 +1,5 @@
 import { useGameState } from "@/hooks/use-game";
 import { useChatStream } from "@/hooks/use-chat-stream";
-import { positionToCoordinates, useGameCanvasData } from "@/hooks/use-game-canvas";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useRoute } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
@@ -19,10 +18,11 @@ import {
   AlertTriangle,
   RefreshCw,
 } from "lucide-react";
-import { GameCanvas } from "@/components/game/GameCanvas";
+import { SceneStage } from "@/components/game/SceneStage";
 import { ParchmentCard } from "@/components/ui/parchment-card";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import type { SceneCharacter } from "@shared/schema";
 
 import gryffindorIcon from "@assets/generated_images/gryffindor_lion_crest_icon.png";
 import slytherinIcon from "@assets/generated_images/slytherin_snake_crest_icon.png";
@@ -339,12 +339,27 @@ export default function Game() {
   // Detail panel state (for mobile)
   const [detailsOpen, setDetailsOpen] = useState(false);
 
-  // Sprite URLs from game state
-  const playerSpriteUrl = state?.playerSpriteUrl || undefined;
-  const npcSpriteUrls = state?.npcSpriteUrls || {};
-
-  // Fetch map data for current location
-  const { tilesetUrl, tilemapData, isMapGenerating, spawnPoints, environmentSprites } = useGameCanvasData(state?.playerName, state?.location);
+  // Scene characters for visual novel display
+  const sceneCharacters: SceneCharacter[] = useMemo(() => {
+    if (!state?.npcPositions) return [];
+    
+    const positionMap: Record<string, "left" | "center" | "right" | "far-left" | "far-right"> = {
+      "north": "center",
+      "south": "center",
+      "east": "right",
+      "west": "left",
+      "center": "center",
+      "left": "left",
+      "right": "right",
+    };
+    
+    return Object.entries(state.npcPositions).map(([name, posString]) => ({
+      characterName: name,
+      position: positionMap[posString as string] || "center",
+      expression: "neutral" as const,
+      speaking: false,
+    }));
+  }, [state?.npcPositions]);
 
   useEffect(() => {
     isMutedRef.current = isMuted;
@@ -771,47 +786,16 @@ export default function Game() {
           )}
         </AnimatePresence>
 
-        {/* Game Canvas */}
+        {/* Visual Novel Scene Stage */}
         {state?.location && (
           <div className="flex justify-center p-2 sm:p-3 bg-[#081820] lg:flex-1 lg:items-center">
-            {(() => {
-              const npcPositions = state.npcPositions || {};
-              const npcsWithPositions = Object.entries(npcPositions).map(([name, posString]) => {
-                const pixelPos = positionToCoordinates(posString, canvasDimensions.width, canvasDimensions.height);
-                return {
-                  name,
-                  spriteUrl: npcSpriteUrls[name] || "",
-                  position: { x: pixelPos.x, y: pixelPos.y, facing: "down" as const }
-                };
-              });
-              
-              const scale = (canvasDimensions as any).scale || 1;
-              
-              return (
-                <div 
-                  style={{ 
-                    transform: `scale(${scale})`, 
-                    transformOrigin: "center center",
-                  }}
-                >
-                  <GameCanvas
-                    locationName={state.location}
-                    playerName={state.playerName || "Player"}
-                    playerSpriteUrl={playerSpriteUrl}
-                    tilesetUrl={tilesetUrl}
-                    tilemapData={tilemapData}
-                    npcs={npcsWithPositions}
-                    width={canvasDimensions.width}
-                    height={canvasDimensions.height}
-                    isMapGenerating={isMapGenerating}
-                    spawnPoints={spawnPoints}
-                    environmentSprites={environmentSprites}
-                    onPlayerMove={(target) => console.log("Player moving to:", target)}
-                    onInteraction={(npcName) => console.log("Interacting with:", npcName)}
-                  />
-                </div>
-              );
-            })()}
+            <SceneStage
+              locationName={state.location}
+              characters={sceneCharacters}
+              width={canvasDimensions.width}
+              height={canvasDimensions.height}
+              className="shadow-xl"
+            />
           </div>
         )}
 

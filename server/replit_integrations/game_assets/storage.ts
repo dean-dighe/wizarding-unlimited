@@ -4,6 +4,8 @@ import { randomUUID } from "crypto";
 const SPRITES_DIR = "sprites";
 const TILESETS_DIR = "tilesets";
 const ENV_SPRITES_DIR = "env_sprites";
+const BACKGROUNDS_DIR = "backgrounds";
+const PORTRAITS_DIR = "portraits";
 
 export class GameAssetStorageService {
   private objectStorage: ObjectStorageService;
@@ -105,6 +107,58 @@ export class GameAssetStorageService {
     return `/objects/${ENV_SPRITES_DIR}/${fileName}`;
   }
 
+  async uploadBackground(imageBuffer: Buffer, locationName: string): Promise<string> {
+    if (!this.isConfigured()) {
+      throw new Error("Object storage not configured");
+    }
+
+    const publicDir = this.getPublicDir();
+    const fileName = `${locationName.toLowerCase().replace(/\s+/g, "_")}_${randomUUID().slice(0, 8)}.png`;
+    const objectPath = `${publicDir}/${BACKGROUNDS_DIR}/${fileName}`;
+    
+    const { bucketName, objectName } = this.parseObjectPath(objectPath);
+    const bucket = objectStorageClient.bucket(bucketName);
+    const file = bucket.file(objectName);
+    
+    await file.save(imageBuffer, {
+      contentType: "image/png",
+      metadata: {
+        "custom:aclPolicy": JSON.stringify({
+          owner: "system",
+          visibility: "public",
+        }),
+      },
+    });
+    
+    return `/objects/${BACKGROUNDS_DIR}/${fileName}`;
+  }
+
+  async uploadPortrait(imageBuffer: Buffer, characterName: string, expression: string): Promise<string> {
+    if (!this.isConfigured()) {
+      throw new Error("Object storage not configured");
+    }
+
+    const publicDir = this.getPublicDir();
+    const fileName = `${characterName.toLowerCase().replace(/\s+/g, "_")}_${expression}_${randomUUID().slice(0, 8)}.png`;
+    const objectPath = `${publicDir}/${PORTRAITS_DIR}/${fileName}`;
+    
+    const { bucketName, objectName } = this.parseObjectPath(objectPath);
+    const bucket = objectStorageClient.bucket(bucketName);
+    const file = bucket.file(objectName);
+    
+    await file.save(imageBuffer, {
+      contentType: "image/png",
+      metadata: {
+        "custom:aclPolicy": JSON.stringify({
+          owner: "system",
+          visibility: "public",
+        }),
+      },
+    });
+    
+    return `/objects/${PORTRAITS_DIR}/${fileName}`;
+  }
+
   private parseObjectPath(path: string): { bucketName: string; objectName: string } {
     if (!path.startsWith("/")) {
       path = `/${path}`;
@@ -120,3 +174,5 @@ export class GameAssetStorageService {
     return { bucketName, objectName };
   }
 }
+
+export const assetStorage = new GameAssetStorageService();
