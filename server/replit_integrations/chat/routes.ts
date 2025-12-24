@@ -9,9 +9,11 @@ import {
   buildContextWithSummary 
 } from "../story/engine";
 import { SpriteGenerationService } from "../game_assets/sprites";
+import { MapGenerationService } from "../game_assets/maps";
 import type { StoryArc } from "@shared/schema";
 
 const spriteService = new SpriteGenerationService();
+const mapService = new MapGenerationService();
 
 const openai = new OpenAI({
   apiKey: process.env.OLLAMA_API_KEY || "ollama",
@@ -623,10 +625,12 @@ export function registerChatRoutes(app: Express): void {
 
         // Apply location change (validate location name)
         let newLocation = currentLocation;
+        let locationActuallyChanged = false;
         if (stateChanges.newLocation) {
           const cleanLocation = stateChanges.newLocation.trim();
-          if (cleanLocation.length > 0 && cleanLocation.length <= 100) {
+          if (cleanLocation.length > 0 && cleanLocation.length <= 100 && cleanLocation !== currentLocation) {
             newLocation = cleanLocation;
+            locationActuallyChanged = true;
             console.log(`[State] Location changed: ${currentLocation} -> ${newLocation}`);
           }
         }
@@ -650,6 +654,16 @@ export function registerChatRoutes(app: Express): void {
             location: newLocation
           }
         })}\n\n`);
+
+        // Trigger map pre-generation only when location actually changed
+        if (locationActuallyChanged) {
+          try {
+            const mapResult = await mapService.getOrCreateMap(newLocation);
+            console.log(`[Map] Pre-generated map for "${newLocation}" - status: ${mapResult.generationStatus}`);
+          } catch (mapErr) {
+            console.error(`[Map] Failed to pre-generate map for "${newLocation}":`, mapErr);
+          }
+        }
       }
 
       // Check if we should summarize (every 10 decisions)
