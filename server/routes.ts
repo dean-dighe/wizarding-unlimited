@@ -5,12 +5,14 @@ import { registerChatRoutes } from "./replit_integrations/chat/routes";
 import { registerImageRoutes } from "./replit_integrations/image/routes";
 import { registerTTSRoutes } from "./replit_integrations/tts/routes";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
-import { registerGameAssetRoutes } from "./replit_integrations/game_assets";
+import { registerGameAssetRoutes, SpriteGenerationService } from "./replit_integrations/game_assets";
 import { chatStorage } from "./replit_integrations/chat/storage";
 import { generateStoryArc } from "./replit_integrations/story/engine";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import OpenAI from "openai";
+
+const spriteService = new SpriteGenerationService();
 
 const openai = new OpenAI({
   apiKey: process.env.OLLAMA_API_KEY || "ollama",
@@ -282,6 +284,12 @@ You spot several familiar faces in the crowd. A group of your housemates waves e
 [Choice 3: Find a quiet compartment to review your new elective textbooks]
 [Choice 4: Search for that friend who owes you five Galleons from last year's bet]`;
       await chatStorage.createMessage(conversation.id, "assistant", introText);
+
+      // Generate protagonist sprite in background (don't block response)
+      // Uses playerName as the unique identifier and characterDescription for visual consistency
+      spriteService.getOrCreateSprite(playerName, characterDescription, { isProtagonist: true })
+        .then(spriteUrl => console.log(`Generated protagonist sprite for ${playerName}: ${spriteUrl}`))
+        .catch(err => console.error(`Failed to generate protagonist sprite for ${playerName}:`, err));
 
       res.status(201).json({
         conversationId: conversation.id,

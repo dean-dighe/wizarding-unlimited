@@ -27,6 +27,14 @@ Preferred communication style: Simple, everyday language.
 - **Custom Hooks**: 
   - `use-game.ts` - Game state and initialization
   - `use-chat-stream.ts` - Streaming AI responses and message history
+  - `use-game-canvas.ts` - Phaser.js game canvas data fetching
+- **Game Canvas (Phaser.js)**:
+  - `GameCanvas.tsx` - 2D visual map component using Phaser.js
+  - Toggle button in header to show/hide the visual map
+  - Nintendo Pokemon/GBC style pixel art aesthetic (32x32 sprites)
+  - Procedural map generation with basic tilemap
+  - Player sprite with walk animations (4 directions, 3 frames each)
+  - Click-to-move player navigation with physics
 - **Responsive Design**:
   - Mobile: Story paragraphs collapse to 1 line with "Tap to read" hint, tap to expand
   - Desktop: Full text displayed, no collapse UI
@@ -49,6 +57,8 @@ Preferred communication style: Simple, everyday language.
   - `conversations` - Chat sessions
   - `messages` - Individual messages with role (user/assistant/system)
   - `game_states` - Game-specific data linked to conversations (house, health, inventory, location, game time)
+  - `location_maps` - Generated map metadata (tilesetUrl, spawnPoints) - game-wide persistence
+  - `character_sprites` - Generated sprite metadata (spriteSheetUrl, animationConfig) - game-wide persistence
 
 ### AI Integration
 - **Chat**: OpenAI-compatible API (configured via `OLLAMA_API_KEY` and `OLLAMA_BASE_URL`)
@@ -77,18 +87,37 @@ Preferred communication style: Simple, everyday language.
 ```
 client/           # React frontend
   src/
-    components/ui/  # shadcn components
-    hooks/          # Custom React hooks
-    pages/          # Route components
-    lib/            # Utilities
+    components/
+      ui/         # shadcn components
+      game/       # Game-specific components (GameCanvas)
+    hooks/        # Custom React hooks
+    pages/        # Route components
+    lib/          # Utilities
 server/           # Express backend
-  replit_integrations/  # AI service modules (chat, image, batch)
+  replit_integrations/
+    chat/         # AI chat/story services
+    image/        # Scene image generation
+    tts/          # Text-to-speech narration
+    story/        # Story arc generation
+    game_assets/  # Sprite and map generation
+    object_storage/ # Replit Object Storage integration
 shared/           # Shared types, schemas, routes
   models/         # Database models
-  schema.ts       # Drizzle schema
+  schema.ts       # Drizzle schema (includes location_maps, character_sprites)
   routes.ts       # API route definitions with Zod
 migrations/       # Drizzle migrations
 ```
+
+### Game Asset System
+- **Sprite Generation**: xAI Grok Aurora generates 12-frame sprite sheets (4 directions x 3 frames)
+- **Map Generation**: Procedural tilemaps with spawn points (no AI code execution for security)
+- **Asset Storage**: Replit Object Storage for binary assets, PostgreSQL for metadata
+- **Caching**: Game-wide persistence - sprites/maps are reused across all players
+- **API Routes**:
+  - `GET /api/game-assets/sprite/:characterName` - Fetch character sprite
+  - `POST /api/game-assets/sprite/generate` - Generate new sprite
+  - `GET /api/game-assets/map/:locationName` - Fetch location map data
+  - `POST /api/game-assets/map/generate` - Generate new map
 
 ### Build System
 - **Development**: `tsx` for running TypeScript directly

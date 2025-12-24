@@ -2,7 +2,6 @@ import { ObjectStorageService, objectStorageClient } from "../object_storage";
 import { randomUUID } from "crypto";
 
 const SPRITES_DIR = "sprites";
-const MAPS_DIR = "maps";
 const TILESETS_DIR = "tilesets";
 
 export class GameAssetStorageService {
@@ -16,10 +15,22 @@ export class GameAssetStorageService {
 
   private getPublicDir(): string {
     const paths = this.objectStorage.getPublicObjectSearchPaths();
-    return paths[0] || "";
+    if (!paths || paths.length === 0 || !paths[0]) {
+      console.warn("No public object storage path configured, using bucket root");
+      return this.bucketName;
+    }
+    return paths[0];
+  }
+
+  private isConfigured(): boolean {
+    return !!this.bucketName;
   }
 
   async uploadSprite(imageBuffer: Buffer, characterName: string): Promise<string> {
+    if (!this.isConfigured()) {
+      throw new Error("Object storage not configured");
+    }
+
     const publicDir = this.getPublicDir();
     const fileName = `${characterName.toLowerCase().replace(/\s+/g, "_")}_${randomUUID().slice(0, 8)}.png`;
     const objectPath = `${publicDir}/${SPRITES_DIR}/${fileName}`;
@@ -42,6 +53,10 @@ export class GameAssetStorageService {
   }
 
   async uploadTileset(imageBuffer: Buffer, locationName: string): Promise<string> {
+    if (!this.isConfigured()) {
+      throw new Error("Object storage not configured");
+    }
+
     const publicDir = this.getPublicDir();
     const fileName = `${locationName.toLowerCase().replace(/\s+/g, "_")}_${randomUUID().slice(0, 8)}.png`;
     const objectPath = `${publicDir}/${TILESETS_DIR}/${fileName}`;
@@ -61,28 +76,6 @@ export class GameAssetStorageService {
     });
     
     return `/objects/${TILESETS_DIR}/${fileName}`;
-  }
-
-  async uploadMapData(jsonData: string, locationName: string): Promise<string> {
-    const publicDir = this.getPublicDir();
-    const fileName = `${locationName.toLowerCase().replace(/\s+/g, "_")}_${randomUUID().slice(0, 8)}.json`;
-    const objectPath = `${publicDir}/${MAPS_DIR}/${fileName}`;
-    
-    const { bucketName, objectName } = this.parseObjectPath(objectPath);
-    const bucket = objectStorageClient.bucket(bucketName);
-    const file = bucket.file(objectName);
-    
-    await file.save(jsonData, {
-      contentType: "application/json",
-      metadata: {
-        "custom:aclPolicy": JSON.stringify({
-          owner: "system",
-          visibility: "public",
-        }),
-      },
-    });
-    
-    return `/objects/${MAPS_DIR}/${fileName}`;
   }
 
   private parseObjectPath(path: string): { bucketName: string; objectName: string } {

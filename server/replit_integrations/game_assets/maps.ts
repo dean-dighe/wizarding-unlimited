@@ -2,47 +2,10 @@ import OpenAI from "openai";
 import { storage } from "../../storage";
 import { GameAssetStorageService } from "./storage";
 
-const ollama = new OpenAI({
-  apiKey: process.env.OLLAMA_API_KEY || "ollama",
-  baseURL: process.env.OLLAMA_BASE_URL || "https://gpt.netsuite.tech/v1",
-});
-
 const xai = new OpenAI({
   apiKey: process.env.XAI_API_KEY || "",
   baseURL: "https://api.x.ai/v1",
 });
-
-const MAP_CODE_SYSTEM_PROMPT = `You are a Phaser.js map code generator for a Harry Potter game. Generate ONLY executable JavaScript/TypeScript code that creates a game scene for the given Hogwarts location.
-
-The code must:
-1. Export a function called 'createMapScene' that returns a Phaser Scene class
-2. Use a tilemap approach with preloaded tilesets
-3. Define spawn points for characters (entrance, exit, npc1, npc2, etc.)
-4. Include collision boundaries
-5. Have a top-down 2D RPG perspective like Pokemon or old Harry Potter GBC games
-6. Use 32x32 tile size
-7. Canvas size should be 640x480 pixels
-
-CRITICAL: Return ONLY the JavaScript code, no explanations, no markdown code blocks.
-
-Example structure:
-export function createMapScene(tilesetUrl: string) {
-  return class LocationScene extends Phaser.Scene {
-    constructor() {
-      super({ key: 'LocationName' });
-    }
-    
-    preload() {
-      this.load.image('tiles', tilesetUrl);
-    }
-    
-    create() {
-      // Create tilemap and layers
-      // Define spawn points
-      // Set up collisions
-    }
-  };
-}`;
 
 const TILESET_STYLE_PROMPT = `16-bit pixel art tileset, top-down RPG style, Nintendo Game Boy Color/Advance aesthetic,
 32x32 pixel tiles arranged in a grid, seamless tiles,
@@ -58,67 +21,45 @@ export class MapGenerationService {
     this.assetStorage = new GameAssetStorageService();
   }
 
-  async getOrCreateMap(locationName: string): Promise<{ mapCode: string; tilesetUrl: string | null }> {
+  async getOrCreateMap(locationName: string): Promise<{ tilesetUrl: string | null; spawnPoints: Record<string, { x: number; y: number }> }> {
     const existingMap = await storage.getLocationMap(locationName);
     if (existingMap) {
       return {
-        mapCode: existingMap.mapCode,
         tilesetUrl: existingMap.tilesetUrl,
+        spawnPoints: existingMap.spawnPoints as Record<string, { x: number; y: number }> || this.getDefaultSpawnPoints(),
       };
     }
 
     return this.generateAndStoreMap(locationName);
   }
 
-  async generateAndStoreMap(locationName: string): Promise<{ mapCode: string; tilesetUrl: string | null }> {
-    const [mapCode, tilesetUrl] = await Promise.all([
-      this.generateMapCode(locationName),
+  async generateAndStoreMap(locationName: string): Promise<{ tilesetUrl: string | null; spawnPoints: Record<string, { x: number; y: number }> }> {
+    const [tilesetUrl] = await Promise.all([
       this.generateTileset(locationName),
     ]);
 
+    const spawnPoints = this.getDefaultSpawnPoints();
+
     await storage.createLocationMap({
       locationName,
-      mapCode,
+      mapCode: "",
       tilesetUrl,
       mapWidth: 640,
-      mapHeight: 480,
-      spawnPoints: this.extractSpawnPoints(mapCode),
+      mapHeight: 320,
+      spawnPoints,
       walkableTiles: [],
     });
 
-    return { mapCode, tilesetUrl };
+    return { tilesetUrl, spawnPoints };
   }
 
-  private async generateMapCode(locationName: string): Promise<string> {
-    const locationDetails = this.getLocationDetails(locationName);
-    
-    const userPrompt = `Generate Phaser.js map code for this Hogwarts location:
-
-Location: ${locationName}
-Description: ${locationDetails.description}
-Features: ${locationDetails.features.join(", ")}
-Size: ${locationDetails.size}
-Lighting: ${locationDetails.lighting}
-
-Include spawn points for: entrance, exit, and at least 2 NPC positions.
-Make the map visually interesting with varied tiles and obstacles.`;
-
-    try {
-      const response = await ollama.chat.completions.create({
-        model: process.env.OLLAMA_MODEL || "qwen3-coder:30b",
-        messages: [
-          { role: "system", content: MAP_CODE_SYSTEM_PROMPT },
-          { role: "user", content: userPrompt },
-        ],
-        max_tokens: 2000,
-      });
-
-      const code = response.choices[0]?.message?.content?.trim() || "";
-      return this.cleanMapCode(code);
-    } catch (error) {
-      console.error("Error generating map code:", error);
-      return this.getDefaultMapCode(locationName);
-    }
+  private getDefaultSpawnPoints(): Record<string, { x: number; y: number }> {
+    return {
+      entrance: { x: 320, y: 280 },
+      exit: { x: 320, y: 40 },
+      npc1: { x: 160, y: 160 },
+      npc2: { x: 480, y: 160 },
+    };
   }
 
   private async generateTileset(locationName: string): Promise<string | null> {
@@ -205,90 +146,6 @@ Create a tileset with floor tiles, wall tiles, furniture, decorative elements, a
       lighting: "torchlight",
       style: "medieval castle interior",
     };
-  }
-
-  private cleanMapCode(code: string): string {
-    let cleaned = code
-      .replace(/```typescript/g, "")
-      .replace(/```javascript/g, "")
-      .replace(/```ts/g, "")
-      .replace(/```js/g, "")
-      .replace(/```/g, "")
-      .trim();
-
-    if (!cleaned.includes("createMapScene")) {
-      cleaned = this.getDefaultMapCode("Unknown");
-    }
-
-    return cleaned;
-  }
-
-  private getDefaultMapCode(locationName: string): string {
-    return `export function createMapScene(tilesetUrl) {
-  return class ${locationName.replace(/\s+/g, "")}Scene extends Phaser.Scene {
-    constructor() {
-      super({ key: '${locationName}' });
-      this.spawnPoints = {
-        entrance: { x: 320, y: 420 },
-        exit: { x: 320, y: 60 },
-        npc1: { x: 160, y: 240 },
-        npc2: { x: 480, y: 240 },
-      };
-    }
-    
-    preload() {
-      if (tilesetUrl) {
-        this.load.image('tiles', tilesetUrl);
-      }
-    }
-    
-    create() {
-      this.cameras.main.setBackgroundColor('#2d2d2d');
-      
-      const graphics = this.add.graphics();
-      
-      graphics.fillStyle(0x4a4a4a, 1);
-      for (let x = 0; x < 20; x++) {
-        for (let y = 0; y < 15; y++) {
-          if (x === 0 || x === 19 || y === 0 || y === 14) {
-            graphics.fillRect(x * 32, y * 32, 32, 32);
-          }
-        }
-      }
-      
-      graphics.fillStyle(0x8b7355, 1);
-      for (let x = 1; x < 19; x++) {
-        for (let y = 1; y < 14; y++) {
-          graphics.fillRect(x * 32, y * 32, 32, 32);
-        }
-      }
-    }
-    
-    getSpawnPoint(name) {
-      return this.spawnPoints[name] || this.spawnPoints.entrance;
-    }
-  };
-}`;
-  }
-
-  private extractSpawnPoints(mapCode: string): Record<string, { x: number; y: number }> {
-    const defaultPoints = {
-      entrance: { x: 320, y: 420 },
-      exit: { x: 320, y: 60 },
-      npc1: { x: 160, y: 240 },
-      npc2: { x: 480, y: 240 },
-    };
-
-    try {
-      const spawnMatch = mapCode.match(/spawnPoints\s*[=:]\s*(\{[\s\S]*?\})\s*[;,\n]/);
-      if (spawnMatch) {
-        const parsed = JSON.parse(spawnMatch[1].replace(/'/g, '"'));
-        return { ...defaultPoints, ...parsed };
-      }
-    } catch {
-    }
-
-    return defaultPoints;
   }
 
   private async downloadImage(url: string): Promise<Buffer> {

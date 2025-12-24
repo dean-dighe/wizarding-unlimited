@@ -1,5 +1,6 @@
 import { useGameState } from "@/hooks/use-game";
 import { useChatStream } from "@/hooks/use-chat-stream";
+import { useGameCanvasData } from "@/hooks/use-game-canvas";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useRoute } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
@@ -19,7 +20,9 @@ import {
   Star,
   AlertTriangle,
   RefreshCw,
+  Map as MapIcon,
 } from "lucide-react";
+import { GameCanvas } from "@/components/game/GameCanvas";
 import { ParchmentCard } from "@/components/ui/parchment-card";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -186,6 +189,13 @@ export default function Game() {
 
   // Mobile drawer state
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+
+  // Game canvas state - show/hide the visual map
+  const [showGameCanvas, setShowGameCanvas] = useState(false);
+  const { playerSpriteUrl, isLoading: canvasDataLoading } = useGameCanvasData(
+    state?.playerName,
+    state?.location
+  );
 
   // Keep ref in sync with state for async access
   useEffect(() => {
@@ -757,6 +767,20 @@ export default function Game() {
               <Heart className="w-3 h-3 fill-current" />
               <span>{state?.health ?? 100}</span>
             </div>
+            {/* Map Toggle */}
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setShowGameCanvas(!showGameCanvas)}
+              className={cn(
+                "h-7 w-7 flex-shrink-0 transition-colors",
+                showGameCanvas ? "text-emerald-400" : "text-white/40"
+              )}
+              data-testid="button-map-toggle"
+              title={showGameCanvas ? "Hide map" : "Show map"}
+            >
+              <MapIcon className="w-4 h-4" />
+            </Button>
             {/* Mute Toggle */}
             <Button
               size="icon"
@@ -932,6 +956,31 @@ export default function Game() {
                     <span>Tap to close</span>
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Game Canvas - Visual Map */}
+        <AnimatePresence>
+          {showGameCanvas && state?.location && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
+              className="border-b border-purple-500/20 bg-[#0a0412] flex-shrink-0"
+            >
+              <div className="p-2 sm:p-3 flex justify-center">
+                <GameCanvas
+                  locationName={state.location}
+                  playerName={state.playerName || "Player"}
+                  playerSpriteUrl={playerSpriteUrl}
+                  width={Math.min(640, window.innerWidth - 32)}
+                  height={Math.min(320, (window.innerWidth - 32) * 0.5)}
+                  onPlayerMove={(target) => console.log("Player moving to:", target)}
+                  onInteraction={(npcName) => console.log("Interacting with:", npcName)}
+                />
               </div>
             </motion.div>
           )}
