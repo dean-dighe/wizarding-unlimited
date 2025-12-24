@@ -73,8 +73,8 @@ const LOCATION_PROMPTS: Record<string, { description: string; features: string[]
     features: ["red cushioned benches", "brass fittings", "compartment door", "window with moving scenery", "overhead luggage racks"]
   },
   "Platform 9¾": {
-    description: "Magical hidden train platform at King's Cross station, scarlet steam engine, families saying goodbye, owls in cages, magical mist",
-    features: ["scarlet Hogwarts Express engine", "platform sign 9¾", "families with trunks and owls", "steam billowing", "magical barrier to Muggle side"]
+    description: "Magical hidden train platform at King's Cross station, scarlet steam engine billowing steam, owls in cages on luggage trolleys, magical mist swirling",
+    features: ["scarlet Hogwarts Express engine", "platform sign reading 9¾", "stacked trunks and owl cages", "steam billowing dramatically", "Victorian iron pillars and glass roof"]
   },
   "Black Lake": {
     description: "Vast dark lake by Hogwarts castle, mysterious deep waters, castle reflection, mountains in distance, giant squid tentacle visible",
