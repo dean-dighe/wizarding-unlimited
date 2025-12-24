@@ -9,18 +9,26 @@ const xai = new OpenAI({
   baseURL: "https://api.x.ai/v1",
 });
 
-const TILESET_STYLE_PROMPT = `Pokemon FireRed/LeafGreen style tileset for a top-down 2D RPG game.
-EXACT FORMAT: 4x4 grid of tiles = 16 tiles, each tile 32x32 pixels.
-Total image size: 128 pixels wide x 128 pixels tall.
+const TILESET_STYLE_PROMPT = `PROFESSIONAL GAME TILESET - Pokemon FireRed/LeafGreen meets Fallout 1/2 style.
+EXACT FORMAT: 4x4 grid = 16 tiles, each 32x32 pixels. Total: 128x128 pixels.
 
-STYLE REQUIREMENTS:
-- Game Boy Advance pixel art aesthetic
-- Bold 1-pixel black outlines on objects
-- 16-32 color palette maximum
-- NO anti-aliasing, NO gradients, NO realistic shading
-- Top-down RPG perspective
-- Clean grid separation between tiles
-- Each tile should be seamless/tileable where appropriate`;
+CRITICAL VISUAL STYLE:
+- GBA-era top-down RPG masterpiece quality
+- Rich detail in every tile with visible textures
+- Bold 1-2 pixel black outlines on all elements
+- Dithering patterns for texture depth (like classic 16-bit games)
+- 32 color palette with careful shading
+- NO anti-aliasing, NO modern gradients
+- Isometric/3-4 view perspective for depth
+- Each tile must have visual weight and presence
+- Seamless tiling where tiles should connect
+
+VISUAL RICHNESS REQUIREMENTS:
+- Floor tiles: visible texture patterns (stone cracks, wood grain, grass blades)
+- Wall tiles: dimensional depth with highlights and shadows
+- Object tiles: highly detailed props that tell a story
+- Decorative tiles: atmospheric elements (dust particles, light effects)
+- Every tile should feel hand-crafted and meaningful`;
 
 export interface MapResult {
   tilesetUrl: string | null;
@@ -119,24 +127,62 @@ export class MapGenerationService {
 
   private generateProceduralTilemap(locationName: string, tilesX: number, tilesY: number): TilemapData {
     const locationConfig = this.getLocationDetails(locationName);
+    const isOutdoor = locationConfig.style.includes("grounds") || 
+                      locationConfig.style.includes("village") ||
+                      locationConfig.style.includes("outdoor");
     
     const groundLayer: number[] = [];
     const decorLayer: number[] = [];
+    const atmosphereLayer: number[] = [];
     
     for (let y = 0; y < tilesY; y++) {
       for (let x = 0; x < tilesX; x++) {
-        const isWall = x === 0 || x === tilesX - 1 || y === 0 || y === tilesY - 1;
+        const isEdge = x === 0 || x === tilesX - 1 || y === 0 || y === tilesY - 1;
+        const isNearEdge = x === 1 || x === tilesX - 2 || y === 1 || y === tilesY - 2;
+        const isCorner = (x === 0 || x === tilesX - 1) && (y === 0 || y === tilesY - 1);
         
-        if (isWall) {
-          groundLayer.push(4 + (Math.random() > 0.5 ? 1 : 0));
+        if (isEdge) {
+          if (isCorner) {
+            groundLayer.push(5);
+          } else if (x === 0 || x === tilesX - 1) {
+            groundLayer.push(4 + (y % 2));
+          } else {
+            groundLayer.push(6 + (x % 2));
+          }
+        } else if (isNearEdge && !isOutdoor) {
+          groundLayer.push(Math.random() > 0.3 ? 2 : 3);
         } else {
-          groundLayer.push(Math.floor(Math.random() * 4));
+          const floorVariation = Math.random();
+          if (floorVariation < 0.5) {
+            groundLayer.push(0);
+          } else if (floorVariation < 0.8) {
+            groundLayer.push(1);
+          } else if (floorVariation < 0.95) {
+            groundLayer.push(2);
+          } else {
+            groundLayer.push(3);
+          }
         }
         
-        if (!isWall && Math.random() < 0.1) {
-          decorLayer.push(8 + Math.floor(Math.random() * 4));
+        if (!isEdge) {
+          const decorChance = Math.random();
+          if (decorChance < 0.03) {
+            decorLayer.push(8);
+          } else if (decorChance < 0.06) {
+            decorLayer.push(9);
+          } else if (decorChance < 0.08) {
+            decorLayer.push(10 + Math.floor(Math.random() * 2));
+          } else {
+            decorLayer.push(-1);
+          }
         } else {
           decorLayer.push(-1);
+        }
+        
+        if (!isEdge && Math.random() < 0.02) {
+          atmosphereLayer.push(12 + Math.floor(Math.random() * 4));
+        } else {
+          atmosphereLayer.push(-1);
         }
       }
     }
@@ -146,7 +192,7 @@ export class MapGenerationService {
       assetIds,
       tilesX * 32,
       tilesY * 32,
-      0.08
+      0.12
     );
 
     return {
@@ -172,6 +218,14 @@ export class MapGenerationService {
           visible: true,
           opacity: 1,
         },
+        {
+          name: "atmosphere",
+          data: atmosphereLayer,
+          width: tilesX,
+          height: tilesY,
+          visible: true,
+          opacity: 0.7,
+        },
       ],
       objects,
     };
@@ -191,22 +245,33 @@ export class MapGenerationService {
     const locationDetails = this.getLocationDetails(locationName);
     
     const landmarkFeature = locationDetails.features[0] || "magical element";
-    const otherFeatures = locationDetails.features.slice(1, 4).join(", ");
+    const atmosphericDetails = locationDetails.features.slice(1, 3).join(" and ");
+    const additionalProps = locationDetails.features.slice(3, 5).join(", ");
     
     const prompt = `${TILESET_STYLE_PROMPT}
 
-LOCATION: ${locationName}
-THEME: ${locationDetails.style}
-LIGHTING/COLORS: ${locationDetails.lighting}
+LOCATION: "${locationName}" - ${locationDetails.description}
+ATMOSPHERE: ${locationDetails.style} with ${locationDetails.lighting}
 
-TILE LAYOUT (4x4 grid):
-Row 1: Floor/ground tiles (4 variations matching ${locationDetails.style})
-Row 2: Wall/boundary tiles (4 variations)
-Row 3: MUST INCLUDE "${landmarkFeature}" as a tile, plus ${otherFeatures}
-Row 4: Additional props and details for ${locationName}
+DETAILED TILE LAYOUT (4x4 grid, 16 tiles total):
+Row 1 (tiles 0-3): FLOOR - 4 richly textured ground variations
+  - Show wear patterns, cracks, dust, or organic details
+  - Must tile seamlessly for a continuous floor
 
-IMPORTANT: This tileset must be clearly recognizable as "${locationName}".
-The signature element "${landmarkFeature}" should be prominent.`;
+Row 2 (tiles 4-7): WALLS/BOUNDARIES - 4 wall or edge tiles  
+  - Include shadows, depth, weathering
+  - Mix of solid walls and decorative edges
+
+Row 3 (tiles 8-11): SIGNATURE ELEMENTS
+  - Tile 8-9: "${landmarkFeature}" (the defining feature)
+  - Tile 10-11: ${atmosphericDetails}
+
+Row 4 (tiles 12-15): ATMOSPHERIC PROPS
+  - ${additionalProps}
+  - Add environmental storytelling elements
+
+Make this UNMISTAKABLY "${locationName}" at first glance.
+${locationDetails.size === "very large" ? "Include sense of grand scale." : ""}`;
 
     try {
       const response = await xai.images.generate({

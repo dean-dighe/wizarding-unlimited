@@ -124,3 +124,22 @@
 .magic-border:hover::after {
   opacity: 0.8;
 }
+
+/* Mobile-friendly responsive typography utilities */
+.text-responsive-story {
+  font-size: clamp(0.9375rem, 3.5vw, 1.125rem);
+  line-height: 1.6;
+}
+
+.text-responsive-choice {
+  font-size: clamp(0.9375rem, 3vw, 1rem);
+  line-height: 1.5;
+}
+
+/* Ensure touch targets are accessible on mobile */
+@media (max-width: 640px) {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

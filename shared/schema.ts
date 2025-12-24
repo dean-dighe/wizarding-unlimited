@@ -83,6 +83,10 @@ export const character_sprites = pgTable("character_sprites", {
   isCanon: boolean("is_canon").default(false), // True for Harry Potter canon characters
   spriteSheetUrl: text("sprite_sheet_url").notNull(), // Object Storage URL for sprite sheet
   characterDescription: text("character_description"), // Visual description used for generation
+  appearanceSignature: text("appearance_signature"), // Hash of normalized description for reuse detection
+  variantVersion: integer("variant_version").default(1), // Version number for sprite updates
+  previousSpriteUrl: text("previous_sprite_url"), // Previous sprite URL before update
+  lastAppearanceChange: text("last_appearance_change"), // Description of last appearance modification
   spriteWidth: integer("sprite_width").default(32), // Single frame width
   spriteHeight: integer("sprite_height").default(32), // Single frame height
   frameCount: integer("frame_count").default(12), // Total animation frames

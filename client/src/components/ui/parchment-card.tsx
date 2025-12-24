@@ -8,7 +8,7 @@ export function ParchmentCard({ className, children, ...props }: ParchmentCardPr
   return (
     <div 
       className={cn(
-        "relative p-6 rounded-lg bg-[#fdfbf7]",
+        "relative p-4 sm:p-6 rounded-lg bg-[#fdfbf7]",
         "border border-[#e6dcc3]",
         "shadow-sm shadow-[#d4c5a3]",
         "before:absolute before:inset-0 before:bg-[url('https://www.transparenttextures.com/patterns/aged-paper.png')] before:opacity-50 before:pointer-events-none before:rounded-lg",

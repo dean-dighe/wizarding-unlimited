@@ -31,16 +31,25 @@ Preferred communication style: Simple, everyday language.
 - **Game Canvas (Phaser.js)**:
   - `GameCanvas.tsx` - 2D visual map component using Phaser.js
   - Toggle button in header to show/hide the visual map
-  - Nintendo Pokemon/GBC style pixel art aesthetic (32x32 sprites)
-  - Procedural map generation with basic tilemap
+  - GBA Pokemon FireRed/LeafGreen meets Fallout 1/2 style pixel art (32x32 sprites)
+  - Three-layer procedural tilemap (ground, decoration, atmosphere)
+  - AI-generated tilesets with rich visual detail and dithering
+  - Environment sprites (40+ objects) placed dynamically on maps
   - Player sprite with walk animations (4 directions, 3 frames each)
   - Click-to-move player navigation with physics
+- **Character Sprite Versioning (December 2024)**:
+  - Sprites are found in database first, only created if missing
+  - `appearanceSignature` hash for description matching
+  - `updateSprite()` regenerates when significant appearance changes detected
+  - Keywords tracked: scars, transformations, new robes, injuries, etc.
+  - Version history preserved with `previousSpriteUrl` and `variantVersion`
 - **Responsive Design (Refactored December 2024)**:
   - **Desktop (lg+)**: Two-column layout - fixed canvas (480x360) on left, scrollable story on right
   - **Mobile/Tablet**: Stacked layout - canvas on top, scrollable story, sticky choice panel at bottom
   - Compact inline header bar with house icon, player name, health, location, time
   - Expandable detail drawer on mobile for inventory/spells/story progress
-  - Story paragraphs collapse to 1 line on mobile with "Tap to read" hint
+  - Responsive typography with clamp() for story text (15px-18px)
+  - Larger touch targets (52px min height) for choice buttons
   - Choice buttons highlighted with spell detection (blue gradient + wand icon for known spells)
 - **Component Structure**:
   - `StatBadge` - Compact inline stat display for header

@@ -109,28 +109,13 @@ function releaseTTSLock() {
   globalTTSLock = false;
 }
 
-// Collapsible paragraph for mobile
+// Collapsible paragraph for mobile - always fully readable
 function CollapsibleParagraph({ text, testId }: { text: string; testId: string }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  
   return (
-    <div 
-      className="cursor-pointer sm:cursor-default"
-      onClick={() => setIsExpanded(true)}
-      data-testid={testId}
-    >
-      <p className={cn(
-        "text-[#3d2914] text-sm sm:text-base leading-relaxed",
-        !isExpanded && "line-clamp-1 sm:line-clamp-none"
-      )}>
+    <div data-testid={testId}>
+      <p className="text-[#3d2914] text-[clamp(0.9375rem,3.5vw,1.125rem)] leading-[1.6] sm:leading-relaxed">
         <TextWithHouseIcons text={text} />
       </p>
-      {!isExpanded && (
-        <span className="text-xs text-[#3d2914]/50 mt-1 flex items-center gap-1 sm:hidden">
-          <ChevronDown className="w-3 h-3" />
-          Tap to read
-        </span>
-      )}
     </div>
   );
 }
@@ -265,7 +250,7 @@ function DetailPanel({
   );
 }
 
-// Choice Panel Component
+// Choice Panel Component - Mobile optimized with sticky positioning
 function ChoicePanel({ 
   choices, 
   onSelect, 
@@ -283,10 +268,10 @@ function ChoicePanel({
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="border-t border-purple-500/30 bg-[#0d0618]/95 backdrop-blur-sm p-2 sm:p-3"
+      className="sticky bottom-0 z-50 border-t border-purple-500/30 bg-[#0d0618]/98 backdrop-blur-md p-3 sm:p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.5)]"
     >
-      <div className="max-h-[35vh] overflow-y-auto overscroll-contain scrollbar-thin scrollbar-thumb-purple-500/30 scrollbar-track-transparent">
-        <div className="flex flex-col gap-1.5 max-w-2xl mx-auto">
+      <div className="max-h-[40vh] overflow-y-auto overscroll-contain scrollbar-thin scrollbar-thumb-purple-500/30 scrollbar-track-transparent">
+        <div className="flex flex-col gap-2.5 sm:gap-2 max-w-2xl mx-auto">
           {choices.map((choice, i) => {
             const spellMatch = findSpellInChoice(choice);
             const isSpellChoice = !!spellMatch;
@@ -297,7 +282,7 @@ function ChoicePanel({
                 variant="outline"
                 onClick={() => onSelect(choice)}
                 className={cn(
-                  "w-full text-left justify-start h-auto min-h-[44px] py-2.5 px-3 font-serif text-sm leading-relaxed whitespace-normal",
+                  "w-full text-left justify-start h-auto min-h-[52px] sm:min-h-[48px] py-3 px-4 font-serif text-[clamp(0.9375rem,3vw,1rem)] leading-[1.5] whitespace-normal",
                   isSpellChoice 
                     ? "border-blue-400/50 bg-gradient-to-r from-blue-900/40 to-purple-900/40 text-blue-100 shadow-[0_0_12px_rgba(59,130,246,0.25)]" 
                     : "border-purple-500/30 bg-purple-900/20 text-purple-100"
@@ -305,13 +290,13 @@ function ChoicePanel({
                 data-testid={`button-choice-${i}`}
               >
                 {isSpellChoice ? (
-                  <Wand2 className="w-4 h-4 mr-2 flex-shrink-0 text-blue-300" />
+                  <Wand2 className="w-5 h-5 mr-2.5 flex-shrink-0 text-blue-300" />
                 ) : (
-                  <span className="text-yellow-500/80 mr-2 flex-shrink-0 text-xs">{i + 1}.</span>
+                  <span className="text-yellow-500/80 mr-2.5 flex-shrink-0 text-sm font-semibold">{i + 1}.</span>
                 )}
                 <span className="flex-1"><TextWithHouseIcons text={choice} /></span>
                 {isSpellChoice && (
-                  <Sparkles className="w-3 h-3 ml-2 flex-shrink-0 text-blue-300/60" />
+                  <Sparkles className="w-4 h-4 ml-2 flex-shrink-0 text-blue-300/60" />
                 )}
               </Button>
             );
@@ -897,7 +882,7 @@ export default function Game() {
             >
               {message.role === "assistant" ? (
                 <ParchmentCard className="relative max-w-3xl">
-                  <div className="font-serif space-y-3">
+                  <div className="font-serif space-y-4 sm:space-y-3">
                     {stripMetadata(message.content).split('\n\n').map((para, j) => (
                       <CollapsibleParagraph 
                         key={j} 

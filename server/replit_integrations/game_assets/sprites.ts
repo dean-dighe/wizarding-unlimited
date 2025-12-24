@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { storage } from "../../storage";
 import { GameAssetStorageService } from "./storage";
-import { DEFAULT_ANIMATION_CONFIG } from "@shared/schema";
+import { DEFAULT_ANIMATION_CONFIG, CharacterSprite } from "@shared/schema";
 
 const xai = new OpenAI({
   apiKey: process.env.XAI_API_KEY || "",
@@ -28,11 +28,57 @@ STYLE REQUIREMENTS:
 - Clean grid separation between frames
 - Solid single-color background (green or magenta for transparency)`;
 
+const SIGNIFICANT_APPEARANCE_KEYWORDS = [
+  "scar", "injured", "wounded", "bandage", "blood",
+  "transformed", "werewolf", "animagus", "polyjuice",
+  "new robes", "disguise", "cloak", "armor", "uniform",
+  "aged", "younger", "older", "changed",
+  "hair color", "dyed", "shaved", "bald",
+  "glasses broken", "eye patch", "missing",
+  "burned", "frozen", "glowing", "possessed"
+];
+
 export class SpriteGenerationService {
   private assetStorage: GameAssetStorageService;
 
   constructor() {
     this.assetStorage = new GameAssetStorageService();
+  }
+
+  generateAppearanceSignature(description: string): string {
+    const normalized = description
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, '')
+      .split(/\s+/)
+      .sort()
+      .join(' ')
+      .trim();
+    
+    let hash = 0;
+    for (let i = 0; i < normalized.length; i++) {
+      const char = normalized.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return `sig_${Math.abs(hash).toString(16)}`;
+  }
+
+  detectSignificantChange(oldDescription: string, newDescription: string): { hasChange: boolean; changeSummary: string } {
+    const newLower = newDescription.toLowerCase();
+    const oldLower = oldDescription.toLowerCase();
+    
+    const changes: string[] = [];
+    for (const keyword of SIGNIFICANT_APPEARANCE_KEYWORDS) {
+      if (newLower.includes(keyword) && !oldLower.includes(keyword)) {
+        changes.push(keyword);
+      }
+    }
+    
+    if (changes.length > 0) {
+      return { hasChange: true, changeSummary: changes.join(', ') };
+    }
+    
+    return { hasChange: false, changeSummary: '' };
   }
 
   async getOrCreateSprite(
@@ -42,10 +88,69 @@ export class SpriteGenerationService {
   ): Promise<string> {
     const existingSprite = await storage.getCharacterSprite(characterName);
     if (existingSprite) {
+      const { hasChange, changeSummary } = this.detectSignificantChange(
+        existingSprite.characterDescription || '',
+        characterDescription
+      );
+      
+      if (hasChange) {
+        console.log(`[Sprite] Significant appearance change detected for ${characterName}: ${changeSummary}`);
+        return this.updateSprite(existingSprite, characterDescription, changeSummary);
+      }
+      
       return existingSprite.spriteSheetUrl;
     }
 
     return this.generateAndStoreSprite(characterName, characterDescription, options);
+  }
+
+  async updateSprite(
+    existingSprite: CharacterSprite,
+    newDescription: string,
+    changeSummary: string
+  ): Promise<string> {
+    console.log(`[Sprite] Updating sprite for ${existingSprite.characterName} - ${changeSummary}`);
+    
+    const updatePrompt = this.buildUpdateSpritePrompt(
+      existingSprite.characterName,
+      existingSprite.characterDescription || '',
+      newDescription,
+      changeSummary
+    );
+    
+    try {
+      const response = await xai.images.generate({
+        model: "grok-2-image-1212",
+        prompt: updatePrompt.slice(0, 1000),
+        n: 1,
+      });
+
+      const imageUrl = response.data?.[0]?.url;
+      if (!imageUrl) {
+        throw new Error("No image URL returned from xAI");
+      }
+
+      const imageBuffer = await this.downloadImage(imageUrl);
+      const storedUrl = await this.assetStorage.uploadSprite(
+        imageBuffer, 
+        `${existingSprite.characterName}_v${(existingSprite.variantVersion || 1) + 1}`
+      );
+      
+      await storage.updateCharacterSprite(existingSprite.characterName, {
+        spriteSheetUrl: storedUrl,
+        characterDescription: newDescription,
+        appearanceSignature: this.generateAppearanceSignature(newDescription),
+        variantVersion: (existingSprite.variantVersion || 1) + 1,
+        previousSpriteUrl: existingSprite.spriteSheetUrl,
+        lastAppearanceChange: changeSummary,
+      });
+      
+      console.log(`[Sprite] Updated sprite for ${existingSprite.characterName} to v${(existingSprite.variantVersion || 1) + 1}`);
+      return storedUrl;
+    } catch (error) {
+      console.error(`[Sprite] Failed to update sprite for ${existingSprite.characterName}:`, error);
+      return existingSprite.spriteSheetUrl;
+    }
   }
 
   async generateAndStoreSprite(
@@ -64,6 +169,8 @@ export class SpriteGenerationService {
       isCanon: options.isCanon ?? false,
       spriteSheetUrl: storedUrl,
       characterDescription,
+      appearanceSignature: this.generateAppearanceSignature(characterDescription),
+      variantVersion: 1,
       spriteWidth: 32,
       spriteHeight: 32,
       frameCount: 12,
@@ -105,6 +212,22 @@ APPEARANCE: ${cleanDescription}
 
 Draw this Harry Potter character as a cute chibi-style RPG sprite.
 The character should be recognizable with their key visual features.
+Hogwarts robes, wand visible, magical fantasy style.`;
+  }
+
+  private buildUpdateSpritePrompt(characterName: string, oldDescription: string, newDescription: string, change: string): string {
+    const cleanOld = oldDescription.slice(0, 100);
+    const cleanNew = newDescription.slice(0, 150);
+    
+    return `${SPRITE_STYLE_PROMPT}
+
+CHARACTER TO DRAW: ${characterName}
+ORIGINAL APPEARANCE: ${cleanOld}
+NEW APPEARANCE (with changes): ${cleanNew}
+KEY CHANGE: ${change}
+
+Update this Harry Potter character sprite to show their changed appearance.
+Keep the same character recognizable but with the noted changes visible.
 Hogwarts robes, wand visible, magical fantasy style.`;
   }
 
