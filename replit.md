@@ -132,11 +132,17 @@ migrations/       # Drizzle migrations
   - Frontend polls every 3s during generation, falls back to procedural graphics on failure
 - **Asset Storage**: Replit Object Storage for binary assets, PostgreSQL for metadata and tilemap JSON
 - **Caching**: Game-wide persistence - sprites/maps are reused across all players
+- **Background Pre-generation (December 2024)**:
+  - 30 Harry Potter locations with detailed prompts (Great Hall, all Common Rooms, classrooms, Forbidden Forest, Hogsmeade, etc.)
+  - Batch pre-generation API with configurable concurrency
+  - Object storage serving searches both public and private directories
 - **API Routes**:
   - `GET /api/game-assets/sprite/:characterName` - Fetch character sprite
   - `POST /api/game-assets/sprite/generate` - Generate new sprite
   - `GET /api/game-assets/map/:locationName` - Fetch location map with generation status
   - `POST /api/game-assets/map/generate` - Trigger map generation
+  - `POST /api/vn-assets/backgrounds/pregenerate` - Pre-generate all Harry Potter location backgrounds
+  - `GET /api/vn-assets/backgrounds/status` - Get status of all background generation
 
 ### Build System
 - **Development**: `tsx` for running TypeScript directly
