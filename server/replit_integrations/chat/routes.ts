@@ -10,6 +10,8 @@ import {
 } from "../story/engine";
 import { SpriteGenerationService } from "../game_assets/sprites";
 import { MapGenerationService } from "../game_assets/maps";
+import { runCoordinatedPipeline } from "../translator";
+import type { PipelineContext } from "../translator";
 import type { StoryArc } from "@shared/schema";
 
 const spriteService = new SpriteGenerationService();
@@ -760,6 +762,182 @@ export function registerChatRoutes(app: Express): void {
       } else {
         res.status(500).json({ error: "Failed to send message" });
       }
+    }
+  });
+
+  // NEW: Coordinated message endpoint - buffers everything before revealing
+  app.post("/api/conversations/:id/coordinated", async (req: Request, res: Response) => {
+    try {
+      const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+      const rateCheck = checkRateLimit(clientIp);
+      if (!rateCheck.allowed) {
+        res.setHeader('Retry-After', rateCheck.retryAfter || 60);
+        return res.status(429).json({ error: "Too many requests. Please slow down." });
+      }
+
+      const conversationId = parseInt(req.params.id);
+      
+      const sessionToken = extractSessionToken(req);
+      if (!sessionToken) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const isValid = await chatStorage.validateSessionToken(conversationId, sessionToken);
+      if (!isValid) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const { content } = req.body;
+
+      if (!content || typeof content !== 'string') {
+        return res.status(400).json({ error: "Message content is required" });
+      }
+      
+      const trimmedContent = content.trim();
+      if (trimmedContent.length === 0) {
+        return res.status(400).json({ error: "Message cannot be empty" });
+      }
+      
+      const MAX_MESSAGE_LENGTH = 500;
+      if (trimmedContent.length > MAX_MESSAGE_LENGTH) {
+        return res.status(400).json({ error: `Message too long (max ${MAX_MESSAGE_LENGTH} characters)` });
+      }
+
+      console.log(`[Coordinated] Received message for conversation ${conversationId}`);
+
+      await chatStorage.createMessage(conversationId, "user", trimmedContent);
+
+      const gameState = await storage.getGameState(conversationId);
+      const storyArc = gameState?.storyArc as StoryArc | undefined;
+      const currentDecisionCount = (gameState?.decisionCount || 0) + 1;
+      const storySummary = gameState?.storySummary || null;
+      const lastSummarizedAt = gameState?.lastSummarizedAt || 0;
+      const npcDescriptions = (gameState?.npcDescriptions as Record<string, string>) || {};
+
+      await storage.updateGameState(conversationId, { decisionCount: currentDecisionCount });
+
+      const messages = await chatStorage.getMessagesByConversation(conversationId);
+      
+      let chatMessages: { role: "user" | "assistant" | "system"; content: string }[];
+      
+      if (storyArc) {
+        const rawMessages = messages.map((m) => ({
+          role: m.role,
+          content: m.content,
+        }));
+        
+        const systemMessage = messages.find(m => m.role === "system");
+        const systemPrompt = systemMessage?.content || "";
+        
+        chatMessages = buildContextWithSummary(
+          systemPrompt,
+          storySummary,
+          storyArc,
+          rawMessages.filter(m => m.role !== "system")
+        );
+      } else {
+        chatMessages = messages.map((m) => ({
+          role: m.role as "user" | "assistant" | "system",
+          content: m.content,
+        }));
+      }
+
+      const pipelineContext: PipelineContext = {
+        conversationId,
+        gameState: gameState || null,
+        storyArc: storyArc || null,
+        chatMessages,
+        npcDescriptions,
+      };
+
+      try {
+        const result = await runCoordinatedPipeline(pipelineContext);
+
+        await chatStorage.createMessage(conversationId, "assistant", result.scene.cleanedText);
+
+        if (result.scene.stateChanges) {
+          const changes = result.scene.stateChanges;
+          const currentInventory = (gameState?.inventory as string[]) || [];
+          const currentSpells = (gameState?.spells as string[]) || [];
+          const currentHealth = gameState?.health ?? 100;
+
+          let newInventory = [...currentInventory];
+          for (const item of changes.itemsAdded) {
+            if (!newInventory.includes(item)) newInventory.push(item);
+          }
+          for (const item of changes.itemsRemoved) {
+            newInventory = newInventory.filter(i => i !== item);
+          }
+
+          let newSpells = [...currentSpells];
+          for (const spell of changes.spellsLearned || []) {
+            if (!newSpells.includes(spell)) newSpells.push(spell);
+          }
+
+          const newHealth = Math.max(0, Math.min(100, currentHealth + changes.healthChange));
+          const newLocation = changes.newLocation || result.scene.location;
+
+          await storage.updateGameState(conversationId, {
+            inventory: newInventory,
+            spells: newSpells,
+            health: newHealth,
+            location: newLocation,
+            gameTime: result.scene.time || gameState?.gameTime,
+            characterMoods: result.scene.characters.reduce((acc, c) => {
+              acc[c.name] = c.expression;
+              return acc;
+            }, {} as Record<string, string>),
+          });
+        }
+
+        if (storyArc && shouldSummarize(currentDecisionCount, lastSummarizedAt)) {
+          const allMessages = await chatStorage.getMessagesByConversation(conversationId);
+          const rawMessages = allMessages.map(m => ({ role: m.role, content: m.content }));
+          const newSummary = await summarizeStory(rawMessages, storyArc, storySummary);
+          await storage.updateGameState(conversationId, {
+            storySummary: newSummary,
+            lastSummarizedAt: currentDecisionCount
+          });
+
+          const progressContext = `STORY SUMMARY:\n${newSummary}\n\nLATEST EVENTS:\n${result.scene.narrativeText}`;
+          const { shouldAdvance, updatedArc } = await checkChapterProgress(storyArc, progressContext);
+          if (shouldAdvance) {
+            await storage.updateGameState(conversationId, { storyArc: updatedArc });
+          }
+        }
+
+        res.json({
+          success: true,
+          scene: result.scene,
+          ttsAudioUrl: result.ttsAudioUrl,
+          storyProgress: storyArc ? {
+            chapter: storyArc.chapters[storyArc.currentChapterIndex]?.title,
+            chapterIndex: storyArc.currentChapterIndex + 1,
+            totalChapters: storyArc.chapters.length,
+            decisionCount: currentDecisionCount,
+          } : null,
+          generationTimeMs: result.generationTimeMs,
+        });
+
+      } catch (pipelineError: any) {
+        console.error("[Coordinated] Pipeline error:", pipelineError);
+        
+        const allMsgs = await chatStorage.getMessagesByConversation(conversationId);
+        const lastUserMsg = allMsgs.filter(m => m.role === "user").pop();
+        if (lastUserMsg) {
+          await chatStorage.deleteMessage(lastUserMsg.id);
+        }
+        await storage.updateGameState(conversationId, { decisionCount: currentDecisionCount - 1 });
+        
+        res.status(500).json({
+          success: false,
+          error: "The story enchantment fizzled! The magical narrator seems to have wandered off momentarily.",
+          canRetry: true,
+        });
+      }
+
+    } catch (error) {
+      console.error("Error in coordinated endpoint:", error);
+      res.status(500).json({ error: "Failed to process message" });
     }
   });
 }

@@ -49,6 +49,7 @@ Preferred communication style: Simple, everyday language.
 - **Custom Hooks**: 
   - `use-game.ts` - Game state and initialization
   - `use-chat-stream.ts` - Streaming AI responses and message history
+  - `use-coordinated-chat.ts` - Buffered all-at-once AI responses with loading state
   - `use-game-canvas.ts` - Phaser.js game canvas data fetching
 - **Visual Novel Scene System (December 2024)**:
   - `SceneStage.tsx` - Visual novel style scene renderer
@@ -118,6 +119,34 @@ Preferred communication style: Simple, everyday language.
   - Structured SSE error events with retry capability
   - User message deleted from DB on AI failure to maintain consistency
 - **Batch Processing**: Utility module for rate-limited parallel API calls with retries
+
+### Translation Layer (December 2024)
+New coordinated pipeline architecture for all-at-once reveal:
+- **TranslatorService** (`server/replit_integrations/translator/service.ts`)
+  - Extracts structured scene data (location, characters, mood, choices) from narrative text
+  - Uses AI to parse narrative into JSON ScenePayload format
+  - Fallback regex extraction when AI parsing fails
+  - Cleans narrative text of metadata tags ([HEALTH:], [ITEM_ADD:], etc.)
+- **AssetRegistry** (`server/replit_integrations/translator/assetRegistry.ts`)
+  - LRU-cached catalog of backgrounds/portraits from database
+  - 60-second TTL on cache, invalidation on demand
+  - Fuzzy matching with Levenshtein distance (70% confidence threshold)
+  - Normalizes location/character names for matching
+- **AssetResolver** (`server/replit_integrations/translator/assetResolver.ts`)
+  - Matches narrative references to existing DB assets
+  - Determines use/generate action for each background and portrait
+  - Waits for pending asset generation with configurable timeout
+- **CoordinatedPipeline** (`server/replit_integrations/translator/coordinatedPipeline.ts`)
+  - Orchestrates: AI narrative → scene extraction → asset resolution → TTS generation
+  - Buffers everything before returning single response
+  - Triggers background/portrait generation for missing assets
+- **Frontend Integration**:
+  - `use-coordinated-chat.ts` - Hook for buffered responses with loading state
+  - Game.tsx supports both streaming and coordinated modes via USE_COORDINATED_MODE flag
+  - Loading overlay shows "Weaving the story..." during preparation
+- **API Endpoint**: `/api/conversations/:id/coordinated`
+  - Returns complete scene with assets resolved, TTS URL, and story progress
+  - Automatic rollback of user message on pipeline failure
 
 ### Project Structure
 ```

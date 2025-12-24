@@ -1,5 +1,6 @@
 import { useGameState } from "@/hooks/use-game";
 import { useChatStream } from "@/hooks/use-chat-stream";
+import { useCoordinatedChat } from "@/hooks/use-coordinated-chat";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useRoute } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
@@ -434,7 +435,39 @@ export default function Game() {
   const conversationId = params?.id ? parseInt(params.id) : null;
   
   const { data: state, isLoading: stateLoading } = useGameState(conversationId);
-  const { messages, sendMessage, isStreaming, storyProgress, chapterAdvance, streamError, clearError, retryLastMessage } = useChatStream(conversationId);
+  
+  // Use coordinated chat for all-at-once reveal (text + assets + audio ready before showing)
+  const USE_COORDINATED_MODE = true;
+  
+  const streamingChat = useChatStream(conversationId);
+  const coordinatedChat = useCoordinatedChat(conversationId);
+  
+  // Select which chat hook to use based on mode
+  const chat = USE_COORDINATED_MODE ? {
+    messages: coordinatedChat.messages,
+    sendMessage: coordinatedChat.sendMessage,
+    isStreaming: coordinatedChat.isLoading,
+    storyProgress: coordinatedChat.storyProgress,
+    chapterAdvance: coordinatedChat.chapterAdvance,
+    streamError: coordinatedChat.chatError,
+    clearError: coordinatedChat.clearError,
+    retryLastMessage: coordinatedChat.retryLastMessage,
+    sceneData: coordinatedChat.sceneData,
+    ttsAudioUrl: coordinatedChat.ttsAudioUrl,
+  } : {
+    messages: streamingChat.messages,
+    sendMessage: streamingChat.sendMessage,
+    isStreaming: streamingChat.isStreaming,
+    storyProgress: streamingChat.storyProgress,
+    chapterAdvance: streamingChat.chapterAdvance,
+    streamError: streamingChat.streamError,
+    clearError: streamingChat.clearError,
+    retryLastMessage: streamingChat.retryLastMessage,
+    sceneData: null,
+    ttsAudioUrl: null,
+  };
+  
+  const { messages, sendMessage, isStreaming, storyProgress, chapterAdvance, streamError, clearError, retryLastMessage, sceneData, ttsAudioUrl } = chat;
   const scrollRef = useRef<HTMLDivElement>(null);
   
   // Audio state
@@ -862,7 +895,31 @@ export default function Game() {
   const canvasDimensions = getCanvasDimensions();
 
   return (
-    <div className="h-screen flex flex-col lg:flex-row bg-[#0d0618] text-[#fdfbf7] overflow-hidden">
+    <div className="h-screen flex flex-col lg:flex-row bg-[#0d0618] text-[#fdfbf7] overflow-hidden relative">
+      
+      {/* Coordinated Mode Loading Overlay - shows while preparing all-at-once reveal */}
+      <AnimatePresence>
+        {USE_COORDINATED_MODE && isStreaming && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-[#0d0618]/90 backdrop-blur-sm"
+          >
+            <div className="relative">
+              <Sparkles className="w-10 h-10 text-purple-400 animate-pulse" />
+              <div className="absolute inset-0 w-10 h-10 bg-purple-500/30 rounded-full blur-xl animate-pulse" />
+            </div>
+            <p className="font-serif text-base text-purple-200 mt-4 animate-pulse">
+              Weaving the story...
+            </p>
+            <p className="text-xs text-purple-400/60 mt-2">
+              Preparing scene, visuals, and narration
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
       
       {/* LEFT PANEL - Canvas & Stats (Desktop) / Top Section (Mobile) */}
       <div className="lg:w-[520px] lg:h-full lg:flex-shrink-0 lg:border-r lg:border-purple-500/20 flex flex-col">
