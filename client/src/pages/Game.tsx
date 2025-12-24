@@ -282,11 +282,15 @@ function StoryModal({
   
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="bg-[#1a0f2e] border-purple-500/30 max-w-[92vw] max-h-[70vh] overflow-hidden p-0 rounded-lg" aria-describedby={undefined}>
+      <DialogContent 
+        className="bg-[#1a0f2e] border-purple-500/30 max-w-[92vw] p-0 rounded-lg flex flex-col" 
+        style={{ maxHeight: 'min(70dvh, 70vh, calc(100vh - 120px))' }}
+        aria-describedby={undefined}
+      >
         <VisuallyHidden>
           <DialogTitle>Story Update</DialogTitle>
         </VisuallyHidden>
-        <div className="sticky top-0 z-10 bg-[#1a0f2e] border-b border-purple-500/20 px-4 py-3 flex items-center justify-between">
+        <div className="flex-shrink-0 bg-[#1a0f2e] border-b border-purple-500/20 px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2 text-yellow-400">
             <ScrollText className="w-4 h-4" />
             <span className="font-serif text-sm">The Story Continues...</span>
@@ -299,7 +303,7 @@ function StoryModal({
             <X className="w-5 h-5" />
           </button>
         </div>
-        <div className="px-4 py-3 overflow-y-auto max-h-[calc(70vh-60px)]">
+        <div className="flex-1 min-h-0 px-4 py-3 overflow-y-auto">
           <div className="space-y-3" style={{ fontFamily: "'Crimson Text', 'EB Garamond', Georgia, serif" }}>
             {paragraphs.map((para, i) => (
               <p 
@@ -312,7 +316,7 @@ function StoryModal({
             ))}
           </div>
         </div>
-        <div className="sticky bottom-0 bg-[#1a0f2e] border-t border-purple-500/20 px-4 py-3">
+        <div className="flex-shrink-0 bg-[#1a0f2e] border-t border-purple-500/20 px-4 py-3">
           <Button 
             onClick={onClose} 
             className="w-full bg-purple-600 hover:bg-purple-500 text-white font-serif"
