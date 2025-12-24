@@ -145,7 +145,7 @@ export const HARRY_POTTER_SPELLS: Array<{
     classification: "defensive",
     description: "Conjures a Patronus guardian",
     effect: "Brilliant silver-white ethereal animal form, radiant protective light",
-    colorTheme: { primary: "#SILVER", secondary: "#E8F4F8", particle: "#FFFFFF" },
+    colorTheme: { primary: "#C0C0C0", secondary: "#E8F4F8", particle: "#FFFFFF" },
     difficulty: 8,
     yearLearned: 3
   },
