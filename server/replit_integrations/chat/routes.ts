@@ -140,6 +140,12 @@ function parseNPCDescriptions(content: string): Record<string, string> {
   return npcs;
 }
 
+// Strip CHARACTER tags from content after parsing (they should be indexed, not displayed)
+function stripCharacterTags(content: string): string {
+  // Remove [CHARACTER: Name | Description] tags and any trailing newline
+  return content.replace(/\[CHARACTER:\s*[^|]+\|[^\]]+\]\n?/gi, '');
+}
+
 // Extract character names mentioned in scene description or story content to find relevant NPC descriptions
 function findRelevantNPCs(
   sceneDescription: string, 
@@ -489,11 +495,14 @@ export function registerChatRoutes(app: Express): void {
         return;
       }
 
-      // Text complete - send full content in one event, then signal image generation starting
-      res.write(`data: ${JSON.stringify({ fullContent: fullResponse, textDone: true, imagePending: true })}\n\n`);
-
-      // Parse and store any new NPC descriptions
+      // Parse and store any new NPC descriptions BEFORE stripping tags
       const newNPCs = parseNPCDescriptions(fullResponse);
+      
+      // Strip CHARACTER tags from visible content (they're indexed, not displayed)
+      const cleanedResponse = stripCharacterTags(fullResponse);
+      
+      // Text complete - send cleaned content in one event, then signal image generation starting
+      res.write(`data: ${JSON.stringify({ fullContent: cleanedResponse, textDone: true, imagePending: true })}\n\n`);
       // Start with existing NPCs from database
       let allNPCDescriptions = (gameState?.npcDescriptions as Record<string, string>) || {};
       
@@ -508,10 +517,10 @@ export function registerChatRoutes(app: Express): void {
       // Generate scene image based on story content with ALL character descriptions (existing + new)
       const imageUrl = await generateSceneImage(fullResponse, characterDescription, allNPCDescriptions, newNPCs);
       
-      // Embed image URL in the message content for persistence
-      let finalContent = fullResponse;
+      // Embed image URL in the message content for persistence (use cleaned content without CHARACTER tags)
+      let finalContent = cleanedResponse;
       if (imageUrl) {
-        finalContent = `[IMAGE: ${imageUrl}]\n${fullResponse}`;
+        finalContent = `[IMAGE: ${imageUrl}]\n${cleanedResponse}`;
         res.write(`data: ${JSON.stringify({ imageUrl })}\n\n`);
       }
 
