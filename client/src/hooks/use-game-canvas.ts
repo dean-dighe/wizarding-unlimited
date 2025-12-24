@@ -16,13 +16,32 @@ interface SpriteData {
   };
 }
 
+interface TilemapLayer {
+  name: string;
+  data: number[];
+  width: number;
+  height: number;
+  visible: boolean;
+  opacity: number;
+}
+
+interface TilemapData {
+  width: number;
+  height: number;
+  tileWidth: number;
+  tileHeight: number;
+  layers: TilemapLayer[];
+  tilesetName: string;
+}
+
+type MapGenerationStatus = "pending" | "generating" | "ready" | "failed";
+
 interface MapData {
   locationName: string;
-  mapCode: string;
   tilesetUrl: string | null;
-  mapWidth: number;
-  mapHeight: number;
+  tilemapData: TilemapData | null;
   spawnPoints: Record<string, { x: number; y: number }>;
+  generationStatus: MapGenerationStatus;
 }
 
 export function usePlayerSprite(playerName: string | null | undefined) {
@@ -36,6 +55,14 @@ export function useLocationMap(locationName: string | null | undefined) {
   return useQuery<MapData>({
     queryKey: ["/api/game-assets/map", locationName],
     enabled: !!locationName,
+    staleTime: 30000,
+    refetchInterval: (query) => {
+      const data = query.state.data as MapData | undefined;
+      if (data?.generationStatus === "generating") {
+        return 3000;
+      }
+      return false;
+    },
   });
 }
 
@@ -51,24 +78,28 @@ export function useGameCanvasData(playerName: string | null | undefined, locatio
   const locationMapQuery = useLocationMap(locationName);
   
   const isLoading = playerSpriteQuery.isLoading || locationMapQuery.isLoading;
-  const hasData = !!playerSpriteQuery.data || !!locationMapQuery.data;
+  const isMapGenerating = locationMapQuery.data?.generationStatus === "generating";
+  const isMapReady = locationMapQuery.data?.generationStatus === "ready";
   
   return {
     playerSprite: playerSpriteQuery.data,
     locationMap: locationMapQuery.data,
     isLoading,
-    hasData,
+    isMapGenerating,
+    isMapReady,
     playerSpriteUrl: playerSpriteQuery.data?.spriteSheetUrl,
+    tilesetUrl: locationMapQuery.data?.tilesetUrl,
+    tilemapData: locationMapQuery.data?.tilemapData,
+    spawnPoints: locationMapQuery.data?.spawnPoints,
   };
 }
 
-// Convert string position (north, south, center, etc.) to pixel coordinates
 export function positionToCoordinates(
   position: string,
   width: number,
   height: number
 ): { x: number; y: number } {
-  const padding = 48; // Keep away from walls
+  const padding = 48;
   const centerX = width / 2;
   const centerY = height / 2;
   
@@ -86,3 +117,5 @@ export function positionToCoordinates(
   
   return positions[position.toLowerCase()] || positions.center;
 }
+
+export type { SpriteData, MapData, TilemapData, TilemapLayer, MapGenerationStatus };

@@ -10,17 +10,47 @@ import { conversations } from "./models/chat";
 
 // ===== GAME ASSET TABLES =====
 
+// Map generation status enum
+export type MapGenerationStatus = "pending" | "generating" | "ready" | "failed";
+
+// Tilemap layer data (Tiled-compatible format)
+export interface TilemapLayer {
+  name: string;
+  data: number[]; // Tile indices
+  width: number;
+  height: number;
+  visible: boolean;
+  opacity: number;
+}
+
+// Full tilemap data structure
+export interface TilemapData {
+  width: number; // Map width in tiles
+  height: number; // Map height in tiles
+  tileWidth: number; // Tile size (32)
+  tileHeight: number;
+  layers: TilemapLayer[];
+  tilesetName: string;
+}
+
 // Location maps - stores generated Phaser.js map code for each unique location
 // Game-wide persistence: maps are reused across all players
 export const location_maps = pgTable("location_maps", {
   id: serial("id").primaryKey(),
   locationName: text("location_name").notNull().unique(), // e.g., "Great Hall", "Potions Classroom"
-  mapCode: text("map_code").notNull(), // Generated Phaser.js map rendering code
+  mapCode: text("map_code").notNull(), // Generated Phaser.js map rendering code (deprecated)
   tilesetUrl: text("tileset_url"), // Object Storage URL for tileset image
   mapWidth: integer("map_width").default(640), // Canvas width in pixels
   mapHeight: integer("map_height").default(480), // Canvas height in pixels
   spawnPoints: jsonb("spawn_points").$type<Record<string, { x: number; y: number }>>().default({}), // Named spawn positions
   walkableTiles: jsonb("walkable_tiles").$type<number[]>().default([]), // Tile indices that can be walked on
+  
+  // New fields for proper tilemap support
+  tilemapData: jsonb("tilemap_data").$type<TilemapData>(), // Structured tilemap for Phaser
+  generationStatus: text("generation_status").$type<MapGenerationStatus>().default("pending"),
+  lastAccessedAt: timestamp("last_accessed_at").defaultNow(), // For LRU cache eviction
+  generationError: text("generation_error"), // Error message if generation failed
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

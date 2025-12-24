@@ -1,6 +1,6 @@
 import { useGameState } from "@/hooks/use-game";
 import { useChatStream } from "@/hooks/use-chat-stream";
-import { positionToCoordinates } from "@/hooks/use-game-canvas";
+import { positionToCoordinates, useGameCanvasData } from "@/hooks/use-game-canvas";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useRoute } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
@@ -355,6 +355,9 @@ export default function Game() {
   // Sprite URLs from game state
   const playerSpriteUrl = state?.playerSpriteUrl || undefined;
   const npcSpriteUrls = state?.npcSpriteUrls || {};
+
+  // Fetch map data for current location
+  const { tilesetUrl, tilemapData, isMapGenerating } = useGameCanvasData(state?.playerName, state?.location);
 
   useEffect(() => {
     isMutedRef.current = isMuted;
@@ -801,9 +804,12 @@ export default function Game() {
                   locationName={state.location}
                   playerName={state.playerName || "Player"}
                   playerSpriteUrl={playerSpriteUrl}
+                  tilesetUrl={tilesetUrl}
+                  tilemapData={tilemapData}
                   npcs={npcsWithPositions}
                   width={canvasDimensions.width}
                   height={canvasDimensions.height}
+                  isMapGenerating={isMapGenerating}
                   onPlayerMove={(target) => console.log("Player moving to:", target)}
                   onInteraction={(npcName) => console.log("Interacting with:", npcName)}
                 />

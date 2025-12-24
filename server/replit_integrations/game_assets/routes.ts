@@ -69,19 +69,16 @@ export function registerGameAssetRoutes(app: Express): void {
   app.get("/api/game-assets/map/:locationName", async (req, res) => {
     try {
       const { locationName } = req.params;
-      const map = await storage.getLocationMap(decodeURIComponent(locationName));
+      const decodedName = decodeURIComponent(locationName);
       
-      if (!map) {
-        return res.status(404).json({ error: "Map not found" });
-      }
+      const result = await mapService.getOrCreateMap(decodedName);
       
       res.json({
-        locationName: map.locationName,
-        mapCode: map.mapCode,
-        tilesetUrl: map.tilesetUrl,
-        mapWidth: map.mapWidth,
-        mapHeight: map.mapHeight,
-        spawnPoints: map.spawnPoints,
+        locationName: decodedName,
+        tilesetUrl: result.tilesetUrl,
+        tilemapData: result.tilemapData,
+        spawnPoints: result.spawnPoints,
+        generationStatus: result.generationStatus,
       });
     } catch (error) {
       console.error("Error fetching map:", error);
@@ -91,20 +88,20 @@ export function registerGameAssetRoutes(app: Express): void {
 
   app.post("/api/game-assets/map/generate", async (req, res) => {
     try {
-      const { locationName } = req.body;
+      const { locationName, width, height } = req.body;
       
       if (!locationName) {
         return res.status(400).json({ error: "locationName is required" });
       }
       
-      const { mapCode, tilesetUrl } = await mapService.getOrCreateMap(locationName);
-      const map = await storage.getLocationMap(locationName);
+      const result = await mapService.getOrCreateMap(locationName, width || 640, height || 320);
       
       res.json({
         locationName,
-        mapCode,
-        tilesetUrl,
-        spawnPoints: map?.spawnPoints || {},
+        tilesetUrl: result.tilesetUrl,
+        tilemapData: result.tilemapData,
+        spawnPoints: result.spawnPoints,
+        generationStatus: result.generationStatus,
       });
     } catch (error) {
       console.error("Error generating map:", error);

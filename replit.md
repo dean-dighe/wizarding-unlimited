@@ -64,7 +64,7 @@ Preferred communication style: Simple, everyday language.
   - `conversations` - Chat sessions
   - `messages` - Individual messages with role (user/assistant/system)
   - `game_states` - Game-specific data linked to conversations (house, health, inventory, location, game time)
-  - `location_maps` - Generated map metadata (tilesetUrl, spawnPoints) - game-wide persistence
+  - `location_maps` - Generated map metadata (tilesetUrl, tilemapData JSON, generationStatus, spawnPoints) - game-wide persistence
   - `character_sprites` - Generated sprite metadata (spriteSheetUrl, animationConfig) - game-wide persistence
 
 ### AI Integration
@@ -117,14 +117,19 @@ migrations/       # Drizzle migrations
 
 ### Game Asset System
 - **Sprite Generation**: xAI Grok Aurora generates 12-frame sprite sheets (4 directions x 3 frames)
-- **Map Generation**: Procedural tilemaps with spawn points (no AI code execution for security)
-- **Asset Storage**: Replit Object Storage for binary assets, PostgreSQL for metadata
+- **Map Generation**: AI-generated tilesets with Tiled-compatible JSON tilemaps
+  - Async generation with status tracking (pending/generating/ready/failed)
+  - 128x128px tilesets (4x4 grid of 32x32 tiles)
+  - Procedural tilemap layers (ground + decorations)
+  - Location-specific color schemes (Gryffindor=red/gold, Slytherin=green, etc.)
+  - Frontend polls every 3s during generation, falls back to procedural graphics on failure
+- **Asset Storage**: Replit Object Storage for binary assets, PostgreSQL for metadata and tilemap JSON
 - **Caching**: Game-wide persistence - sprites/maps are reused across all players
 - **API Routes**:
   - `GET /api/game-assets/sprite/:characterName` - Fetch character sprite
   - `POST /api/game-assets/sprite/generate` - Generate new sprite
-  - `GET /api/game-assets/map/:locationName` - Fetch location map data
-  - `POST /api/game-assets/map/generate` - Generate new map
+  - `GET /api/game-assets/map/:locationName` - Fetch location map with generation status
+  - `POST /api/game-assets/map/generate` - Trigger map generation
 
 ### Build System
 - **Development**: `tsx` for running TypeScript directly
