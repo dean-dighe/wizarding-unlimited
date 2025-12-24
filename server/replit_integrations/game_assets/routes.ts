@@ -1,7 +1,8 @@
 import type { Express } from "express";
 import { SpriteGenerationService } from "./sprites";
-import { MapGenerationService } from "./maps";
+import { MapGenerationService, HARRY_POTTER_LOCATIONS } from "./maps";
 import { storage } from "../../storage";
+import pLimit from "p-limit";
 
 export function registerGameAssetRoutes(app: Express): void {
   const spriteService = new SpriteGenerationService();
@@ -132,6 +133,86 @@ export function registerGameAssetRoutes(app: Express): void {
     } catch (error) {
       console.error("Error initializing canon sprites:", error);
       res.status(500).json({ error: "Failed to initialize canon sprites" });
+    }
+  });
+
+  app.post("/api/game-assets/maps/pregenerate", async (req, res) => {
+    try {
+      const allLocations = Object.keys(HARRY_POTTER_LOCATIONS);
+      const { locations, concurrency = 2 } = req.body;
+      
+      const targetLocations = locations && Array.isArray(locations) 
+        ? locations.filter((loc: string) => allLocations.includes(loc))
+        : allLocations;
+      
+      if (targetLocations.length === 0) {
+        return res.status(400).json({ error: "No valid locations provided" });
+      }
+      
+      res.json({ 
+        success: true, 
+        message: `Starting map pre-generation for ${targetLocations.length} locations`,
+        locations: targetLocations,
+        estimatedTime: `${Math.ceil(targetLocations.length / concurrency) * 10} seconds`
+      });
+      
+      const limit = pLimit(concurrency);
+      const results: { location: string; status: string; error?: string }[] = [];
+      
+      const promises = targetLocations.map((locationName: string) => 
+        limit(async () => {
+          try {
+            console.log(`[Pre-gen] Starting map generation for: ${locationName}`);
+            const result = await mapService.getOrCreateMap(locationName, 320, 288);
+            console.log(`[Pre-gen] Completed: ${locationName} - Status: ${result.generationStatus}`);
+            results.push({ location: locationName, status: result.generationStatus });
+          } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : "Unknown error";
+            console.error(`[Pre-gen] Failed: ${locationName} - ${errorMsg}`);
+            results.push({ location: locationName, status: "failed", error: errorMsg });
+          }
+        })
+      );
+      
+      Promise.all(promises).then(() => {
+        const successful = results.filter(r => r.status === "ready").length;
+        const failed = results.filter(r => r.status === "failed").length;
+        console.log(`[Pre-gen] Complete: ${successful} successful, ${failed} failed out of ${targetLocations.length}`);
+      });
+      
+    } catch (error) {
+      console.error("Error starting map pre-generation:", error);
+      res.status(500).json({ error: "Failed to start map pre-generation" });
+    }
+  });
+
+  app.get("/api/game-assets/maps/status", async (req, res) => {
+    try {
+      const allLocations = Object.keys(HARRY_POTTER_LOCATIONS);
+      const maps = await storage.getAllLocationMaps();
+      
+      const status = allLocations.map(locationName => {
+        const existingMap = maps.find(m => m.locationName === locationName);
+        return {
+          locationName,
+          generated: !!existingMap,
+          hasTileset: !!existingMap?.tilesetUrl,
+          status: existingMap?.generationStatus || "not_started",
+        };
+      });
+      
+      const summary = {
+        total: allLocations.length,
+        ready: status.filter(s => s.status === "ready").length,
+        generating: status.filter(s => s.status === "generating").length,
+        failed: status.filter(s => s.status === "failed").length,
+        notStarted: status.filter(s => s.status === "not_started").length,
+      };
+      
+      res.json({ summary, locations: status });
+    } catch (error) {
+      console.error("Error fetching map status:", error);
+      res.status(500).json({ error: "Failed to fetch map status" });
     }
   });
 }
