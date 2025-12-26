@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Landing from "@/pages/Landing";
 import Game from "@/pages/Game";
+import OverworldDemo from "@/pages/OverworldDemo";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -12,6 +13,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Landing} />
       <Route path="/game/:id" component={Game} />
+      <Route path="/overworld" component={OverworldDemo} />
       <Route component={NotFound} />
     </Switch>
   );
