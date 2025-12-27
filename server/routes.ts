@@ -12,6 +12,8 @@ import { generateStoryArc } from "./replit_integrations/story/engine";
 import { translatorService } from "./replit_integrations/translator";
 import { api } from "@shared/routes";
 import { z } from "zod";
+import { db } from "./db";
+import { background_scenes, character_portraits } from "@shared/schema";
 import OpenAI from "openai";
 
 const spriteService = new SpriteGenerationService();
@@ -272,6 +274,83 @@ What do you do?
         success: false,
         latency: Date.now() - startTime,
         error: error.message
+      });
+    }
+  });
+
+  // ===== ASSET GENERATION TEST ENDPOINT =====
+  
+  app.get("/api/test/asset-generation", async (req, res) => {
+    const startTime = Date.now();
+    const results: Record<string, { status: string; cached?: boolean; latency?: number; error?: string }> = {};
+    
+    try {
+      // Test 1: Check sprite status/caching
+      const spriteStatusStart = Date.now();
+      const allSprites = await storage.getAllCharacterSprites();
+      results.spriteCache = {
+        status: "ok",
+        cached: allSprites.length > 0,
+        latency: Date.now() - spriteStatusStart
+      };
+      
+      // Test 2: Check map status/caching
+      const mapStatusStart = Date.now();
+      const allMaps = await storage.getAllLocationMaps();
+      results.mapCache = {
+        status: "ok",
+        cached: allMaps.length > 0,
+        latency: Date.now() - mapStatusStart
+      };
+      
+      // Test 3: Check background cache (using db directly)
+      const bgStatusStart = Date.now();
+      const allBackgrounds = await db.select().from(background_scenes);
+      results.backgroundCache = {
+        status: "ok",
+        cached: allBackgrounds.length > 0,
+        latency: Date.now() - bgStatusStart
+      };
+      
+      // Test 4: Check portrait cache (using db directly)
+      const portraitStatusStart = Date.now();
+      const allPortraits = await db.select().from(character_portraits);
+      results.portraitCache = {
+        status: "ok", 
+        cached: allPortraits.length > 0,
+        latency: Date.now() - portraitStatusStart
+      };
+      
+      // Test 5: Validate a specific known map can be retrieved
+      const mapFetchStart = Date.now();
+      const testMap = await storage.getLocationMap("Great Hall");
+      results.mapRetrieval = {
+        status: testMap ? "ok" : "not_found",
+        cached: !!testMap,
+        latency: Date.now() - mapFetchStart
+      };
+      
+      const totalLatency = Date.now() - startTime;
+      const allPassing = Object.values(results).every(r => r.status === "ok");
+      
+      res.status(allPassing ? 200 : 503).json({
+        success: allPassing,
+        totalLatency,
+        cacheStats: {
+          sprites: allSprites.length,
+          maps: allMaps.length,
+          backgrounds: allBackgrounds.length,
+          portraits: allPortraits.length
+        },
+        tests: results,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        latency: Date.now() - startTime,
+        error: error.message,
+        tests: results
       });
     }
   });
