@@ -58,6 +58,89 @@ interface DialogueState {
   onChoice?: (choice: string) => void;
 }
 
+interface InteractiveObject {
+  id: string;
+  name: string;
+  type: "npc" | "item" | "examine" | "trigger" | "exit";
+  x: number;
+  y: number;
+  dialogue?: string;
+}
+
+interface LocationNPC {
+  name: string;
+  type: "npc";
+  dialogue: string;
+  positionFn: (w: number, h: number) => { x: number; y: number };
+}
+
+const LOCATION_NPCS: Record<string, LocationNPC[]> = {
+  "Great Hall": [
+    { name: "Professor McGonagall", type: "npc", dialogue: "Good morning. I trust you are keeping up with your studies?", positionFn: (w, h) => ({ x: w * 0.3, y: h * 0.35 }) },
+    { name: "Nearly Headless Nick", type: "npc", dialogue: "Ah, another young witch or wizard! The castle holds many secrets, you know.", positionFn: (w, h) => ({ x: w * 0.7, y: h * 0.4 }) },
+  ],
+  "Entrance Hall": [
+    { name: "Argus Filch", type: "npc", dialogue: "No running in the corridors! Mrs. Norris is watching...", positionFn: (w, h) => ({ x: w * 0.5, y: h * 0.4 }) },
+  ],
+  "Library": [
+    { name: "Madam Pince", type: "npc", dialogue: "Shh! This is a library. Handle the books with care.", positionFn: (w, h) => ({ x: w * 0.3, y: h * 0.35 }) },
+    { name: "Hermione Granger", type: "npc", dialogue: "Oh, hello! I'm just researching for my essay. Do you need help finding something?", positionFn: (w, h) => ({ x: w * 0.7, y: h * 0.5 }) },
+  ],
+  "Potions Classroom": [
+    { name: "Professor Snape", type: "npc", dialogue: "You dare enter my classroom uninvited? Ten points from your house.", positionFn: (w, h) => ({ x: w * 0.5, y: h * 0.3 }) },
+  ],
+  "Charms Classroom": [
+    { name: "Professor Flitwick", type: "npc", dialogue: "Ah, wonderful! Remember, swish and flick!", positionFn: (w, h) => ({ x: w * 0.5, y: h * 0.3 }) },
+  ],
+  "Defense Against the Dark Arts Classroom": [
+    { name: "Professor Lupin", type: "npc", dialogue: "Come in, come in. Don't be afraid. The best way to face your fears is head on.", positionFn: (w, h) => ({ x: w * 0.5, y: h * 0.35 }) },
+  ],
+  "Transfiguration Classroom": [
+    { name: "Professor McGonagall", type: "npc", dialogue: "Transfiguration is some of the most complex magic you will learn at Hogwarts.", positionFn: (w, h) => ({ x: w * 0.5, y: h * 0.3 }) },
+  ],
+  "Hospital Wing": [
+    { name: "Madam Pomfrey", type: "npc", dialogue: "Another injury? Drink this potion and rest. You'll be better in no time.", positionFn: (w, h) => ({ x: w * 0.4, y: h * 0.4 }) },
+  ],
+  "Astronomy Tower": [
+    { name: "Professor Sinistra", type: "npc", dialogue: "The stars tell many stories, if you know how to read them.", positionFn: (w, h) => ({ x: w * 0.5, y: h * 0.35 }) },
+  ],
+  "Divination Classroom": [
+    { name: "Professor Trelawney", type: "npc", dialogue: "I have seen... something troubling in your future. The Grim, perhaps?", positionFn: (w, h) => ({ x: w * 0.5, y: h * 0.4 }) },
+  ],
+  "Gryffindor Common Room": [
+    { name: "Ron Weasley", type: "npc", dialogue: "Blimey, have you finished that essay for Snape? I haven't even started!", positionFn: (w, h) => ({ x: w * 0.35, y: h * 0.5 }) },
+    { name: "Neville Longbottom", type: "npc", dialogue: "Has anyone seen Trevor? My toad's gone missing again...", positionFn: (w, h) => ({ x: w * 0.65, y: h * 0.45 }) },
+  ],
+  "Slytherin Common Room": [
+    { name: "Draco Malfoy", type: "npc", dialogue: "What are YOU doing here? This is Slytherin territory.", positionFn: (w, h) => ({ x: w * 0.5, y: h * 0.45 }) },
+  ],
+  "Ravenclaw Common Room": [
+    { name: "Luna Lovegood", type: "npc", dialogue: "Oh, hello. I was just looking for Nargles. They like to hide in mistletoe.", positionFn: (w, h) => ({ x: w * 0.5, y: h * 0.45 }) },
+  ],
+  "Hufflepuff Common Room": [
+    { name: "Cedric Diggory", type: "npc", dialogue: "Welcome! Hufflepuffs are loyal and true. Need help with anything?", positionFn: (w, h) => ({ x: w * 0.5, y: h * 0.45 }) },
+  ],
+  "Courtyard": [
+    { name: "Harry Potter", type: "npc", dialogue: "Hey! Want to practice some spells? I've been working on my Patronus.", positionFn: (w, h) => ({ x: w * 0.4, y: h * 0.5 }) },
+    { name: "Hagrid", type: "npc", dialogue: "All righ' there? Yer should come visit me hut sometime!", positionFn: (w, h) => ({ x: w * 0.7, y: h * 0.6 }) },
+  ],
+  "Greenhouse": [
+    { name: "Professor Sprout", type: "npc", dialogue: "Mind the Mandrakes! They're temperamental today.", positionFn: (w, h) => ({ x: w * 0.5, y: h * 0.35 }) },
+  ],
+  "Owlery": [
+    { name: "Hedwig", type: "npc", dialogue: "*hoots softly*", positionFn: (w, h) => ({ x: w * 0.5, y: h * 0.3 }) },
+  ],
+  "Hagrid's Hut": [
+    { name: "Hagrid", type: "npc", dialogue: "Come in, come in! I've just made some rock cakes. Don' mind Fang, he's harmless.", positionFn: (w, h) => ({ x: w * 0.5, y: h * 0.45 }) },
+  ],
+  "Forbidden Forest": [
+    { name: "Firenze", type: "npc", dialogue: "The forest speaks to those who listen. Mars is bright tonight...", positionFn: (w, h) => ({ x: w * 0.6, y: h * 0.5 }) },
+  ],
+  "Headmaster's Office": [
+    { name: "Professor Dumbledore", type: "npc", dialogue: "Ah, I wondered when I might see you. Lemon drop?", positionFn: (w, h) => ({ x: w * 0.5, y: h * 0.35 }) },
+  ],
+};
+
 function TouchControls({ 
   onMove, 
   onInteract, 
@@ -145,6 +228,7 @@ export default function Exploration() {
   const [currentLocation, setCurrentLocation] = useState("Great Hall");
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [transitionText, setTransitionText] = useState<string | null>(null);
+  const [transitionDestination, setTransitionDestination] = useState<string | null>(null);
   const [spawnPosition, setSpawnPosition] = useState<{ x: number; y: number } | null>(null);
   const [playerPosition, setPlayerPosition] = useState<{ x: number; y: number } | null>(null);
   const [stepsSinceEncounter, setStepsSinceEncounter] = useState(0);
@@ -250,6 +334,36 @@ export default function Exploration() {
     [connections]
   );
 
+  const locationNPCs: InteractiveObject[] = useMemo(() => {
+    const npcs = LOCATION_NPCS[currentLocation] || [];
+    return npcs.map((npc, index) => {
+      const pos = npc.positionFn(canvasSize.width, canvasSize.height);
+      return {
+        id: `npc-${currentLocation}-${index}`,
+        name: npc.name,
+        type: npc.type,
+        x: pos.x,
+        y: pos.y,
+        dialogue: npc.dialogue,
+      };
+    });
+  }, [currentLocation, canvasSize]);
+
+  const handleNPCInteraction = useCallback((object: InteractiveObject) => {
+    if (object.type === "npc" && object.dialogue) {
+      setDialogue({
+        isOpen: true,
+        speaker: object.name,
+        text: object.dialogue,
+        choices: ["Farewell"],
+        onChoice: () => {
+          setDialogue({ isOpen: false, speaker: "", text: "", choices: [] });
+          canvasRef.current?.resumeMovement();
+        },
+      });
+    }
+  }, []);
+
   useEffect(() => {
     const checkMobile = () => {
       const mobile = window.innerWidth < 1024;
@@ -302,6 +416,7 @@ export default function Exploration() {
   const handleTransitionStart = useCallback((destination: string, text: string | null) => {
     setIsTransitioning(true);
     setTransitionText(text);
+    setTransitionDestination(destination);
     canvasRef.current?.pauseMovement();
   }, []);
 
@@ -317,6 +432,7 @@ export default function Exploration() {
     setTimeout(() => {
       setIsTransitioning(false);
       setTransitionText(null);
+      setTransitionDestination(null);
       canvasRef.current?.resumeMovement();
     }, 400);
   }, [canvasSize.width, canvasSize.height, profileId, updateLocationMutation]);
@@ -506,7 +622,9 @@ export default function Exploration() {
               playerName="Wizard"
               width={canvasSize.width}
               height={canvasSize.height}
+              objects={locationNPCs}
               exitPoints={exitPoints}
+              onInteraction={handleNPCInteraction}
               onPlayerMove={handlePlayerMove}
               onExitApproach={handleExitApproach}
               isPaused={isTransitioning || combat.active || dialogue.isOpen}
@@ -517,22 +635,56 @@ export default function Exploration() {
             <AnimatePresence>
               {isTransitioning && (
                 <motion.div
-                  className="absolute inset-0 bg-black z-50 flex items-center justify-center"
+                  className="absolute inset-0 bg-gradient-to-b from-[#0a0a12] via-[#0d0d18] to-[#0a0a12] z-50 flex flex-col items-center justify-center"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  transition={{ duration: 0.3 }}
+                  transition={{ duration: 0.4 }}
                 >
-                  {transitionText && (
-                    <motion.p
-                      className="text-[#8b6cc0] text-center font-serif italic px-8"
+                  <motion.div
+                    className="absolute inset-0 opacity-20"
+                    style={{ backgroundImage: "radial-gradient(circle at 50% 50%, #6b4c9a 0%, transparent 50%)" }}
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1.2, opacity: 0.3 }}
+                    transition={{ duration: 1.5, repeat: Infinity, repeatType: "reverse" }}
+                  />
+                  <motion.div
+                    className="text-center z-10"
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.15, duration: 0.3 }}
+                  >
+                    <motion.div 
+                      className="w-16 h-0.5 bg-gradient-to-r from-transparent via-[#6b4c9a] to-transparent mx-auto mb-4"
+                      initial={{ width: 0 }}
+                      animate={{ width: 64 }}
+                      transition={{ delay: 0.2, duration: 0.3 }}
+                    />
+                    <motion.h2
+                      className="text-2xl font-serif text-[#c0a0e0] mb-2"
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.2 }}
+                      transition={{ delay: 0.25 }}
                     >
-                      {transitionText}
-                    </motion.p>
-                  )}
+                      {transitionDestination || "Traveling..."}
+                    </motion.h2>
+                    {transitionText && (
+                      <motion.p
+                        className="text-[#8b6cc0] text-center font-serif italic px-8 text-sm max-w-xs"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.4 }}
+                      >
+                        {transitionText}
+                      </motion.p>
+                    )}
+                    <motion.div 
+                      className="w-16 h-0.5 bg-gradient-to-r from-transparent via-[#6b4c9a] to-transparent mx-auto mt-4"
+                      initial={{ width: 0 }}
+                      animate={{ width: 64 }}
+                      transition={{ delay: 0.3, duration: 0.3 }}
+                    />
+                  </motion.div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -574,6 +726,36 @@ export default function Exploration() {
                       >
                         Run Away
                       </Button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {dialogue.isOpen && (
+                <motion.div
+                  className="absolute inset-0 bg-[#0a0a12]/90 z-50 flex flex-col items-end justify-end p-4"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  data-testid="dialogue-overlay"
+                >
+                  <div className="w-full bg-[#1a1a2e] border border-[#6b4c9a] rounded-lg p-4 max-w-md">
+                    <p className="text-[#c0a0e0] font-serif text-sm mb-2">{dialogue.speaker}</p>
+                    <p className="text-[#e0d0f0] text-base mb-4 leading-relaxed">{dialogue.text}</p>
+                    <div className="flex gap-2 justify-end">
+                      {dialogue.choices.map((choice, index) => (
+                        <Button
+                          key={index}
+                          variant="outline"
+                          className="border-[#6b4c9a] text-[#8b6cc0]"
+                          onClick={() => dialogue.onChoice?.(choice)}
+                          data-testid={`button-dialogue-choice-${index}`}
+                        >
+                          {choice}
+                        </Button>
+                      ))}
                     </div>
                   </div>
                 </motion.div>

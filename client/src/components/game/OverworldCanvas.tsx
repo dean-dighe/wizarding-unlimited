@@ -15,6 +15,108 @@ const UNDERCROFT_PALETTE = {
   candle: 0xffaa44,
 };
 
+const GREAT_HALL_PALETTE = {
+  black: 0x1a1410,
+  darkWood: 0x3d2817,
+  wood: 0x5c3d24,
+  lightWood: 0x7a5233,
+  stone: 0x4a4a5a,
+  gold: 0xd4af37,
+  candleGlow: 0xffcc66,
+  banner: 0x740001,
+};
+
+const CLASSROOM_PALETTE = {
+  black: 0x12121a,
+  darkStone: 0x2a2a3a,
+  stone: 0x3d3d52,
+  lightStone: 0x5a5a72,
+  wood: 0x4a3520,
+  chalkboard: 0x1a3020,
+  accent: 0x5a7aa0,
+  candle: 0xffbb55,
+};
+
+const DUNGEON_PALETTE = {
+  black: 0x080810,
+  darkStone: 0x151520,
+  stone: 0x222235,
+  lightStone: 0x353548,
+  moss: 0x2a3a20,
+  chain: 0x555566,
+  torch: 0xff6622,
+  green: 0x2a5a3a,
+};
+
+const TOWER_PALETTE = {
+  black: 0x101020,
+  darkStone: 0x252540,
+  stone: 0x3a3a5a,
+  lightStone: 0x5a5a7a,
+  skyBlue: 0x304060,
+  gold: 0xc4a030,
+  starlight: 0xaaccff,
+  accent: 0x6a5aaa,
+};
+
+const COURTYARD_PALETTE = {
+  black: 0x0a1008,
+  darkGrass: 0x1a3010,
+  grass: 0x2a5020,
+  lightGrass: 0x3a7030,
+  stone: 0x5a5a60,
+  lightStone: 0x7a7a82,
+  water: 0x3050a0,
+  flower: 0xdd6688,
+};
+
+const CORRIDOR_PALETTE = {
+  black: 0x0e0e16,
+  darkStone: 0x1e1e2e,
+  stone: 0x303045,
+  lightStone: 0x454560,
+  carpet: 0x6a1a1a,
+  gold: 0xb89a30,
+  torch: 0xff8844,
+  portrait: 0x4a3020,
+};
+
+type LocationType = "undercroft" | "great_hall" | "classroom" | "dungeon" | "tower" | "courtyard" | "corridor";
+
+function getLocationTypeFromName(name: string): LocationType {
+  const lowerName = name.toLowerCase();
+  
+  if (lowerName.includes("great hall") || lowerName.includes("dining") || lowerName.includes("feast")) {
+    return "great_hall";
+  }
+  if (lowerName.includes("classroom") || lowerName.includes("class") || lowerName.includes("study") || 
+      lowerName.includes("charms") || lowerName.includes("transfiguration") || lowerName.includes("potions") ||
+      lowerName.includes("defense") || lowerName.includes("herbology") || lowerName.includes("library")) {
+    return "classroom";
+  }
+  if (lowerName.includes("dungeon") || lowerName.includes("slytherin") || lowerName.includes("cellar") ||
+      lowerName.includes("undercroft") || lowerName.includes("basement") || lowerName.includes("crypt")) {
+    return "dungeon";
+  }
+  if (lowerName.includes("tower") || lowerName.includes("astronomy") || lowerName.includes("ravenclaw") ||
+      lowerName.includes("divination") || lowerName.includes("owlery") || lowerName.includes("headmaster")) {
+    return "tower";
+  }
+  if (lowerName.includes("courtyard") || lowerName.includes("garden") || lowerName.includes("grounds") ||
+      lowerName.includes("greenhouse") || lowerName.includes("quad") || lowerName.includes("outdoor") ||
+      lowerName.includes("lake") || lowerName.includes("forest") || lowerName.includes("bridge")) {
+    return "courtyard";
+  }
+  if (lowerName.includes("corridor") || lowerName.includes("hallway") || lowerName.includes("passage") ||
+      lowerName.includes("staircase") || lowerName.includes("entrance") || lowerName.includes("foyer") ||
+      lowerName.includes("lobby") || lowerName.includes("vestibule") || lowerName.includes("gryffindor") ||
+      lowerName.includes("hufflepuff") || lowerName.includes("common room")) {
+    return "corridor";
+  }
+  
+  return "undercroft";
+}
+
 interface InteractiveObject {
   id: string;
   name: string;
@@ -212,10 +314,11 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
       sceneRef.current = this;
       const graphics = this.add.graphics();
 
-      renderUndercroft(graphics, tilesX, tilesY);
+      const locationType = getLocationTypeFromName(locationName);
+      renderMap(graphics, tilesX, tilesY, locationType);
 
       const wallGroup = this.physics.add.staticGroup();
-      createWalls(this, wallGroup, tilesX, tilesY);
+      createWalls(this, wallGroup, tilesX, tilesY, locationType);
 
       const spawnX = width / 2;
       const spawnY = height - TILE_SIZE * 2.5;
@@ -580,21 +683,343 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
       gfx.fillRect(x + 11, y + 2, 2, 14);
     }
 
-    function createWalls(scene: Phaser.Scene, group: Phaser.Physics.Arcade.StaticGroup, tx: number, ty: number) {
+    function renderGreatHall(gfx: Phaser.GameObjects.Graphics, tx: number, ty: number) {
+      for (let y = 0; y < ty; y++) {
+        for (let x = 0; x < tx; x++) {
+          const px = x * TILE_SIZE;
+          const py = y * TILE_SIZE;
+          const isWall = x === 0 || x === tx - 1 || y === 0 || y === 1;
+          
+          if (isWall) {
+            gfx.fillStyle(GREAT_HALL_PALETTE.stone, 1);
+            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            if (y === 1 && x > 2 && x < tx - 3 && x % 4 === 0) {
+              gfx.fillStyle(GREAT_HALL_PALETTE.gold, 0.8);
+              gfx.fillRect(px + 10, py + 8, 12, 20);
+              gfx.fillStyle(GREAT_HALL_PALETTE.candleGlow, 0.4);
+              gfx.fillCircle(px + 16, py + 6, 8);
+            }
+            if (y === 0 && x > 1 && x < tx - 2 && x % 5 === 2) {
+              gfx.fillStyle(GREAT_HALL_PALETTE.banner, 1);
+              gfx.fillRect(px + 8, py + 4, 16, 28);
+              gfx.fillStyle(GREAT_HALL_PALETTE.gold, 0.6);
+              gfx.fillRect(px + 12, py + 10, 8, 12);
+            }
+          } else {
+            gfx.fillStyle(GREAT_HALL_PALETTE.darkWood, 1);
+            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            if ((x + y) % 2 === 0) {
+              gfx.fillStyle(GREAT_HALL_PALETTE.wood, 0.5);
+              gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            }
+            gfx.fillStyle(GREAT_HALL_PALETTE.black, 0.1);
+            gfx.fillRect(px + TILE_SIZE - 1, py, 1, TILE_SIZE);
+          }
+        }
+      }
+      for (let row = 0; row < 4; row++) {
+        const tableY = TILE_SIZE * 3 + row * TILE_SIZE * 2;
+        gfx.fillStyle(GREAT_HALL_PALETTE.wood, 1);
+        gfx.fillRect(TILE_SIZE * 2, tableY, (tx - 4) * TILE_SIZE, TILE_SIZE - 4);
+        gfx.fillStyle(GREAT_HALL_PALETTE.lightWood, 0.5);
+        gfx.fillRect(TILE_SIZE * 2, tableY, (tx - 4) * TILE_SIZE, 4);
+      }
+    }
+
+    function renderClassroom(gfx: Phaser.GameObjects.Graphics, tx: number, ty: number) {
+      for (let y = 0; y < ty; y++) {
+        for (let x = 0; x < tx; x++) {
+          const px = x * TILE_SIZE;
+          const py = y * TILE_SIZE;
+          const isWall = x === 0 || x === tx - 1 || y === 0 || y === 1;
+          
+          if (isWall) {
+            gfx.fillStyle(CLASSROOM_PALETTE.darkStone, 1);
+            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            if (y === 1 && x >= 3 && x <= tx - 4) {
+              gfx.fillStyle(CLASSROOM_PALETTE.chalkboard, 1);
+              gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE - 4);
+              gfx.fillStyle(0xaabbaa, 0.3);
+              gfx.fillRect(px + 4, py + 4, TILE_SIZE - 8, 2);
+              gfx.fillRect(px + 8, py + 10, TILE_SIZE - 16, 2);
+            }
+          } else {
+            gfx.fillStyle(CLASSROOM_PALETTE.stone, 1);
+            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            if ((x + y) % 2 === 0) {
+              gfx.fillStyle(CLASSROOM_PALETTE.lightStone, 0.2);
+              gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            }
+          }
+        }
+      }
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 3; col++) {
+          const deskX = TILE_SIZE * 2 + col * TILE_SIZE * 4;
+          const deskY = TILE_SIZE * 4 + row * TILE_SIZE * 2;
+          gfx.fillStyle(CLASSROOM_PALETTE.wood, 1);
+          gfx.fillRect(deskX, deskY, TILE_SIZE * 2, TILE_SIZE - 6);
+          gfx.fillStyle(CLASSROOM_PALETTE.black, 0.3);
+          gfx.fillRect(deskX, deskY + TILE_SIZE - 8, TILE_SIZE * 2, 2);
+        }
+      }
+    }
+
+    function renderDungeon(gfx: Phaser.GameObjects.Graphics, tx: number, ty: number) {
+      for (let y = 0; y < ty; y++) {
+        for (let x = 0; x < tx; x++) {
+          const px = x * TILE_SIZE;
+          const py = y * TILE_SIZE;
+          const isWall = x === 0 || x === tx - 1 || y === 0 || y === ty - 1;
+          const isSecondWall = x === 1 || x === tx - 2 || y === 1;
+          
+          if (isWall) {
+            gfx.fillStyle(DUNGEON_PALETTE.black, 1);
+            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            gfx.fillStyle(DUNGEON_PALETTE.darkStone, 1);
+            gfx.fillRect(px + 2, py + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+            if ((x + y) % 3 === 0) {
+              gfx.fillStyle(DUNGEON_PALETTE.moss, 0.4);
+              gfx.fillRect(px + 4, py + TILE_SIZE - 8, 8, 6);
+            }
+          } else if (isSecondWall) {
+            gfx.fillStyle(DUNGEON_PALETTE.stone, 1);
+            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            if (y === 1 && x % 5 === 2) {
+              gfx.fillStyle(DUNGEON_PALETTE.torch, 0.8);
+              gfx.fillCircle(px + 16, py + 12, 6);
+              gfx.fillStyle(DUNGEON_PALETTE.torch, 0.3);
+              gfx.fillCircle(px + 16, py + 12, 12);
+            }
+          } else {
+            gfx.fillStyle(DUNGEON_PALETTE.stone, 1);
+            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            if ((x + y) % 2 === 0) {
+              gfx.fillStyle(DUNGEON_PALETTE.lightStone, 0.15);
+              gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            }
+            gfx.fillStyle(DUNGEON_PALETTE.black, 0.1);
+            gfx.fillRect(px + TILE_SIZE - 1, py, 1, TILE_SIZE);
+            gfx.fillRect(px, py + TILE_SIZE - 1, TILE_SIZE, 1);
+          }
+        }
+      }
+      gfx.fillStyle(DUNGEON_PALETTE.chain, 0.6);
+      for (let i = 0; i < 3; i++) {
+        const chainX = TILE_SIZE * 3 + i * TILE_SIZE * 4;
+        gfx.fillRect(chainX, TILE_SIZE * 2, 4, TILE_SIZE * 2);
+        gfx.fillRect(chainX, TILE_SIZE * 2 + 8, 8, 4);
+        gfx.fillRect(chainX, TILE_SIZE * 3, 8, 4);
+      }
+      gfx.fillStyle(DUNGEON_PALETTE.green, 0.4);
+      gfx.fillCircle(tx * TILE_SIZE / 2, ty * TILE_SIZE / 2, TILE_SIZE);
+    }
+
+    function renderTower(gfx: Phaser.GameObjects.Graphics, tx: number, ty: number) {
+      for (let y = 0; y < ty; y++) {
+        for (let x = 0; x < tx; x++) {
+          const px = x * TILE_SIZE;
+          const py = y * TILE_SIZE;
+          const isWall = x === 0 || x === tx - 1;
+          const isTopWall = y === 0 || y === 1;
+          
+          if (isWall) {
+            gfx.fillStyle(TOWER_PALETTE.darkStone, 1);
+            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            if (y % 3 === 1) {
+              gfx.fillStyle(TOWER_PALETTE.skyBlue, 0.6);
+              gfx.fillRect(px + 4, py + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+              gfx.fillStyle(TOWER_PALETTE.starlight, 0.3);
+              gfx.fillCircle(px + 12, py + 10, 2);
+              gfx.fillCircle(px + 20, py + 18, 1);
+            }
+          } else if (isTopWall) {
+            gfx.fillStyle(TOWER_PALETTE.stone, 1);
+            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            if (y === 0 && x % 3 === 1) {
+              gfx.fillStyle(TOWER_PALETTE.gold, 0.7);
+              gfx.fillRect(px + 8, py + 12, 16, 20);
+            }
+          } else {
+            gfx.fillStyle(TOWER_PALETTE.stone, 1);
+            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            const dist = Math.sqrt(Math.pow(x - tx/2, 2) + Math.pow(y - ty/2, 2));
+            if (dist < 3) {
+              gfx.fillStyle(TOWER_PALETTE.accent, 0.2);
+              gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            }
+            if ((x + y) % 2 === 0) {
+              gfx.fillStyle(TOWER_PALETTE.lightStone, 0.15);
+              gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            }
+          }
+        }
+      }
+      const cx = tx * TILE_SIZE / 2;
+      const cy = ty * TILE_SIZE / 2;
+      gfx.lineStyle(2, TOWER_PALETTE.accent, 0.5);
+      gfx.strokeCircle(cx, cy, TILE_SIZE * 1.5);
+      gfx.fillStyle(TOWER_PALETTE.starlight, 0.2);
+      gfx.fillCircle(cx, cy, TILE_SIZE);
+    }
+
+    function renderCourtyard(gfx: Phaser.GameObjects.Graphics, tx: number, ty: number) {
+      for (let y = 0; y < ty; y++) {
+        for (let x = 0; x < tx; x++) {
+          const px = x * TILE_SIZE;
+          const py = y * TILE_SIZE;
+          const isEdge = x === 0 || x === tx - 1 || y === 0 || y === ty - 1;
+          const isPath = (x === Math.floor(tx/2) || y === Math.floor(ty/2)) && !isEdge;
+          
+          if (isEdge) {
+            gfx.fillStyle(COURTYARD_PALETTE.stone, 1);
+            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            gfx.fillStyle(COURTYARD_PALETTE.lightStone, 0.3);
+            gfx.fillRect(px + 2, py + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+          } else if (isPath) {
+            gfx.fillStyle(COURTYARD_PALETTE.stone, 1);
+            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            gfx.fillStyle(COURTYARD_PALETTE.lightStone, 0.2);
+            if ((x + y) % 2 === 0) {
+              gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            }
+          } else {
+            gfx.fillStyle(COURTYARD_PALETTE.grass, 1);
+            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            if ((x * 7 + y * 3) % 5 === 0) {
+              gfx.fillStyle(COURTYARD_PALETTE.lightGrass, 0.4);
+              gfx.fillRect(px + 4, py + 4, 8, 8);
+            }
+            if ((x * 3 + y * 11) % 17 === 0) {
+              gfx.fillStyle(COURTYARD_PALETTE.flower, 0.8);
+              gfx.fillCircle(px + 12, py + 12, 3);
+            }
+          }
+        }
+      }
+      const cx = tx * TILE_SIZE / 2;
+      const cy = ty * TILE_SIZE / 2;
+      gfx.fillStyle(COURTYARD_PALETTE.stone, 1);
+      gfx.fillCircle(cx, cy, TILE_SIZE * 1.5);
+      gfx.fillStyle(COURTYARD_PALETTE.water, 0.8);
+      gfx.fillCircle(cx, cy, TILE_SIZE);
+      gfx.fillStyle(COURTYARD_PALETTE.water, 0.4);
+      gfx.fillCircle(cx - 4, cy - 4, TILE_SIZE * 0.6);
+    }
+
+    function renderCorridor(gfx: Phaser.GameObjects.Graphics, tx: number, ty: number) {
+      for (let y = 0; y < ty; y++) {
+        for (let x = 0; x < tx; x++) {
+          const px = x * TILE_SIZE;
+          const py = y * TILE_SIZE;
+          const isWall = x === 0 || x === tx - 1 || y === 0 || y === 1;
+          const isCarpetRow = y >= 4 && y <= ty - 3;
+          const isCarpet = isCarpetRow && x >= 2 && x <= tx - 3 && (x === 2 || x === tx - 3 || (x > 2 && x < tx - 3));
+          
+          if (isWall) {
+            gfx.fillStyle(CORRIDOR_PALETTE.darkStone, 1);
+            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            if (y === 1 && x % 4 === 2 && x > 0 && x < tx - 1) {
+              gfx.fillStyle(CORRIDOR_PALETTE.portrait, 1);
+              gfx.fillRect(px + 4, py + 2, TILE_SIZE - 8, TILE_SIZE - 4);
+              gfx.fillStyle(CORRIDOR_PALETTE.gold, 0.6);
+              gfx.fillRect(px + 2, py, TILE_SIZE - 4, 2);
+              gfx.fillRect(px + 2, py + TILE_SIZE - 2, TILE_SIZE - 4, 2);
+            }
+            if (y === 0 && x % 6 === 3) {
+              gfx.fillStyle(CORRIDOR_PALETTE.torch, 0.8);
+              gfx.fillCircle(px + 16, py + 20, 6);
+              gfx.fillStyle(CORRIDOR_PALETTE.torch, 0.3);
+              gfx.fillCircle(px + 16, py + 20, 12);
+            }
+          } else {
+            gfx.fillStyle(CORRIDOR_PALETTE.stone, 1);
+            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            if ((x + y) % 2 === 0) {
+              gfx.fillStyle(CORRIDOR_PALETTE.lightStone, 0.15);
+              gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            }
+            if (isCarpet) {
+              gfx.fillStyle(CORRIDOR_PALETTE.carpet, 0.8);
+              gfx.fillRect(px + 2, py, TILE_SIZE - 4, TILE_SIZE);
+              gfx.fillStyle(CORRIDOR_PALETTE.gold, 0.4);
+              gfx.fillRect(px + 2, py, 2, TILE_SIZE);
+              gfx.fillRect(px + TILE_SIZE - 4, py, 2, TILE_SIZE);
+            }
+          }
+        }
+      }
+    }
+
+    function renderMap(gfx: Phaser.GameObjects.Graphics, tx: number, ty: number, locationType: LocationType) {
+      switch (locationType) {
+        case "great_hall":
+          renderGreatHall(gfx, tx, ty);
+          break;
+        case "classroom":
+          renderClassroom(gfx, tx, ty);
+          break;
+        case "dungeon":
+          renderDungeon(gfx, tx, ty);
+          break;
+        case "tower":
+          renderTower(gfx, tx, ty);
+          break;
+        case "courtyard":
+          renderCourtyard(gfx, tx, ty);
+          break;
+        case "corridor":
+          renderCorridor(gfx, tx, ty);
+          break;
+        case "undercroft":
+        default:
+          renderUndercroft(gfx, tx, ty);
+          break;
+      }
+    }
+
+    function createWalls(scene: Phaser.Scene, group: Phaser.Physics.Arcade.StaticGroup, tx: number, ty: number, locationType: LocationType) {
       for (let x = 0; x < tx; x++) {
         group.create(x * TILE_SIZE + TILE_SIZE / 2, TILE_SIZE / 2, "__DEFAULT").setSize(TILE_SIZE, TILE_SIZE).setVisible(false).refreshBody();
         group.create(x * TILE_SIZE + TILE_SIZE / 2, TILE_SIZE + TILE_SIZE / 2, "__DEFAULT").setSize(TILE_SIZE, TILE_SIZE).setVisible(false).refreshBody();
-        group.create(x * TILE_SIZE + TILE_SIZE / 2, (ty - 1) * TILE_SIZE + TILE_SIZE / 2, "__DEFAULT").setSize(TILE_SIZE, TILE_SIZE).setVisible(false).refreshBody();
+        if (locationType !== "courtyard") {
+          group.create(x * TILE_SIZE + TILE_SIZE / 2, (ty - 1) * TILE_SIZE + TILE_SIZE / 2, "__DEFAULT").setSize(TILE_SIZE, TILE_SIZE).setVisible(false).refreshBody();
+        }
       }
       for (let y = 2; y < ty - 1; y++) {
         group.create(TILE_SIZE / 2, y * TILE_SIZE + TILE_SIZE / 2, "__DEFAULT").setSize(TILE_SIZE, TILE_SIZE).setVisible(false).refreshBody();
         group.create((tx - 1) * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE + TILE_SIZE / 2, "__DEFAULT").setSize(TILE_SIZE, TILE_SIZE).setVisible(false).refreshBody();
       }
 
-      group.create(TILE_SIZE * 3 + TILE_SIZE / 2, TILE_SIZE * 3 + TILE_SIZE / 2, "__DEFAULT").setSize(TILE_SIZE, TILE_SIZE + 8).setVisible(false).refreshBody();
-      group.create((tx - 4) * TILE_SIZE + TILE_SIZE / 2, TILE_SIZE * 3 + TILE_SIZE / 2, "__DEFAULT").setSize(TILE_SIZE, TILE_SIZE + 8).setVisible(false).refreshBody();
-      group.create(TILE_SIZE * 3 + TILE_SIZE / 2, (ty - 4) * TILE_SIZE + TILE_SIZE / 2, "__DEFAULT").setSize(TILE_SIZE, TILE_SIZE + 8).setVisible(false).refreshBody();
-      group.create((tx - 4) * TILE_SIZE + TILE_SIZE / 2, (ty - 4) * TILE_SIZE + TILE_SIZE / 2, "__DEFAULT").setSize(TILE_SIZE, TILE_SIZE + 8).setVisible(false).refreshBody();
+      if (locationType === "undercroft") {
+        group.create(TILE_SIZE * 3 + TILE_SIZE / 2, TILE_SIZE * 3 + TILE_SIZE / 2, "__DEFAULT").setSize(TILE_SIZE, TILE_SIZE + 8).setVisible(false).refreshBody();
+        group.create((tx - 4) * TILE_SIZE + TILE_SIZE / 2, TILE_SIZE * 3 + TILE_SIZE / 2, "__DEFAULT").setSize(TILE_SIZE, TILE_SIZE + 8).setVisible(false).refreshBody();
+        group.create(TILE_SIZE * 3 + TILE_SIZE / 2, (ty - 4) * TILE_SIZE + TILE_SIZE / 2, "__DEFAULT").setSize(TILE_SIZE, TILE_SIZE + 8).setVisible(false).refreshBody();
+        group.create((tx - 4) * TILE_SIZE + TILE_SIZE / 2, (ty - 4) * TILE_SIZE + TILE_SIZE / 2, "__DEFAULT").setSize(TILE_SIZE, TILE_SIZE + 8).setVisible(false).refreshBody();
+      }
+
+      if (locationType === "great_hall") {
+        for (let row = 0; row < 4; row++) {
+          const tableY = TILE_SIZE * 3 + row * TILE_SIZE * 2 + TILE_SIZE / 2;
+          group.create(tx * TILE_SIZE / 2, tableY, "__DEFAULT").setSize((tx - 4) * TILE_SIZE, TILE_SIZE - 4).setVisible(false).refreshBody();
+        }
+      }
+
+      if (locationType === "classroom") {
+        for (let row = 0; row < 3; row++) {
+          for (let col = 0; col < 3; col++) {
+            const deskX = TILE_SIZE * 3 + col * TILE_SIZE * 4;
+            const deskY = TILE_SIZE * 4.5 + row * TILE_SIZE * 2;
+            group.create(deskX, deskY, "__DEFAULT").setSize(TILE_SIZE * 2, TILE_SIZE - 6).setVisible(false).refreshBody();
+          }
+        }
+      }
+
+      if (locationType === "courtyard") {
+        const cx = tx * TILE_SIZE / 2;
+        const cy = ty * TILE_SIZE / 2;
+        group.create(cx, cy, "__DEFAULT").setSize(TILE_SIZE * 2.5, TILE_SIZE * 2.5).setVisible(false).refreshBody();
+      }
     }
 
     function drawPlayerGraphics(scene: Phaser.Scene, player: Phaser.Physics.Arcade.Sprite, spriteUrl?: string) {
