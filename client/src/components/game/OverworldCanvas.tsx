@@ -1397,13 +1397,16 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
     }
 
     function createInteractiveObject(
-      scene: Phaser.Scene, 
-      obj: InteractiveObject, 
+      scene: Phaser.Scene,
+      obj: InteractiveObject,
       group: Phaser.Physics.Arcade.StaticGroup
     ): Phaser.Physics.Arcade.Sprite | null {
-      const gfx = scene.add.graphics();
-      
+      // For NPCs, try to load sprite from database
       if (obj.type === "npc") {
+        const npcSpriteKey = `npc_sprite_${obj.name.replace(/\s+/g, '_')}`;
+
+        // Create a placeholder first
+        const gfx = scene.add.graphics();
         gfx.fillStyle(0x1a1030, 1);
         gfx.fillRect(-12, -12, 24, 28);
         gfx.fillStyle(0x4a2c5a, 1);
@@ -1414,7 +1417,45 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
         gfx.fillRect(-10, 0, 20, 14);
         gfx.fillStyle(0x8b6cc0, 1);
         gfx.fillRect(-6, -12, 12, 4);
-      } else if (obj.type === "item") {
+
+        const fallbackKey = `obj_${obj.id}`;
+        gfx.generateTexture(fallbackKey, 32, 32);
+        gfx.destroy();
+
+        const sprite = group.create(obj.x, obj.y, fallbackKey) as Phaser.Physics.Arcade.Sprite;
+        sprite.setDepth(9);
+        sprite.setSize(32, 32);
+        sprite.refreshBody();
+
+        // Load actual sprite asynchronously
+        fetch(`/api/rpg/sprites/${encodeURIComponent(obj.name)}`)
+          .then(res => {
+            if (!res.ok) throw new Error('Sprite not found');
+            return res.json();
+          })
+          .then(spriteData => {
+            if (spriteData.spriteSheetUrl && scene && !scene.textures.exists(npcSpriteKey)) {
+              scene.load.image(npcSpriteKey, spriteData.spriteSheetUrl);
+              scene.load.once('complete', () => {
+                if (sprite && sprite.active) {
+                  sprite.setTexture(npcSpriteKey);
+                  sprite.setDisplaySize(32, 32);
+                }
+              });
+              scene.load.start();
+            }
+          })
+          .catch(err => {
+            console.warn(`Could not load sprite for ${obj.name}, using fallback:`, err);
+          });
+
+        return sprite;
+      }
+
+      // For non-NPC objects, use the existing graphics approach
+      const gfx = scene.add.graphics();
+
+      if (obj.type === "item") {
         gfx.fillStyle(UNDERCROFT_PALETTE.candle, 0.8);
         gfx.fillCircle(0, 0, 8);
         gfx.fillStyle(UNDERCROFT_PALETTE.glow, 0.4);
@@ -1429,7 +1470,7 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
       gfx.destroy();
 
       const sprite = group.create(obj.x, obj.y, texKey) as Phaser.Physics.Arcade.Sprite;
-      sprite.setDepth(obj.type === "npc" ? 9 : 5);
+      sprite.setDepth(5);
       sprite.setSize(32, 32);
       sprite.refreshBody();
 
