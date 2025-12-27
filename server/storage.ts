@@ -17,6 +17,8 @@ import {
   creature_stats,
   save_slots,
   npc_states,
+  battle_states,
+  battle_logs,
   type InsertGameState, 
   type GameState,
   type InsertLocationMap,
@@ -49,8 +51,12 @@ import {
   type InsertCreatureStats,
   type SaveSlot,
   type InsertSaveSlot,
+  type BattleState,
+  type InsertBattleState,
+  type BattleLog,
+  type InsertBattleLog,
 } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc, notInArray } from "drizzle-orm";
 
 export interface IStorage {
   // Game state methods
@@ -138,6 +144,23 @@ export interface IStorage {
   createSaveSlot(slot: InsertSaveSlot): Promise<SaveSlot>;
   updateSaveSlot(id: number, updates: Partial<InsertSaveSlot>): Promise<SaveSlot>;
   deleteSaveSlot(id: number): Promise<void>;
+  
+  // Battle state methods
+  createBattleState(state: InsertBattleState): Promise<BattleState>;
+  getBattleState(battleId: number): Promise<BattleState | undefined>;
+  getBattleStateByBattleId(battleId: string): Promise<BattleState | undefined>;
+  getActiveBattleForPlayer(profileId: number): Promise<BattleState | undefined>;
+  updateBattleState(id: number, updates: Partial<InsertBattleState>): Promise<BattleState>;
+  
+  // Battle log methods
+  createBattleLog(log: InsertBattleLog): Promise<BattleLog>;
+  getBattleLogsForBattle(battleId: string): Promise<BattleLog[]>;
+  
+  // Additional player profile method
+  getPlayerProfileById(profileId: number): Promise<PlayerProfile | undefined>;
+  
+  // Random encounter method
+  getRandomEncounter(location: string): Promise<EncounterTable | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -520,6 +543,108 @@ export class DatabaseStorage implements IStorage {
   
   async deleteSaveSlot(id: number): Promise<void> {
     await db.delete(save_slots).where(eq(save_slots.id, id));
+  }
+
+  // ===== BATTLE STATE METHODS =====
+  
+  async createBattleState(state: InsertBattleState): Promise<BattleState> {
+    const [newState] = await db.insert(battle_states).values([state]).returning();
+    return newState;
+  }
+  
+  async getBattleState(id: number): Promise<BattleState | undefined> {
+    const [state] = await db.select().from(battle_states).where(eq(battle_states.id, id));
+    return state;
+  }
+  
+  async getBattleStateByBattleId(battleId: string): Promise<BattleState | undefined> {
+    const [state] = await db.select().from(battle_states).where(eq(battle_states.battleId, battleId));
+    return state;
+  }
+  
+  async getActiveBattleForPlayer(profileId: number): Promise<BattleState | undefined> {
+    // Find any battle that is not in a terminal phase (victory, defeat, flee)
+    const terminalPhases = ["victory", "defeat", "flee"];
+    const [state] = await db
+      .select()
+      .from(battle_states)
+      .where(
+        and(
+          eq(battle_states.profileId, profileId),
+          notInArray(battle_states.phase, terminalPhases)
+        )
+      )
+      .orderBy(desc(battle_states.createdAt))
+      .limit(1);
+    return state;
+  }
+  
+  async updateBattleState(id: number, updates: Partial<InsertBattleState>): Promise<BattleState> {
+    const cleanUpdates: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(updates)) {
+      if (value !== undefined) {
+        cleanUpdates[key] = value;
+      }
+    }
+    
+    const [updated] = await db
+      .update(battle_states)
+      .set({ ...cleanUpdates, lastActionAt: new Date() })
+      .where(eq(battle_states.id, id))
+      .returning();
+    
+    if (!updated) {
+      throw new Error(`Battle state not found: ${id}`);
+    }
+    
+    return updated;
+  }
+
+  // ===== BATTLE LOG METHODS =====
+  
+  async createBattleLog(log: InsertBattleLog): Promise<BattleLog> {
+    const [newLog] = await db.insert(battle_logs).values([log]).returning();
+    return newLog;
+  }
+  
+  async getBattleLogsForBattle(battleId: string): Promise<BattleLog[]> {
+    return db
+      .select()
+      .from(battle_logs)
+      .where(eq(battle_logs.battleId, battleId))
+      .orderBy(battle_logs.turnNumber, battle_logs.timestamp);
+  }
+
+  // ===== ADDITIONAL PLAYER PROFILE METHOD =====
+  
+  async getPlayerProfileById(profileId: number): Promise<PlayerProfile | undefined> {
+    const [profile] = await db.select().from(player_profiles).where(eq(player_profiles.id, profileId));
+    return profile;
+  }
+
+  // ===== RANDOM ENCOUNTER METHOD =====
+  
+  async getRandomEncounter(location: string): Promise<EncounterTable | undefined> {
+    const encounters = await db
+      .select()
+      .from(encounter_tables)
+      .where(eq(encounter_tables.locationName, location));
+    
+    if (encounters.length === 0) {
+      return undefined;
+    }
+    
+    const totalRate = encounters.reduce((sum, e) => sum + (e.encounterRate || 10), 0);
+    let roll = Math.random() * totalRate;
+    
+    for (const encounter of encounters) {
+      roll -= encounter.encounterRate || 10;
+      if (roll <= 0) {
+        return encounter;
+      }
+    }
+    
+    return encounters[0];
   }
 }
 

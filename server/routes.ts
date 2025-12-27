@@ -1265,5 +1265,189 @@ The professor's voice echoes from the darkness ahead—calm, measured, utterly u
     }
   });
 
+  // ===== COMBAT ROUTES =====
+  
+  // Start a new battle encounter
+  app.post("/api/combat/encounter", async (req, res) => {
+    try {
+      const { profileId, enemyType, location } = req.body;
+      
+      if (!profileId || !location) {
+        return res.status(400).json({ message: "profileId and location are required" });
+      }
+      
+      const existingBattle = await storage.getActiveBattleForPlayer(profileId);
+      if (existingBattle) {
+        const battleLogs = await storage.getBattleLogsForBattle(existingBattle.battleId);
+        return res.json({
+          message: "Resuming existing battle",
+          battle: {
+            battleId: existingBattle.battleId,
+            playerState: existingBattle.playerState,
+            enemyState: existingBattle.enemyState,
+            companionStates: existingBattle.companionStates || [],
+            turnOrder: existingBattle.currentTurnOrder || [],
+            currentTurn: existingBattle.turnNumber || 1,
+            phase: existingBattle.phase,
+            logs: battleLogs,
+            locationName: existingBattle.locationName || location,
+            canFlee: existingBattle.canFlee ?? true,
+          },
+        });
+      }
+      
+      const { initializeBattle } = await import("./battleEngine");
+      const battleContext = await initializeBattle(profileId, enemyType || null, location);
+      
+      res.json({ 
+        message: "Battle started!",
+        battle: battleContext 
+      });
+    } catch (error: any) {
+      console.error("Error starting encounter:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // Execute a combat action (spell, item, or flee)
+  app.post("/api/combat/action", async (req, res) => {
+    try {
+      const { battleId, actorName, actionType, actionData } = req.body;
+      
+      if (!battleId || !actorName || !actionType) {
+        return res.status(400).json({ message: "battleId, actorName, and actionType are required" });
+      }
+      
+      const { executeAction, executeAITurn, processTurnEnd } = await import("./battleEngine");
+      
+      const { battle, result } = await executeAction(battleId, actorName, {
+        type: actionType,
+        spellName: actionData?.spellName,
+        itemId: actionData?.itemId,
+      });
+      
+      let aiResult = null;
+      let turnEndResult = null;
+      
+      if (!result.battleEnded && battle.phase !== "victory" && battle.phase !== "defeat" && battle.phase !== "flee") {
+        const aiResponse = await executeAITurn(battleId);
+        aiResult = aiResponse.result;
+        
+        if (!aiResponse.result.battleEnded) {
+          turnEndResult = await processTurnEnd(battleId);
+          
+          const updatedBattle = await storage.getBattleStateByBattleId(battleId);
+          if (updatedBattle) {
+            battle.playerState = updatedBattle.playerState as any;
+            battle.enemyState = updatedBattle.enemyState as any;
+            battle.currentTurn = updatedBattle.turnNumber || battle.currentTurn + 1;
+            battle.phase = updatedBattle.phase as any;
+          }
+        } else {
+          battle.phase = aiResponse.battle.phase;
+          battle.playerState = aiResponse.battle.playerState;
+          battle.enemyState = aiResponse.battle.enemyState;
+        }
+      }
+      
+      res.json({
+        battle,
+        playerAction: result,
+        enemyAction: aiResult,
+        turnEnd: turnEndResult,
+      });
+    } catch (error: any) {
+      console.error("Error executing action:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // End a battle and calculate rewards
+  app.post("/api/combat/end", async (req, res) => {
+    try {
+      const { battleId, outcome } = req.body;
+      
+      if (!battleId || !outcome) {
+        return res.status(400).json({ message: "battleId and outcome are required" });
+      }
+      
+      if (!["victory", "defeat", "flee"].includes(outcome)) {
+        return res.status(400).json({ message: "outcome must be 'victory', 'defeat', or 'flee'" });
+      }
+      
+      const { endBattle } = await import("./battleEngine");
+      const rewards = await endBattle(battleId, outcome);
+      
+      res.json({
+        message: outcome === "victory" ? "Victory!" : outcome === "flee" ? "Escaped!" : "Defeated...",
+        rewards,
+      });
+    } catch (error: any) {
+      console.error("Error ending battle:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // Get current battle state
+  app.get("/api/combat/battle/:battleId", async (req, res) => {
+    try {
+      const battleState = await storage.getBattleStateByBattleId(req.params.battleId);
+      
+      if (!battleState) {
+        return res.status(404).json({ message: "Battle not found" });
+      }
+      
+      const logs = await storage.getBattleLogsForBattle(req.params.battleId);
+      
+      res.json({
+        battleId: battleState.battleId,
+        playerState: battleState.playerState,
+        enemyState: battleState.enemyState,
+        companionStates: battleState.companionStates || [],
+        turnOrder: battleState.currentTurnOrder || [],
+        currentTurn: battleState.turnNumber || 1,
+        phase: battleState.phase,
+        logs,
+        locationName: battleState.locationName,
+        canFlee: battleState.canFlee,
+      });
+    } catch (error: any) {
+      console.error("Error fetching battle:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // Get active battle for a player
+  app.get("/api/combat/active/:profileId", async (req, res) => {
+    try {
+      const profileId = parseInt(req.params.profileId);
+      const battleState = await storage.getActiveBattleForPlayer(profileId);
+      
+      if (!battleState) {
+        return res.json({ activeBattle: null });
+      }
+      
+      const logs = await storage.getBattleLogsForBattle(battleState.battleId);
+      
+      res.json({
+        activeBattle: {
+          battleId: battleState.battleId,
+          playerState: battleState.playerState,
+          enemyState: battleState.enemyState,
+          companionStates: battleState.companionStates || [],
+          turnOrder: battleState.currentTurnOrder || [],
+          currentTurn: battleState.turnNumber || 1,
+          phase: battleState.phase,
+          logs,
+          locationName: battleState.locationName,
+          canFlee: battleState.canFlee,
+        },
+      });
+    } catch (error: any) {
+      console.error("Error fetching active battle:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   return httpServer;
 }

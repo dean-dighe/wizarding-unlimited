@@ -7,6 +7,7 @@ import Landing from "@/pages/Landing";
 import Game from "@/pages/Game";
 import OverworldDemo from "@/pages/OverworldDemo";
 import Exploration from "@/pages/Exploration";
+import Battle from "@/pages/Battle";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -16,6 +17,7 @@ function Router() {
       <Route path="/game/:id" component={Game} />
       <Route path="/overworld" component={OverworldDemo} />
       <Route path="/explore" component={Exploration} />
+      <Route path="/battle/:battleId?" component={Battle} />
       <Route component={NotFound} />
     </Switch>
   );
