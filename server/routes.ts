@@ -70,6 +70,157 @@ export async function registerRoutes(
   registerObjectStorageRoutes(app);
   registerGameAssetRoutes(app);
 
+  // ===== SERVICE HEALTH CHECK ENDPOINTS =====
+  
+  // Check Ollama/Story AI service health
+  app.get("/api/health/story-ai", async (req, res) => {
+    const startTime = Date.now();
+    try {
+      const baseURL = process.env.OLLAMA_BASE_URL || "https://gpt.netsuite.tech/v1";
+      const model = process.env.OLLAMA_MODEL || "qwen3-coder:30b";
+      
+      const response = await openai.chat.completions.create({
+        model,
+        messages: [{ role: "user", content: "Say 'OK' in one word." }],
+        max_tokens: 5,
+      });
+      
+      const latency = Date.now() - startTime;
+      const content = response.choices[0]?.message?.content?.trim() || "";
+      
+      res.json({
+        service: "story-ai",
+        status: "healthy",
+        latency,
+        details: {
+          baseURL,
+          model,
+          response: content.substring(0, 20),
+          hasApiKey: !!process.env.OLLAMA_API_KEY
+        }
+      });
+    } catch (error: any) {
+      const latency = Date.now() - startTime;
+      res.status(503).json({
+        service: "story-ai",
+        status: "unhealthy",
+        latency,
+        error: error.message,
+        details: {
+          baseURL: process.env.OLLAMA_BASE_URL || "https://gpt.netsuite.tech/v1",
+          hasApiKey: !!process.env.OLLAMA_API_KEY
+        }
+      });
+    }
+  });
+
+  // Check xAI Image generation service health
+  app.get("/api/health/image-ai", async (req, res) => {
+    const startTime = Date.now();
+    try {
+      const hasReplitKey = !!process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+      const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
+      const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || "https://api.openai.com/v1";
+      
+      // Just check configuration without making an expensive image request
+      res.json({
+        service: "image-ai",
+        status: (hasReplitKey || hasOpenAIKey) ? "configured" : "not_configured",
+        latency: Date.now() - startTime,
+        details: {
+          hasReplitIntegrationKey: hasReplitKey,
+          hasOpenAIKey,
+          baseURL,
+          model: "gpt-image-1",
+          note: "Image generation is expensive; check configuration only"
+        }
+      });
+    } catch (error: any) {
+      res.status(503).json({
+        service: "image-ai",
+        status: "error",
+        latency: Date.now() - startTime,
+        error: error.message
+      });
+    }
+  });
+
+  // Check xAI TTS service health
+  app.get("/api/health/tts", async (req, res) => {
+    const startTime = Date.now();
+    try {
+      const hasApiKey = !!process.env.XAI_API_KEY;
+      
+      res.json({
+        service: "tts",
+        status: hasApiKey ? "configured" : "not_configured",
+        latency: Date.now() - startTime,
+        details: {
+          hasXaiApiKey: hasApiKey,
+          endpoint: "wss://api.x.ai/v1/realtime",
+          voice: "Ara",
+          note: "TTS uses WebSocket; configuration check only"
+        }
+      });
+    } catch (error: any) {
+      res.status(503).json({
+        service: "tts",
+        status: "error",
+        latency: Date.now() - startTime,
+        error: error.message
+      });
+    }
+  });
+
+  // Combined health check for all services
+  app.get("/api/health", async (req, res) => {
+    const startTime = Date.now();
+    const services: Record<string, any> = {};
+    
+    // Check Story AI (Ollama)
+    try {
+      const response = await openai.chat.completions.create({
+        model: process.env.OLLAMA_MODEL || "qwen3-coder:30b",
+        messages: [{ role: "user", content: "Say 'OK' in one word." }],
+        max_tokens: 5,
+      });
+      services.storyAi = {
+        status: "healthy",
+        model: process.env.OLLAMA_MODEL || "qwen3-coder:30b"
+      };
+    } catch (error: any) {
+      services.storyAi = { status: "unhealthy", error: error.message };
+    }
+    
+    // Check Image AI configuration
+    services.imageAi = {
+      status: (process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY) ? "configured" : "not_configured"
+    };
+    
+    // Check TTS configuration
+    services.tts = {
+      status: process.env.XAI_API_KEY ? "configured" : "not_configured"
+    };
+    
+    // Check database
+    try {
+      const companions = await storage.getAllCompanions();
+      services.database = { status: "healthy", tableCheck: "companions", count: companions.length };
+    } catch (error: any) {
+      services.database = { status: "unhealthy", error: error.message };
+    }
+    
+    const allHealthy = services.storyAi?.status === "healthy" &&
+                       services.database?.status === "healthy";
+    
+    res.status(allHealthy ? 200 : 503).json({
+      status: allHealthy ? "healthy" : "degraded",
+      latency: Date.now() - startTime,
+      services,
+      timestamp: new Date().toISOString()
+    });
+  });
+
   // Game Init Route
   app.post(api.game.init.path, async (req, res) => {
     try {
