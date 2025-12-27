@@ -76,6 +76,16 @@ Preferred communication style: Simple, everyday language.
   - `StatBadge` - Compact inline stat display for header
   - `DetailPanel` - Mobile-only expandable stats drawer
   - `ChoicePanel` - Styled choice buttons with spell highlighting
+- **Overworld System (December 2024)**:
+  - `OverworldCanvas.tsx` - Phaser.js-based Pokemon-style top-down exploration
+  - 480x360 game canvas with procedural Undercroft map
+  - WASD/arrow key movement with collision detection
+  - Interactive objects: NPCs, items, examine points, triggers
+  - Proximity-based interaction (50px range, E/Space to interact)
+  - Dialogue overlay with pause/resume movement
+  - Uses refs to prevent Phaser re-initialization on React state changes
+  - `OverworldDemo.tsx` - Demo page at `/overworld` route
+  - `use-overworld-npc.ts` - Hook for AI-powered NPC dialogue
 
 ### Backend Architecture
 - **Express.js** server with TypeScript
@@ -85,6 +95,7 @@ Preferred communication style: Simple, everyday language.
   - `/api/game/:conversationId/state` - Get current game state
   - `/api/conversations/*` - Chat/message management
   - `/api/generate-image` - AI image generation
+  - `/api/overworld/npc-interact` - Lightweight NPC dialogue for overworld mode (POST with conversationId, npcName, playerChoice)
 
 ### Data Storage
 - **PostgreSQL** database via `DATABASE_URL` environment variable
