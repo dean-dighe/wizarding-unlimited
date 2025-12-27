@@ -9,6 +9,7 @@ import { registerGameAssetRoutes, SpriteGenerationService } from "./replit_integ
 import { characterPortraitService } from "./replit_integrations/game_assets/portraits";
 import { chatStorage } from "./replit_integrations/chat/storage";
 import { generateStoryArc } from "./replit_integrations/story/engine";
+import { translatorService } from "./replit_integrations/translator";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import OpenAI from "openai";
@@ -219,6 +220,60 @@ export async function registerRoutes(
       services,
       timestamp: new Date().toISOString()
     });
+  });
+
+  // ===== TRANSLATION PIPELINE TEST ENDPOINT =====
+  
+  // Test the translation pipeline with sample narratives
+  app.post("/api/test/translation-pipeline", async (req, res) => {
+    const startTime = Date.now();
+    try {
+      const { narrative, previousContext } = req.body;
+      
+      // Use provided narrative or a default test narrative
+      const testNarrative = narrative || `The Undercroft is dark tonight. Flickering torchlight casts long shadows across the ancient stone walls. You see Professor Snape standing near the far wall, his expression unreadable. To your left, Draco Malfoy watches with barely concealed curiosity.
+
+"The first trial begins," Snape says, his voice barely above a whisper. "You must prove your ability to keep secrets."
+
+What do you do?
+1. [Remain silent and observe]
+2. [Ask what the trial involves]
+3. [Cast Lumos to see better]
+4. [Step back toward the exit]`;
+
+      console.log(`[Test] Running translation pipeline test (${testNarrative.length} chars)`);
+      
+      const scenePayload = await translatorService.extractSceneData(
+        testNarrative,
+        previousContext || {}
+      );
+      
+      const latency = Date.now() - startTime;
+      
+      res.json({
+        success: true,
+        latency,
+        input: {
+          narrativeLength: testNarrative.length,
+          hadPreviousContext: !!previousContext
+        },
+        output: scenePayload,
+        validation: {
+          hasLocation: !!scenePayload.location,
+          hasAmbiance: !!scenePayload.ambiance,
+          characterCount: scenePayload.characters?.length || 0,
+          choiceCount: scenePayload.choices?.length || 0,
+          hasNarratorMood: !!scenePayload.narratorMood,
+          confidence: scenePayload.confidence || 0
+        }
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        latency: Date.now() - startTime,
+        error: error.message
+      });
+    }
   });
 
   // Game Init Route
