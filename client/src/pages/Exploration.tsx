@@ -415,18 +415,7 @@ export default function Exploration() {
   }, [canvasNearbyExit, triggerCanvasTransition, combat.active, dialogue.isOpen, isTransitioning]);
 
   const handleTouchMove = useCallback((direction: "up" | "down" | "left" | "right" | null) => {
-    const canvas = document.querySelector('[data-testid="exploration-canvas"] canvas') as HTMLCanvasElement;
-    if (!canvas) return;
-    const keyMap: Record<string, string> = { up: "KeyW", down: "KeyS", left: "KeyA", right: "KeyD" };
-    if (direction) {
-      const event = new KeyboardEvent("keydown", { code: keyMap[direction], bubbles: true });
-      canvas.dispatchEvent(event);
-    } else {
-      ["KeyW", "KeyS", "KeyA", "KeyD"].forEach(code => {
-        const event = new KeyboardEvent("keyup", { code, bubbles: true });
-        canvas.dispatchEvent(event);
-      });
-    }
+    canvasRef.current?.setTouchDirection(direction);
   }, []);
 
   const handleTouchInteract = useCallback(() => {
@@ -438,10 +427,6 @@ export default function Exploration() {
   const closeCombat = () => {
     setCombat({ active: false, creatureName: "", creatureLevel: 1 });
     canvasRef.current?.resumeMovement();
-    setTimeout(() => {
-      const canvas = document.querySelector('[data-testid="exploration-canvas"] canvas') as HTMLCanvasElement;
-      canvas?.focus();
-    }, 100);
   };
 
   if (!profileId) {

@@ -57,6 +57,7 @@ export interface OverworldCanvasRef {
   getPlayerPosition: () => { x: number; y: number } | null;
   showInteractionPrompt: (text: string) => void;
   hideInteractionPrompt: () => void;
+  setTouchDirection: (direction: "up" | "down" | "left" | "right" | null) => void;
 }
 
 export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasProps>(({
@@ -86,6 +87,7 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
   const playerDirectionRef = useRef<"down" | "up" | "left" | "right">("down");
   const exitMarkersRef = useRef<Phaser.GameObjects.Container[]>([]);
   const nearbyExitRef = useRef<ExitPoint | null>(null);
+  const touchDirectionRef = useRef<"up" | "down" | "left" | "right" | null>(null);
   
   const objectsRef = useRef(objects);
   const exitPointsRef = useRef(exitPoints);
@@ -162,6 +164,9 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
       if (interactionPromptRef.current) {
         interactionPromptRef.current.setVisible(false);
       }
+    },
+    setTouchDirection: (direction: "up" | "down" | "left" | "right" | null) => {
+      touchDirectionRef.current = direction;
     },
   }));
 
@@ -369,11 +374,13 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
       let vx = 0;
       let vy = 0;
 
-      if (cursors?.left?.isDown || wasd?.left?.isDown) vx = -speed;
-      else if (cursors?.right?.isDown || wasd?.right?.isDown) vx = speed;
+      const touchDir = touchDirectionRef.current;
+      
+      if (cursors?.left?.isDown || wasd?.left?.isDown || touchDir === "left") vx = -speed;
+      else if (cursors?.right?.isDown || wasd?.right?.isDown || touchDir === "right") vx = speed;
 
-      if (cursors?.up?.isDown || wasd?.up?.isDown) vy = -speed;
-      else if (cursors?.down?.isDown || wasd?.down?.isDown) vy = speed;
+      if (cursors?.up?.isDown || wasd?.up?.isDown || touchDir === "up") vy = -speed;
+      else if (cursors?.down?.isDown || wasd?.down?.isDown || touchDir === "down") vy = speed;
 
       if (vx !== 0 && vy !== 0) {
         vx *= 0.707;
@@ -649,8 +656,12 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
     ) {
       const ROBE_COLOR = 0x2d1b4e;
       const ROBE_DARK = 0x1a1030;
+      const ROBE_TRIM = 0x8b6cc0;
       const SKIN_COLOR = 0xe8d4b8;
+      const SKIN_SHADOW = 0xc4a890;
       const HAIR_COLOR = 0x3a2820;
+      const EYE_COLOR = 0x1a1a2e;
+      const EYE_WHITE = 0xffffff;
 
       directions.forEach((dir) => {
         for (let frame = 0; frame < 3; frame++) {
@@ -658,31 +669,90 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
           const cx = size / 2;
           const cy = size / 2;
           const legOffset = frame === 0 ? -2 : frame === 2 ? 2 : 0;
+          const armSwing = frame === 0 ? -1 : frame === 2 ? 1 : 0;
 
+          gfx.fillStyle(ROBE_DARK, 1);
+          gfx.fillRect(cx - 9, cy - 4, 18, 19);
+          
           gfx.fillStyle(ROBE_COLOR, 1);
           gfx.fillRect(cx - 8, cy - 4, 16, 18);
+          
+          gfx.fillStyle(ROBE_TRIM, 1);
+          gfx.fillRect(cx - 1, cy - 2, 2, 14);
+          gfx.fillRect(cx - 7, cy - 3, 14, 1);
+          
           gfx.fillStyle(ROBE_DARK, 1);
           if (dir === "left") {
             gfx.fillRect(cx + 4, cy - 4, 4, 16);
           } else if (dir === "right") {
             gfx.fillRect(cx - 8, cy - 4, 4, 16);
           }
+          
           gfx.fillStyle(ROBE_COLOR, 1);
           gfx.fillRect(cx - 4 + legOffset, cy + 10, 4, 6);
           gfx.fillRect(cx + legOffset, cy + 10, 4, 6);
+          
+          gfx.fillStyle(ROBE_DARK, 1);
+          gfx.fillRect(cx - 3 + legOffset, cy + 14, 2, 2);
+          gfx.fillRect(cx + 1 + legOffset, cy + 14, 2, 2);
+          
+          gfx.fillStyle(ROBE_COLOR, 1);
+          gfx.fillRect(cx - 12 + armSwing, cy - 2, 5, 10);
+          gfx.fillRect(cx + 7 - armSwing, cy - 2, 5, 10);
           gfx.fillStyle(SKIN_COLOR, 1);
-          gfx.fillCircle(cx, cy - 8, 5);
+          gfx.fillRect(cx - 12 + armSwing, cy + 6, 4, 3);
+          gfx.fillRect(cx + 8 - armSwing, cy + 6, 4, 3);
+          
+          gfx.fillStyle(SKIN_COLOR, 1);
+          gfx.fillCircle(cx, cy - 8, 6);
+          
           gfx.fillStyle(HAIR_COLOR, 1);
           if (dir === "down") {
-            gfx.fillRect(cx - 4, cy - 14, 8, 4);
+            gfx.fillRect(cx - 6, cy - 15, 12, 5);
+            gfx.fillRect(cx - 6, cy - 12, 2, 3);
+            gfx.fillRect(cx + 4, cy - 12, 2, 3);
+            
+            gfx.fillStyle(EYE_WHITE, 1);
+            gfx.fillRect(cx - 4, cy - 9, 3, 2);
+            gfx.fillRect(cx + 1, cy - 9, 3, 2);
+            gfx.fillStyle(EYE_COLOR, 1);
+            gfx.fillRect(cx - 3, cy - 9, 2, 2);
+            gfx.fillRect(cx + 2, cy - 9, 2, 2);
+            
+            gfx.fillStyle(SKIN_SHADOW, 1);
+            gfx.fillRect(cx - 1, cy - 5, 2, 1);
+            
+            gfx.fillStyle(0xc08080, 1);
+            gfx.fillRect(cx - 2, cy - 3, 4, 1);
           } else if (dir === "up") {
-            gfx.fillCircle(cx, cy - 9, 5);
+            gfx.fillCircle(cx, cy - 9, 6);
+            gfx.fillRect(cx - 6, cy - 15, 12, 4);
           } else if (dir === "left") {
-            gfx.fillRect(cx - 2, cy - 14, 6, 4);
-            gfx.fillRect(cx + 2, cy - 12, 3, 6);
+            gfx.fillRect(cx - 3, cy - 15, 8, 5);
+            gfx.fillRect(cx + 3, cy - 12, 3, 5);
+            
+            gfx.fillStyle(SKIN_SHADOW, 1);
+            gfx.fillCircle(cx - 1, cy - 8, 5);
+            gfx.fillStyle(SKIN_COLOR, 1);
+            gfx.fillCircle(cx, cy - 8, 5);
+            
+            gfx.fillStyle(EYE_WHITE, 1);
+            gfx.fillRect(cx - 4, cy - 9, 2, 2);
+            gfx.fillStyle(EYE_COLOR, 1);
+            gfx.fillRect(cx - 4, cy - 9, 1, 2);
           } else if (dir === "right") {
-            gfx.fillRect(cx - 4, cy - 14, 6, 4);
-            gfx.fillRect(cx - 5, cy - 12, 3, 6);
+            gfx.fillRect(cx - 5, cy - 15, 8, 5);
+            gfx.fillRect(cx - 6, cy - 12, 3, 5);
+            
+            gfx.fillStyle(SKIN_SHADOW, 1);
+            gfx.fillCircle(cx + 1, cy - 8, 5);
+            gfx.fillStyle(SKIN_COLOR, 1);
+            gfx.fillCircle(cx, cy - 8, 5);
+            
+            gfx.fillStyle(EYE_WHITE, 1);
+            gfx.fillRect(cx + 2, cy - 9, 2, 2);
+            gfx.fillStyle(EYE_COLOR, 1);
+            gfx.fillRect(cx + 3, cy - 9, 1, 2);
           }
 
           gfx.generateTexture(`player_${dir}_${frame}`, size, size);
