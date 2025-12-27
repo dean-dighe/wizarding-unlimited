@@ -19,6 +19,7 @@ import {
 } from "@shared/schema";
 import { storage } from "./storage";
 import { v4 as uuidv4 } from "uuid";
+import { generateCombatDescription, type CombatContext } from "./combatDescriptions";
 
 // ===== PURE HELPER FUNCTIONS =====
 
@@ -692,7 +693,16 @@ export async function executeAction(
       const accuracyPassed = checkAccuracy(spell, actor, target);
       
       if (!accuracyPassed) {
-        result = { success: true, message: `${actorName}'s attack missed!`, isCritical: false };
+        const missContext: CombatContext = {
+          actorName,
+          targetName: target.name,
+          spellName: action.spellName,
+          spellDisplayName: spell.displayName,
+          discipline: spell.discipline || "charms",
+          isMiss: true,
+        };
+        const missMessage = await generateCombatDescription(missContext, false);
+        result = { success: true, message: missMessage, isCritical: false };
         logs.push({
           turnNumber,
           actorName,
@@ -700,7 +710,7 @@ export async function executeAction(
           spellUsed: action.spellName,
           actionTarget: target.name,
           isMiss: true,
-          message: `${actorName} used ${spell.displayName} but it missed!`,
+          message: missMessage,
         });
       } else {
         const damageResult = calculateDamage(spell, actor, target);
@@ -736,25 +746,23 @@ export async function executeAction(
           }
         }
         
-        let message = `${actorName} used ${spell.displayName}!`;
-        if (damageResult.damage > 0) {
-          message += ` It dealt ${damageResult.damage} damage!`;
-          if (damageResult.isCritical) {
-            message += " A critical hit!";
-          }
-          if (damageResult.effectiveness === "super_effective") {
-            message += " It's super effective!";
-          } else if (damageResult.effectiveness === "not_very_effective") {
-            message += " It's not very effective...";
-          }
-        }
-        if (statusApplied) {
-          message += ` ${target.name} is now ${statusApplied}!`;
-        }
-        
         const targetFainted = newTargetHp <= 0;
+        
+        const combatContext: CombatContext = {
+          actorName,
+          targetName: target.name,
+          spellName: action.spellName,
+          spellDisplayName: spell.displayName,
+          discipline: spell.discipline || "charms",
+          damage: damageResult.damage,
+          isCritical: damageResult.isCritical,
+          effectiveness: damageResult.effectiveness as "normal" | "super_effective" | "not_very_effective",
+          statusApplied: statusApplied || undefined,
+          targetFainted,
+        };
+        const message = await generateCombatDescription(combatContext, false);
+        
         if (targetFainted) {
-          message += ` ${target.name} fainted!`;
           phase = isPlayer ? "victory" : "defeat";
         }
         
