@@ -62,13 +62,29 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
   const pausedRef = useRef(isPaused);
   const interactionPromptRef = useRef<Phaser.GameObjects.Container | null>(null);
   const nearbyObjectRef = useRef<InteractiveObject | null>(null);
+  
+  const objectsRef = useRef(objects);
+  const onInteractionRef = useRef(onInteraction);
+  const onPlayerMoveRef = useRef(onPlayerMove);
 
-  const tilesX = Math.ceil(width / TILE_SIZE);
-  const tilesY = Math.ceil(height / TILE_SIZE);
+  const tilesX = useMemo(() => Math.ceil(width / TILE_SIZE), [width]);
+  const tilesY = useMemo(() => Math.ceil(height / TILE_SIZE), [height]);
 
   useEffect(() => {
     pausedRef.current = isPaused;
   }, [isPaused]);
+  
+  useEffect(() => {
+    objectsRef.current = objects;
+  }, [objects]);
+  
+  useEffect(() => {
+    onInteractionRef.current = onInteraction;
+  }, [onInteraction]);
+  
+  useEffect(() => {
+    onPlayerMoveRef.current = onPlayerMove;
+  }, [onPlayerMove]);
 
   useImperativeHandle(ref, () => ({
     pauseMovement: () => {
@@ -167,7 +183,7 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
       const interactableGroup = this.physics.add.staticGroup();
       const objectSprites: Map<string, Phaser.Physics.Arcade.Sprite> = new Map();
 
-      objects.forEach((obj) => {
+      objectsRef.current.forEach((obj) => {
         const objSprite = createInteractiveObject(this, obj, interactableGroup);
         if (objSprite) {
           objectSprites.set(obj.id, objSprite);
@@ -206,8 +222,8 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
 
       function handleInteraction() {
         if (pausedRef.current) return;
-        if (nearbyObjectRef.current && onInteraction) {
-          onInteraction(nearbyObjectRef.current);
+        if (nearbyObjectRef.current && onInteractionRef.current) {
+          onInteractionRef.current(nearbyObjectRef.current);
         }
       }
 
@@ -251,13 +267,13 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
       body.setVelocity(vx, vy);
 
       if (vx !== 0 || vy !== 0) {
-        onPlayerMove?.({ x: player.x, y: player.y });
+        onPlayerMoveRef.current?.({ x: player.x, y: player.y });
       }
 
       let closestObjResult: InteractiveObject | null = null;
       let closestDist = 50;
 
-      for (const obj of objects) {
+      for (const obj of objectsRef.current) {
         const dist = Phaser.Math.Distance.Between(player.x, player.y, obj.x, obj.y);
         if (dist < closestDist) {
           closestDist = dist;
@@ -493,7 +509,8 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
     }
 
     return cleanupGame;
-  }, [locationName, width, height, objects, onInteraction, onPlayerMove, cleanupGame, tilesX, tilesY]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locationName, width, height, tilesX, tilesY]);
 
   return (
     <div className="relative">

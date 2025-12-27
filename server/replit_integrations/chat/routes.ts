@@ -963,5 +963,120 @@ export function registerChatRoutes(app: Express): void {
       res.status(500).json({ error: "Failed to process message" });
     }
   });
+
+  // ==================== OVERWORLD NPC INTERACTION ====================
+  // Lightweight endpoint for real-time NPC dialogue in overworld mode
+  app.post("/api/overworld/npc-interact", async (req: Request, res: Response) => {
+    try {
+      const { conversationId, npcId, npcName, playerChoice, interactionContext } = req.body;
+
+      if (!conversationId || !npcName) {
+        return res.status(400).json({ error: "Missing conversationId or npcName" });
+      }
+
+      const gameState = await storage.getGameState(conversationId);
+      if (!gameState) {
+        return res.status(404).json({ error: "Game state not found" });
+      }
+
+      // Build NPC-specific context
+      const playerName = gameState.playerName || "young wizard";
+      const location = gameState.location || "The Undercroft";
+      const health = gameState.health ?? 100;
+      const inventory = (gameState.inventory as string[]) || [];
+      const spells = (gameState.spells as string[]) || [];
+
+      const systemPrompt = `You are the Dungeon Master for a dark Harry Potter text adventure. 
+The player is a third-year Hogwarts student (1993) who has been recruited into a secret society.
+The setting is morally complex - choices have weight, trust is scarce.
+
+CURRENT NPC: ${npcName}
+LOCATION: ${location}
+PLAYER: ${playerName} (Health: ${health}%, Inventory: ${inventory.join(", ") || "empty"})
+KNOWN SPELLS: ${spells.join(", ") || "basic wand movements only"}
+
+${interactionContext || ""}
+
+RULES:
+1. Write 2-4 sentences of tense, atmospheric dialogue from ${npcName}'s perspective.
+2. End with exactly 2-3 player CHOICES in format: [CHOICE: Option text]
+3. Stay in character - maintain mystery, tension, and moral ambiguity.
+4. If player made a choice, react to it naturally before presenting new options.
+5. Use state tags when appropriate: [HEALTH: +/-X], [ITEM_ADD: name], [LOCATION: name]`;
+
+      const userMessage = playerChoice 
+        ? `Player chose: "${playerChoice}"`
+        : `Player approaches ${npcName} and initiates conversation.`;
+
+      const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ];
+
+      console.log(`[Overworld] NPC interaction: ${npcName} in ${location}`);
+
+      const completion = await openai.chat.completions.create({
+        model: process.env.OLLAMA_MODEL || "qwen3-coder:30b",
+        messages,
+        max_tokens: 300,
+      });
+
+      const rawResponse = completion.choices[0]?.message?.content || "";
+      
+      // Parse choices from response
+      const choiceRegex = /\[CHOICE:\s*([^\]]+)\]/gi;
+      const choices: string[] = [];
+      let match;
+      while ((match = choiceRegex.exec(rawResponse)) !== null) {
+        choices.push(match[1].trim());
+      }
+
+      // Clean response (remove choice tags for display)
+      const cleanedResponse = rawResponse.replace(/\[CHOICE:\s*[^\]]+\]/gi, "").trim();
+
+      // Parse state changes
+      const stateChanges = parseStateChanges(rawResponse);
+      if (stateChanges.hasChanges) {
+        let newHealth = (gameState.health ?? 100) + stateChanges.healthChange;
+        newHealth = Math.max(0, Math.min(100, newHealth));
+        
+        let newInventory = [...inventory];
+        for (const item of stateChanges.itemsAdded) {
+          if (!newInventory.includes(item.trim())) {
+            newInventory.push(item.trim());
+          }
+        }
+        for (const item of stateChanges.itemsRemoved) {
+          newInventory = newInventory.filter(i => i.toLowerCase() !== item.trim().toLowerCase());
+        }
+
+        await storage.updateGameState(conversationId, {
+          health: newHealth,
+          inventory: newInventory,
+          location: stateChanges.newLocation || location,
+        });
+      }
+
+      res.json({
+        success: true,
+        speaker: npcName,
+        dialogue: cleanedResponse,
+        choices: choices.length > 0 ? choices : ["Continue", "Leave"],
+        stateChanges: stateChanges.hasChanges ? {
+          healthChange: stateChanges.healthChange,
+          itemsAdded: stateChanges.itemsAdded,
+          itemsRemoved: stateChanges.itemsRemoved,
+          newLocation: stateChanges.newLocation,
+        } : null,
+      });
+
+    } catch (error) {
+      console.error("[Overworld] NPC interaction error:", error);
+      res.status(500).json({ 
+        error: "The NPC seems momentarily distracted...",
+        canRetry: true 
+      });
+    }
+  });
 }
 
