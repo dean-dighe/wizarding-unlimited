@@ -40,11 +40,11 @@ function getLogIcon(actionType: string) {
 function getEffectivenessStyle(effectiveness?: string): string {
   switch (effectiveness) {
     case "super_effective":
-      return "text-green-400";
+      return "text-emerald-300";
     case "not_very_effective":
-      return "text-red-400";
+      return "text-red-300";
     default:
-      return "text-foreground/90";
+      return "text-amber-100";
   }
 }
 
@@ -57,29 +57,38 @@ function LogEntry({ entry, index }: { entry: BattleLogEntry; index: number }) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
       transition={{ duration: 0.2, delay: index * 0.05 }}
-      className="flex gap-2 items-start py-1.5 border-b border-amber-900/20 last:border-0"
+      className="flex gap-2 items-start py-2 border-b border-amber-800/20 last:border-0"
       data-testid={`battle-log-entry-${entry.turnNumber}`}
     >
-      <span className="text-amber-600/60 mt-0.5">
+      <span className="text-amber-500 mt-0.5 flex-shrink-0">
         {getLogIcon(entry.actionType)}
       </span>
       <div className="flex-1 min-w-0">
-        <p className={`text-sm ${effectivenessStyle} break-words`}>
+        <p className={`text-sm ${effectivenessStyle} break-words leading-relaxed`}>
           {entry.message}
         </p>
-        {(entry.damage !== undefined && entry.damage > 0) && (
-          <span 
-            className={`text-xs font-mono ${entry.isCritical ? "text-amber-400 font-bold" : "text-red-400"}`}
-            data-testid="damage-value"
-          >
-            -{entry.damage} HP{entry.isCritical && " CRIT!"}
-          </span>
-        )}
-        {(entry.healing !== undefined && entry.healing > 0) && (
-          <span className="text-xs font-mono text-green-400" data-testid="healing-value">
-            +{entry.healing} HP
-          </span>
-        )}
+        <div className="flex flex-wrap gap-2 mt-0.5">
+          {(entry.damage !== undefined && entry.damage > 0) && (
+            <span 
+              className={`text-xs font-mono px-1.5 py-0.5 rounded ${
+                entry.isCritical 
+                  ? "bg-amber-900/50 text-amber-300 font-bold" 
+                  : "bg-red-900/30 text-red-300"
+              }`}
+              data-testid="damage-value"
+            >
+              -{entry.damage} HP{entry.isCritical && " CRIT!"}
+            </span>
+          )}
+          {(entry.healing !== undefined && entry.healing > 0) && (
+            <span 
+              className="text-xs font-mono px-1.5 py-0.5 rounded bg-emerald-900/30 text-emerald-300" 
+              data-testid="healing-value"
+            >
+              +{entry.healing} HP
+            </span>
+          )}
+        </div>
       </div>
     </motion.div>
   );
@@ -97,19 +106,19 @@ export function BattleLog({ logs, maxVisible = 10 }: BattleLogProps) {
   
   return (
     <div 
-      className="bg-gradient-to-b from-amber-950/40 to-stone-950/60 rounded-lg border border-amber-900/30 h-full"
+      className="bg-gradient-to-br from-stone-900/95 to-stone-950/95 rounded-lg border border-amber-700/50 h-full"
       data-testid="battle-log"
     >
-      <div className="px-3 py-2 border-b border-amber-900/30">
-        <h4 className="text-xs font-serif font-semibold text-amber-200/80 uppercase tracking-wider">
-          Battle Log
+      <div className="px-3 py-2 border-b border-amber-700/30 bg-amber-900/20">
+        <h4 className="text-xs font-serif font-semibold text-amber-300 uppercase tracking-wider text-magic-glow">
+          Battle Chronicle
         </h4>
       </div>
       
-      <ScrollArea className="h-[calc(100%-2rem)]" ref={scrollRef}>
+      <ScrollArea className="h-[calc(100%-2.5rem)]" ref={scrollRef}>
         <div className="px-3 py-2">
           {visibleLogs.length === 0 ? (
-            <p className="text-sm text-foreground/40 italic text-center py-4">
+            <p className="text-sm text-amber-200/40 italic text-center py-4 font-serif">
               The battle begins...
             </p>
           ) : (

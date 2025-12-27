@@ -22,13 +22,13 @@ function HpBar({ current, max, animate = true }: { current: number; max: number;
   
   return (
     <div className="w-full" data-testid="hp-bar-container">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-xs font-medium text-foreground/70">HP</span>
-        <span className="text-xs font-mono text-foreground/80" data-testid="hp-text">
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <span className="text-xs font-serif font-medium text-amber-300">HP</span>
+        <span className="text-xs font-mono text-amber-200" data-testid="hp-text">
           {current}/{max}
         </span>
       </div>
-      <div className="h-3 bg-black/40 rounded-full overflow-hidden border border-black/20">
+      <div className="h-3 bg-black/50 rounded-full overflow-hidden border border-amber-700/30">
         <motion.div
           className={`h-full bg-gradient-to-r ${hpColor} rounded-full`}
           initial={animate ? { width: "100%" } : { width: `${percent}%` }}
@@ -48,13 +48,13 @@ function TotalPPBar({ currentPp, equippedSpells }: { currentPp: Record<string, n
   
   return (
     <div className="w-full" data-testid="pp-bar-container">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-xs font-medium text-foreground/70">PP</span>
-        <span className="text-xs font-mono text-foreground/80" data-testid="pp-text">
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <span className="text-xs font-serif font-medium text-purple-300">PP</span>
+        <span className="text-xs font-mono text-purple-200" data-testid="pp-text">
           {totalCurrent}/{totalMax}
         </span>
       </div>
-      <div className="h-2 bg-black/40 rounded-full overflow-hidden border border-black/20">
+      <div className="h-2 bg-black/50 rounded-full overflow-hidden border border-purple-700/30">
         <motion.div
           className="h-full bg-gradient-to-r from-indigo-500 to-purple-400 rounded-full"
           initial={{ width: `${percent}%` }}
@@ -76,19 +76,17 @@ export function CombatantPanel({ combatant, isPlayer, isActive = false, showPP =
       data-testid={isPlayer ? "player-panel" : "enemy-panel"}
     >
       <Card 
-        className={`p-3 bg-gradient-to-br ${
-          isPlayer 
-            ? "from-blue-950/90 to-indigo-950/90 border-blue-800/50" 
-            : "from-red-950/90 to-rose-950/90 border-red-800/50"
-        } ${isActive ? "ring-2 ring-amber-400/60" : ""}`}
+        className={`p-3 bg-gradient-to-br from-stone-900/95 to-stone-950/95 border-amber-700/50 ${
+          isActive ? "ring-2 ring-amber-400/60 magic-border" : ""
+        }`}
       >
         <div className="flex items-center justify-between gap-2 mb-2">
-          <div className="flex items-center gap-2">
-            <h3 className="font-serif font-semibold text-foreground truncate max-w-[120px]" data-testid="combatant-name">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-serif font-semibold text-amber-200 truncate max-w-[100px] sm:max-w-[120px]" data-testid="combatant-name">
               {combatant.name}
             </h3>
             <span 
-              className="text-xs font-mono bg-black/30 px-1.5 py-0.5 rounded text-foreground/70"
+              className="text-xs font-mono bg-amber-900/40 px-1.5 py-0.5 rounded text-amber-300 border border-amber-700/30"
               data-testid="combatant-level"
             >
               Lv.{combatant.level}
@@ -96,7 +94,7 @@ export function CombatantPanel({ combatant, isPlayer, isActive = false, showPP =
           </div>
           {combatant.discipline && (
             <span 
-              className="text-xs px-2 py-0.5 rounded bg-black/30 text-foreground/60 capitalize"
+              className="text-xs px-2 py-0.5 rounded bg-purple-900/40 text-purple-200 capitalize border border-purple-700/30"
               data-testid="combatant-discipline"
             >
               {combatant.discipline.replace("_", " ")}

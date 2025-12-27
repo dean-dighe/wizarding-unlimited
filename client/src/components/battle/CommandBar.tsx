@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { apiRequest } from "@/lib/queryClient";
-import { Wand2, Package, DoorOpen, Loader2 } from "lucide-react";
+import { Wand2, Package, DoorOpen, Loader2, Sparkles } from "lucide-react";
 
 const DISCIPLINE_COLORS: Record<MagicalDiscipline, string> = {
   charms: "from-blue-600 to-blue-500 border-blue-400/50",
@@ -49,28 +49,38 @@ function SpellCard({
     <motion.button
       onClick={onSelect}
       disabled={isDisabled || !hasEnoughPP}
-      className={`w-full text-left p-2 rounded-lg border transition-all ${
+      className={`w-full text-left p-3 rounded-lg border-2 transition-all relative overflow-visible ${
         isDisabled || !hasEnoughPP
-          ? "opacity-50 cursor-not-allowed bg-black/30 border-gray-700/30"
-          : `bg-gradient-to-r ${disciplineColor} cursor-pointer`
+          ? "opacity-50 cursor-not-allowed bg-stone-900/60 border-stone-700/30"
+          : `bg-gradient-to-br ${disciplineColor} cursor-pointer shadow-lg`
       }`}
-      whileHover={!isDisabled && hasEnoughPP ? { scale: 1.02 } : {}}
+      whileHover={!isDisabled && hasEnoughPP ? { scale: 1.03, y: -2 } : {}}
       whileTap={!isDisabled && hasEnoughPP ? { scale: 0.98 } : {}}
       data-testid={`spell-card-${spell.spellName}`}
     >
+      {!isDisabled && hasEnoughPP && (
+        <div className="absolute inset-0 rounded-lg opacity-0 hover:opacity-100 transition-opacity pointer-events-none"
+          style={{
+            boxShadow: "0 0 15px rgba(251, 191, 36, 0.3), inset 0 0 10px rgba(251, 191, 36, 0.1)"
+          }}
+        />
+      )}
       <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0">
-          <h4 className="font-medium text-white text-sm truncate">{spell.displayName}</h4>
-          <p className="text-xs text-white/70 capitalize">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <Sparkles className="w-3 h-3 text-amber-300/80 flex-shrink-0" />
+            <h4 className="font-serif font-semibold text-amber-100 text-sm truncate">{spell.displayName}</h4>
+          </div>
+          <p className="text-xs text-amber-200/70 capitalize mt-0.5">
             {spell.discipline?.replace("_", " ")}
-            {spell.baseDamage ? ` • ${spell.baseDamage} DMG` : ""}
+            {spell.baseDamage ? ` | ${spell.baseDamage} DMG` : ""}
           </p>
         </div>
-        <div className="text-right flex-shrink-0">
-          <span className={`text-xs font-mono ${hasEnoughPP ? "text-white" : "text-red-300"}`}>
+        <div className="text-right flex-shrink-0 bg-black/30 rounded px-2 py-1">
+          <span className={`text-xs font-mono font-bold ${hasEnoughPP ? "text-amber-200" : "text-red-300"}`}>
             {currentPP}/{maxPP}
           </span>
-          <p className="text-xs text-white/50">PP</p>
+          <p className="text-xs text-amber-300/60">PP</p>
         </div>
       </div>
     </motion.button>
@@ -117,20 +127,23 @@ export function CommandBar({
   
   return (
     <Card 
-      className="bg-gradient-to-b from-stone-900/95 to-stone-950/95 border-amber-900/40 p-3"
+      className="bg-gradient-to-br from-stone-900/95 to-stone-950/95 border-amber-700/50 p-3 relative"
       data-testid="command-bar"
     >
       {isActing && (
-        <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10 rounded-xl">
-          <Loader2 className="w-6 h-6 animate-spin text-amber-400" />
+        <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10 rounded-xl backdrop-blur-sm">
+          <div className="flex items-center gap-2 text-amber-300">
+            <Loader2 className="w-6 h-6 animate-spin" />
+            <span className="font-serif text-sm">Casting...</span>
+          </div>
         </div>
       )}
       
       <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
-        <TabsList className="w-full grid grid-cols-3 bg-black/30 mb-3">
+        <TabsList className="w-full grid grid-cols-3 bg-stone-900/80 mb-3 border border-amber-800/30">
           <TabsTrigger 
             value="spells" 
-            className="data-[state=active]:bg-amber-800/50 gap-1"
+            className="data-[state=active]:bg-amber-800/60 data-[state=active]:text-amber-100 text-amber-300/70 gap-1 font-serif"
             data-testid="tab-spells"
           >
             <Wand2 className="w-4 h-4" />
@@ -138,7 +151,7 @@ export function CommandBar({
           </TabsTrigger>
           <TabsTrigger 
             value="items" 
-            className="data-[state=active]:bg-amber-800/50 gap-1"
+            className="data-[state=active]:bg-amber-800/60 data-[state=active]:text-amber-100 text-amber-300/70 gap-1 font-serif"
             data-testid="tab-items"
           >
             <Package className="w-4 h-4" />
@@ -146,7 +159,7 @@ export function CommandBar({
           </TabsTrigger>
           <TabsTrigger 
             value="tactics" 
-            className="data-[state=active]:bg-amber-800/50 gap-1"
+            className="data-[state=active]:bg-amber-800/60 data-[state=active]:text-amber-100 text-amber-300/70 gap-1 font-serif"
             data-testid="tab-tactics"
           >
             <DoorOpen className="w-4 h-4" />
@@ -169,7 +182,7 @@ export function CommandBar({
                     />
                   ))
                 ) : (
-                  <p className="col-span-2 text-center text-sm text-foreground/50 py-4">
+                  <p className="col-span-2 text-center text-sm text-amber-200/50 py-4 font-serif italic">
                     No spells equipped
                   </p>
                 )}
@@ -179,7 +192,7 @@ export function CommandBar({
           
           <TabsContent value="items" className="mt-0">
             <div className="h-[140px] flex items-center justify-center">
-              <p className="text-sm text-foreground/50 italic">
+              <p className="text-sm text-amber-200/50 italic font-serif">
                 No items available
               </p>
             </div>
@@ -191,14 +204,14 @@ export function CommandBar({
                 variant="outline"
                 onClick={handleFlee}
                 disabled={isDisabled || isActing || !canFlee}
-                className="border-amber-700/50 text-amber-200"
+                className="border-amber-700/50 text-amber-200 font-serif"
                 data-testid="button-flee"
               >
                 <DoorOpen className="w-4 h-4 mr-2" />
                 {canFlee ? "Attempt to Flee" : "Cannot Flee!"}
               </Button>
               {!canFlee && (
-                <p className="text-xs text-red-400">This foe blocks your escape!</p>
+                <p className="text-xs text-red-400 font-serif">This foe blocks your escape!</p>
               )}
             </div>
           </TabsContent>

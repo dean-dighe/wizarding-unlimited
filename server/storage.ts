@@ -19,6 +19,9 @@ import {
   npc_states,
   battle_states,
   battle_logs,
+  world_state_flags,
+  story_choice_effects,
+  npc_locations,
   type InsertGameState, 
   type GameState,
   type InsertLocationMap,
@@ -55,6 +58,12 @@ import {
   type InsertBattleState,
   type BattleLog,
   type InsertBattleLog,
+  type WorldStateFlag,
+  type InsertWorldStateFlag,
+  type StoryChoiceEffect,
+  type InsertStoryChoiceEffect,
+  type NpcLocation,
+  type InsertNpcLocation,
 } from "@shared/schema";
 import { eq, and, desc, notInArray } from "drizzle-orm";
 
@@ -161,6 +170,23 @@ export interface IStorage {
   
   // Random encounter method
   getRandomEncounter(location: string): Promise<EncounterTable | undefined>;
+  
+  // World state flag methods
+  getWorldStateFlags(profileId: number): Promise<WorldStateFlag[]>;
+  getWorldStateFlag(profileId: number, flagKey: string): Promise<WorldStateFlag | undefined>;
+  setWorldStateFlag(flag: InsertWorldStateFlag): Promise<WorldStateFlag>;
+  deleteWorldStateFlag(profileId: number, flagKey: string): Promise<void>;
+  
+  // Story choice effect methods
+  getStoryChoiceEffects(profileId: number): Promise<StoryChoiceEffect[]>;
+  createStoryChoiceEffect(effect: InsertStoryChoiceEffect): Promise<StoryChoiceEffect>;
+  revertStoryChoiceEffect(id: number): Promise<void>;
+  
+  // NPC location methods
+  getNpcLocations(profileId: number, location?: string): Promise<NpcLocation[]>;
+  getNpcLocation(profileId: number, npcName: string): Promise<NpcLocation | undefined>;
+  setNpcLocation(location: InsertNpcLocation): Promise<NpcLocation>;
+  updateNpcLocation(id: number, updates: Partial<InsertNpcLocation>): Promise<NpcLocation>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -645,6 +671,157 @@ export class DatabaseStorage implements IStorage {
     }
     
     return encounters[0];
+  }
+
+  // ===== WORLD STATE FLAG METHODS =====
+  
+  async getWorldStateFlags(profileId: number): Promise<WorldStateFlag[]> {
+    return db
+      .select()
+      .from(world_state_flags)
+      .where(eq(world_state_flags.profileId, profileId));
+  }
+  
+  async getWorldStateFlag(profileId: number, flagKey: string): Promise<WorldStateFlag | undefined> {
+    const [flag] = await db
+      .select()
+      .from(world_state_flags)
+      .where(
+        and(
+          eq(world_state_flags.profileId, profileId),
+          eq(world_state_flags.flagKey, flagKey)
+        )
+      );
+    return flag;
+  }
+  
+  async setWorldStateFlag(flag: InsertWorldStateFlag): Promise<WorldStateFlag> {
+    const existing = await this.getWorldStateFlag(flag.profileId, flag.flagKey);
+    
+    if (existing) {
+      const [updated] = await db
+        .update(world_state_flags)
+        .set({ flagValue: flag.flagValue, setAt: new Date() })
+        .where(eq(world_state_flags.id, existing.id))
+        .returning();
+      return updated;
+    }
+    
+    const [newFlag] = await db.insert(world_state_flags).values([flag]).returning();
+    return newFlag;
+  }
+  
+  async deleteWorldStateFlag(profileId: number, flagKey: string): Promise<void> {
+    await db
+      .delete(world_state_flags)
+      .where(
+        and(
+          eq(world_state_flags.profileId, profileId),
+          eq(world_state_flags.flagKey, flagKey)
+        )
+      );
+  }
+
+  // ===== STORY CHOICE EFFECT METHODS =====
+  
+  async getStoryChoiceEffects(profileId: number): Promise<StoryChoiceEffect[]> {
+    return db
+      .select()
+      .from(story_choice_effects)
+      .where(
+        and(
+          eq(story_choice_effects.profileId, profileId),
+          eq(story_choice_effects.isReverted, false)
+        )
+      )
+      .orderBy(desc(story_choice_effects.appliedAt));
+  }
+  
+  async createStoryChoiceEffect(effect: InsertStoryChoiceEffect): Promise<StoryChoiceEffect> {
+    const [newEffect] = await db.insert(story_choice_effects).values([effect]).returning();
+    return newEffect;
+  }
+  
+  async revertStoryChoiceEffect(id: number): Promise<void> {
+    await db
+      .update(story_choice_effects)
+      .set({ isReverted: true })
+      .where(eq(story_choice_effects.id, id));
+  }
+
+  // ===== NPC LOCATION METHODS =====
+  
+  async getNpcLocations(profileId: number, location?: string): Promise<NpcLocation[]> {
+    if (location) {
+      return db
+        .select()
+        .from(npc_locations)
+        .where(
+          and(
+            eq(npc_locations.profileId, profileId),
+            eq(npc_locations.currentLocation, location)
+          )
+        );
+    }
+    return db
+      .select()
+      .from(npc_locations)
+      .where(eq(npc_locations.profileId, profileId));
+  }
+  
+  async getNpcLocation(profileId: number, npcName: string): Promise<NpcLocation | undefined> {
+    const [npc] = await db
+      .select()
+      .from(npc_locations)
+      .where(
+        and(
+          eq(npc_locations.profileId, profileId),
+          eq(npc_locations.npcName, npcName)
+        )
+      );
+    return npc;
+  }
+  
+  async setNpcLocation(location: InsertNpcLocation): Promise<NpcLocation> {
+    const existing = await this.getNpcLocation(location.profileId, location.npcName);
+    
+    if (existing) {
+      const [updated] = await db
+        .update(npc_locations)
+        .set({ 
+          currentLocation: location.currentLocation,
+          spawnPosition: location.spawnPosition,
+          isAvailable: location.isAvailable,
+          updatedAt: new Date()
+        })
+        .where(eq(npc_locations.id, existing.id))
+        .returning();
+      return updated;
+    }
+    
+    const [newNpc] = await db.insert(npc_locations).values([location]).returning();
+    return newNpc;
+  }
+  
+  async updateNpcLocation(id: number, updates: Partial<InsertNpcLocation>): Promise<NpcLocation> {
+    const cleanUpdates: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(updates)) {
+      if (value !== undefined) {
+        cleanUpdates[key] = value;
+      }
+    }
+    
+    const [updated] = await db
+      .update(npc_locations)
+      .set({ ...cleanUpdates, updatedAt: new Date() })
+      .where(eq(npc_locations.id, id))
+      .returning();
+    
+    if (!updated) {
+      throw new Error(`NPC location not found: ${id}`);
+    }
+    
+    return updated;
   }
 }
 

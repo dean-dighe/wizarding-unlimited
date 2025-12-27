@@ -889,3 +889,77 @@ export const insertBattleBackgroundSchema = createInsertSchema(battle_background
 
 export type BattleBackground = typeof battle_backgrounds.$inferSelect;
 export type InsertBattleBackground = z.infer<typeof insertBattleBackgroundSchema>;
+
+// ===== STORY-WORLD INTEGRATION =====
+
+// World state flags - tracks story choices that affect the explorable world
+export const world_state_flags = pgTable("world_state_flags", {
+  id: serial("id").primaryKey(),
+  profileId: integer("profile_id").notNull().references(() => player_profiles.id, { onDelete: "cascade" }),
+  flagKey: text("flag_key").notNull(), // e.g., "forbidden_forest_unlocked", "snape_hostile"
+  flagValue: jsonb("flag_value").$type<string | number | boolean | Record<string, unknown>>().default(true),
+  scope: text("scope").default("permanent"), // "permanent", "chapter", "session"
+  setAt: timestamp("set_at").defaultNow(),
+  expiresAt: timestamp("expires_at"), // For temporary flags
+});
+
+export const insertWorldStateFlagSchema = createInsertSchema(world_state_flags).omit({
+  id: true,
+  setAt: true,
+});
+
+export type WorldStateFlag = typeof world_state_flags.$inferSelect;
+export type InsertWorldStateFlag = z.infer<typeof insertWorldStateFlagSchema>;
+
+// Story choice effects - records the effects of story decisions
+export type StoryEffectType = "unlock_connection" | "lock_connection" | "move_npc" | "set_flag" | "add_item" | "remove_item" | "change_relationship" | "trigger_encounter";
+
+export const story_choice_effects = pgTable("story_choice_effects", {
+  id: serial("id").primaryKey(),
+  profileId: integer("profile_id").notNull().references(() => player_profiles.id, { onDelete: "cascade" }),
+  choiceId: text("choice_id").notNull(), // Unique identifier for this choice
+  effectType: text("effect_type").$type<StoryEffectType>().notNull(),
+  effectPayload: jsonb("effect_payload").$type<{
+    connectionId?: number;
+    npcName?: string;
+    newLocation?: string;
+    flagKey?: string;
+    flagValue?: unknown;
+    itemId?: string;
+    quantity?: number;
+    npcRelationship?: { npc: string; change: number };
+    encounterData?: { creature: string; location: string };
+  }>().notNull(),
+  narrativeContext: text("narrative_context"), // What story moment triggered this
+  appliedAt: timestamp("applied_at").defaultNow(),
+  expiresAt: timestamp("expires_at"), // For temporary effects
+  isReverted: boolean("is_reverted").default(false),
+});
+
+export const insertStoryChoiceEffectSchema = createInsertSchema(story_choice_effects).omit({
+  id: true,
+  appliedAt: true,
+});
+
+export type StoryChoiceEffect = typeof story_choice_effects.$inferSelect;
+export type InsertStoryChoiceEffect = z.infer<typeof insertStoryChoiceEffectSchema>;
+
+// NPC locations - tracks where NPCs are in the world (can change based on story)
+export const npc_locations = pgTable("npc_locations", {
+  id: serial("id").primaryKey(),
+  profileId: integer("profile_id").notNull().references(() => player_profiles.id, { onDelete: "cascade" }),
+  npcName: text("npc_name").notNull(),
+  currentLocation: text("current_location").notNull(),
+  spawnPosition: jsonb("spawn_position").$type<{ x: number; y: number }>(),
+  schedule: jsonb("schedule").$type<Record<string, string>>(), // time-based locations
+  isAvailable: boolean("is_available").default(true),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertNpcLocationSchema = createInsertSchema(npc_locations).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export type NpcLocation = typeof npc_locations.$inferSelect;
+export type InsertNpcLocation = z.infer<typeof insertNpcLocationSchema>;
