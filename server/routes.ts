@@ -620,6 +620,122 @@ The professor's voice echoes from the darkness ahead—calm, measured, utterly u
     }
   });
   
+  // Map cohesion validation - checks bidirectional connections and spawn positions
+  app.get("/api/rpg/validate-map-cohesion", async (req, res) => {
+    try {
+      const connections = await storage.getAllMapConnections();
+      const issues: Array<{ type: string; severity: string; message: string; details?: any }> = [];
+      
+      // Build lookup maps
+      const connectionMap = new Map<string, typeof connections[0][]>();
+      const allLocations = new Set<string>();
+      
+      for (const conn of connections) {
+        allLocations.add(conn.fromLocation);
+        allLocations.add(conn.toLocation);
+        const key = conn.fromLocation;
+        if (!connectionMap.has(key)) {
+          connectionMap.set(key, []);
+        }
+        connectionMap.get(key)!.push(conn);
+      }
+      
+      // Check 1: Bidirectional connections (skip one-way)
+      for (const conn of connections) {
+        if (conn.isOneWay) continue;
+        
+        const reverseConnections = connectionMap.get(conn.toLocation) || [];
+        const hasReverse = reverseConnections.some(rc => rc.toLocation === conn.fromLocation);
+        
+        if (!hasReverse) {
+          issues.push({
+            type: "missing_bidirectional",
+            severity: "error",
+            message: `Missing reverse connection: ${conn.toLocation} → ${conn.fromLocation}`,
+            details: { from: conn.fromLocation, to: conn.toLocation, connectionId: conn.id }
+          });
+        }
+      }
+      
+      // Check 2: Spawn positions should be offset from exits (>40px)
+      const MIN_SPAWN_OFFSET = 40;
+      for (const conn of connections) {
+        if (!conn.toPosition || !conn.fromPosition) continue;
+        
+        const reverseConnections = connectionMap.get(conn.toLocation) || [];
+        const reverseConn = reverseConnections.find(rc => rc.toLocation === conn.fromLocation);
+        
+        if (reverseConn && reverseConn.fromPosition) {
+          const spawnPos = conn.toPosition;
+          const exitPos = reverseConn.fromPosition;
+          const distance = Math.sqrt(
+            Math.pow(spawnPos.x - exitPos.x, 2) + Math.pow(spawnPos.y - exitPos.y, 2)
+          );
+          
+          if (distance < MIN_SPAWN_OFFSET) {
+            issues.push({
+              type: "spawn_too_close_to_exit",
+              severity: "warning",
+              message: `Spawn at ${conn.toLocation} is only ${distance.toFixed(0)}px from exit (min: ${MIN_SPAWN_OFFSET}px)`,
+              details: { 
+                location: conn.toLocation, 
+                spawnPos, 
+                exitPos, 
+                distance: Math.round(distance) 
+              }
+            });
+          }
+        }
+      }
+      
+      // Check 3: Positions within reasonable bounds (640x480 default map size)
+      const MAX_X = 640;
+      const MAX_Y = 480;
+      for (const conn of connections) {
+        if (conn.fromPosition) {
+          if (conn.fromPosition.x < 0 || conn.fromPosition.x > MAX_X ||
+              conn.fromPosition.y < 0 || conn.fromPosition.y > MAX_Y) {
+            issues.push({
+              type: "exit_out_of_bounds",
+              severity: "error",
+              message: `Exit position out of bounds at ${conn.fromLocation}`,
+              details: { location: conn.fromLocation, position: conn.fromPosition }
+            });
+          }
+        }
+        if (conn.toPosition) {
+          if (conn.toPosition.x < 0 || conn.toPosition.x > MAX_X ||
+              conn.toPosition.y < 0 || conn.toPosition.y > MAX_Y) {
+            issues.push({
+              type: "spawn_out_of_bounds",
+              severity: "error",
+              message: `Spawn position out of bounds at ${conn.toLocation}`,
+              details: { location: conn.toLocation, position: conn.toPosition }
+            });
+          }
+        }
+      }
+      
+      const errorCount = issues.filter(i => i.severity === "error").length;
+      const warningCount = issues.filter(i => i.severity === "warning").length;
+      
+      res.json({
+        valid: errorCount === 0,
+        totalConnections: connections.length,
+        uniqueLocations: allLocations.size,
+        issues,
+        summary: {
+          errors: errorCount,
+          warnings: warningCount,
+          passed: errorCount === 0 ? "Map cohesion valid" : "Map cohesion has issues"
+        }
+      });
+    } catch (error: any) {
+      console.error("Error validating map cohesion:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
   // Get encounter table for a location
   app.get("/api/rpg/encounters/:location", async (req, res) => {
     try {
