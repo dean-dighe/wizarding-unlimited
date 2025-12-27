@@ -3,6 +3,7 @@ import Phaser from "phaser";
 
 const TILE_SIZE = 32;
 const PLAYER_SPEED = 120;
+const PLAYER_RUN_SPEED = 180;
 
 const UNDERCROFT_PALETTE = {
   black: 0x0a0a12,
@@ -28,12 +29,14 @@ interface InteractiveObject {
 interface OverworldCanvasProps {
   locationName: string;
   playerName: string;
+  playerSpriteUrl?: string;
   width?: number;
   height?: number;
   objects?: InteractiveObject[];
   onInteraction?: (object: InteractiveObject) => void;
   onPlayerMove?: (position: { x: number; y: number }) => void;
   isPaused?: boolean;
+  isRunning?: boolean;
 }
 
 export interface OverworldCanvasRef {
@@ -47,12 +50,14 @@ export interface OverworldCanvasRef {
 export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasProps>(({
   locationName,
   playerName,
+  playerSpriteUrl,
   width = 480,
   height = 360,
   objects = [],
   onInteraction,
   onPlayerMove,
   isPaused = false,
+  isRunning = false,
 }, ref) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
@@ -60,8 +65,10 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
   const playerRef = useRef<Phaser.Physics.Arcade.Sprite | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const pausedRef = useRef(isPaused);
+  const runningRef = useRef(isRunning);
   const interactionPromptRef = useRef<Phaser.GameObjects.Container | null>(null);
   const nearbyObjectRef = useRef<InteractiveObject | null>(null);
+  const playerDirectionRef = useRef<"down" | "up" | "left" | "right">("down");
   
   const objectsRef = useRef(objects);
   const onInteractionRef = useRef(onInteraction);
@@ -73,6 +80,10 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
   useEffect(() => {
     pausedRef.current = isPaused;
   }, [isPaused]);
+  
+  useEffect(() => {
+    runningRef.current = isRunning;
+  }, [isRunning]);
   
   useEffect(() => {
     objectsRef.current = objects;
@@ -89,9 +100,12 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
   useImperativeHandle(ref, () => ({
     pauseMovement: () => {
       pausedRef.current = true;
-      if (playerRef.current?.body) {
+      if (playerRef.current?.body && sceneRef.current) {
         (playerRef.current.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
-        playerRef.current.play("player_idle", true);
+        const idleAnim = `player_idle_${playerDirectionRef.current}`;
+        if (sceneRef.current.anims.exists(idleAnim)) {
+          playerRef.current.play(idleAnim, true);
+        }
       }
     },
     resumeMovement: () => {
@@ -176,7 +190,7 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
       (player.body as Phaser.Physics.Arcade.Body).setOffset(6, 12);
       playerRef.current = player;
 
-      drawPlayerGraphics(this, player);
+      drawPlayerGraphics(this, player, playerSpriteUrl);
 
       this.physics.add.collider(player, wallGroup);
 
@@ -247,17 +261,22 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
 
       if (pausedRef.current) {
         body.setVelocity(0, 0);
+        const idleAnim = `player_idle_${playerDirectionRef.current}`;
+        if (this.anims.exists(idleAnim)) {
+          player.play(idleAnim, true);
+        }
         return;
       }
 
+      const speed = runningRef.current ? PLAYER_RUN_SPEED : PLAYER_SPEED;
       let vx = 0;
       let vy = 0;
 
-      if (cursors?.left?.isDown || wasd?.left?.isDown) vx = -PLAYER_SPEED;
-      else if (cursors?.right?.isDown || wasd?.right?.isDown) vx = PLAYER_SPEED;
+      if (cursors?.left?.isDown || wasd?.left?.isDown) vx = -speed;
+      else if (cursors?.right?.isDown || wasd?.right?.isDown) vx = speed;
 
-      if (cursors?.up?.isDown || wasd?.up?.isDown) vy = -PLAYER_SPEED;
-      else if (cursors?.down?.isDown || wasd?.down?.isDown) vy = PLAYER_SPEED;
+      if (cursors?.up?.isDown || wasd?.up?.isDown) vy = -speed;
+      else if (cursors?.down?.isDown || wasd?.down?.isDown) vy = speed;
 
       if (vx !== 0 && vy !== 0) {
         vx *= 0.707;
@@ -266,8 +285,24 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
 
       body.setVelocity(vx, vy);
 
+      let newDirection: "down" | "up" | "left" | "right" = playerDirectionRef.current;
+      if (vy < 0) newDirection = "up";
+      else if (vy > 0) newDirection = "down";
+      else if (vx < 0) newDirection = "left";
+      else if (vx > 0) newDirection = "right";
+
       if (vx !== 0 || vy !== 0) {
+        playerDirectionRef.current = newDirection;
+        const walkAnim = `player_walk_${newDirection}`;
+        if (this.anims.exists(walkAnim) && player.anims.currentAnim?.key !== walkAnim) {
+          player.play(walkAnim, true);
+        }
         onPlayerMoveRef.current?.({ x: player.x, y: player.y });
+      } else {
+        const idleAnim = `player_idle_${newDirection}`;
+        if (this.anims.exists(idleAnim) && player.anims.currentAnim?.key !== idleAnim) {
+          player.play(idleAnim, true);
+        }
       }
 
       let closestObjResult: InteractiveObject | null = null;
@@ -432,33 +467,130 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
       group.create((tx - 4) * TILE_SIZE + TILE_SIZE / 2, (ty - 4) * TILE_SIZE + TILE_SIZE / 2, "__DEFAULT").setSize(TILE_SIZE, TILE_SIZE + 8).setVisible(false).refreshBody();
     }
 
-    function drawPlayerGraphics(scene: Phaser.Scene, player: Phaser.Physics.Arcade.Sprite) {
-      const gfx = scene.add.graphics();
-      gfx.setDepth(10);
-
-      gfx.fillStyle(0x2d1b4e, 1);
-      gfx.fillRect(-12, -12, 24, 28);
-      gfx.fillStyle(0x1a1030, 1);
-      gfx.fillRect(-10, -10, 20, 24);
+    function drawPlayerGraphics(scene: Phaser.Scene, player: Phaser.Physics.Arcade.Sprite, spriteUrl?: string) {
+      const FRAME_SIZE = 32;
+      const SHEET_COLS = 3;
+      const DIRECTIONS = ["down", "left", "right", "up"] as const;
       
-      gfx.fillStyle(0xe8d4b8, 1);
-      gfx.fillCircle(0, -6, 6);
+      createFallbackPlayerTextures(scene, FRAME_SIZE, DIRECTIONS);
+      createFallbackPlayerAnimations(scene, DIRECTIONS);
+      player.setTexture("player_down_1");
+      player.play("player_idle_down");
       
-      gfx.fillStyle(0x2d1b4e, 1);
-      gfx.fillRect(-10, 0, 20, 14);
-      
-      gfx.generateTexture("player_tex", 32, 32);
-      gfx.destroy();
+      if (spriteUrl) {
+        scene.load.spritesheet("player_sheet", spriteUrl, {
+          frameWidth: FRAME_SIZE,
+          frameHeight: FRAME_SIZE,
+        });
+        scene.load.once("complete", () => {
+          DIRECTIONS.forEach((dir) => {
+            scene.anims.remove(`player_walk_${dir}`);
+            scene.anims.remove(`player_idle_${dir}`);
+          });
+          createPlayerAnimations(scene, "player_sheet", FRAME_SIZE, SHEET_COLS, DIRECTIONS);
+          player.setTexture("player_sheet", 1);
+          player.play("player_idle_down");
+        });
+        scene.load.start();
+      }
+    }
 
-      player.setTexture("player_tex");
-
-      scene.anims.create({
-        key: "player_idle",
-        frames: [{ key: "player_tex", frame: 0 }],
-        frameRate: 1,
-        repeat: -1,
+    function createPlayerAnimations(
+      scene: Phaser.Scene, 
+      textureKey: string, 
+      frameSize: number, 
+      cols: number,
+      directions: readonly ("down" | "left" | "right" | "up")[]
+    ) {
+      directions.forEach((dir, row) => {
+        const startFrame = row * cols;
+        scene.anims.create({
+          key: `player_walk_${dir}`,
+          frames: scene.anims.generateFrameNumbers(textureKey, { start: startFrame, end: startFrame + 2 }),
+          frameRate: 8,
+          repeat: -1,
+        });
+        scene.anims.create({
+          key: `player_idle_${dir}`,
+          frames: [{ key: textureKey, frame: startFrame + 1 }],
+          frameRate: 1,
+          repeat: -1,
+        });
       });
-      player.play("player_idle");
+    }
+
+    function createFallbackPlayerTextures(
+      scene: Phaser.Scene, 
+      size: number, 
+      directions: readonly ("down" | "left" | "right" | "up")[]
+    ) {
+      const ROBE_COLOR = 0x2d1b4e;
+      const ROBE_DARK = 0x1a1030;
+      const SKIN_COLOR = 0xe8d4b8;
+      const HAIR_COLOR = 0x3a2820;
+
+      directions.forEach((dir) => {
+        for (let frame = 0; frame < 3; frame++) {
+          const gfx = scene.add.graphics();
+          const cx = size / 2;
+          const cy = size / 2;
+          const legOffset = frame === 0 ? -2 : frame === 2 ? 2 : 0;
+
+          gfx.fillStyle(ROBE_COLOR, 1);
+          gfx.fillRect(cx - 8, cy - 4, 16, 18);
+          gfx.fillStyle(ROBE_DARK, 1);
+          if (dir === "left") {
+            gfx.fillRect(cx + 4, cy - 4, 4, 16);
+          } else if (dir === "right") {
+            gfx.fillRect(cx - 8, cy - 4, 4, 16);
+          }
+          gfx.fillStyle(ROBE_COLOR, 1);
+          gfx.fillRect(cx - 4 + legOffset, cy + 10, 4, 6);
+          gfx.fillRect(cx + legOffset, cy + 10, 4, 6);
+          gfx.fillStyle(SKIN_COLOR, 1);
+          gfx.fillCircle(cx, cy - 8, 5);
+          gfx.fillStyle(HAIR_COLOR, 1);
+          if (dir === "down") {
+            gfx.fillRect(cx - 4, cy - 14, 8, 4);
+          } else if (dir === "up") {
+            gfx.fillCircle(cx, cy - 9, 5);
+          } else if (dir === "left") {
+            gfx.fillRect(cx - 2, cy - 14, 6, 4);
+            gfx.fillRect(cx + 2, cy - 12, 3, 6);
+          } else if (dir === "right") {
+            gfx.fillRect(cx - 4, cy - 14, 6, 4);
+            gfx.fillRect(cx - 5, cy - 12, 3, 6);
+          }
+
+          gfx.generateTexture(`player_${dir}_${frame}`, size, size);
+          gfx.destroy();
+        }
+      });
+    }
+
+    function createFallbackPlayerAnimations(
+      scene: Phaser.Scene,
+      directions: readonly ("down" | "left" | "right" | "up")[]
+    ) {
+      directions.forEach((dir) => {
+        scene.anims.create({
+          key: `player_walk_${dir}`,
+          frames: [
+            { key: `player_${dir}_0` },
+            { key: `player_${dir}_1` },
+            { key: `player_${dir}_2` },
+            { key: `player_${dir}_1` },
+          ],
+          frameRate: 8,
+          repeat: -1,
+        });
+        scene.anims.create({
+          key: `player_idle_${dir}`,
+          frames: [{ key: `player_${dir}_1` }],
+          frameRate: 1,
+          repeat: -1,
+        });
+      });
     }
 
     function createInteractiveObject(

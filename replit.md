@@ -78,13 +78,18 @@ Preferred communication style: Simple, everyday language.
   - `ChoicePanel` - Styled choice buttons with spell highlighting
 - **Overworld System (December 2024)**:
   - `OverworldCanvas.tsx` - Phaser.js-based Pokemon-style top-down exploration
-  - 480x360 game canvas with procedural Undercroft map
+  - 480x360 game canvas with procedural Undercroft map (responsive scaling on mobile)
+  - 4-directional animated player sprite (walk/idle cycles for up/down/left/right)
+  - Sprite sheet format: 4 rows x 3 columns (32x32 frames, Pokemon FireRed/LeafGreen style)
+  - Fallback procedural graphics when no sprite URL is provided
   - WASD/arrow key movement with collision detection
+  - SHIFT key for running (1.5x speed), mobile RUN toggle button
   - Interactive objects: NPCs, items, examine points, triggers
   - Proximity-based interaction (50px range, E/Space to interact)
   - Dialogue overlay with pause/resume movement
+  - Virtual touch controls: D-pad for movement, circular action button
   - Uses refs to prevent Phaser re-initialization on React state changes
-  - `OverworldDemo.tsx` - Demo page at `/overworld` route
+  - `OverworldDemo.tsx` - Demo page at `/overworld` route (landscape mobile-first layout)
   - `use-overworld-npc.ts` - Hook for AI-powered NPC dialogue
 
 ### Backend Architecture
