@@ -10,6 +10,7 @@ import {
   type MagicalDiscipline,
   type StatusEffect,
   type ItemCategory,
+  type ItemRarity,
   type CompanionType,
   type ConnectionType,
   type EncounterType,
@@ -92,7 +93,7 @@ const ITEM_DATA: Array<{
   displayName: string;
   description: string;
   category: ItemCategory;
-  rarity: string;
+  rarity: ItemRarity;
   buyPrice: number;
   sellPrice: number;
   usableInBattle: boolean;
