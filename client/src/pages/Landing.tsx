@@ -4,9 +4,10 @@ import { motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import wandLogo from "@assets/generated_images/magical_wand_app_logo.png";
 import { MagicalButton } from "@/components/ui/magical-button";
-import { useInitGame } from "@/hooks/use-game";
+import { useGameStart } from "@/hooks/use-game-start";
 import { useToast } from "@/hooks/use-toast";
 import { type HogwartsHouse, HogwartsHouses } from "@shared/routes";
+import { IntroScene } from "@/components/game/IntroScene";
 
 import gryffindorIcon from "@assets/generated_images/gryffindor_lion_crest_icon.png";
 import slytherinIcon from "@assets/generated_images/slytherin_snake_crest_icon.png";
@@ -20,12 +21,25 @@ const houseIcons: Record<string, string> = {
   Hufflepuff: hufflepuffIcon,
 };
 
+interface GameStartResult {
+  profileId: number;
+  introText: string;
+  startingLocation: string;
+  playerData: {
+    playerName: string;
+    house: string;
+  };
+}
+
 export default function Landing() {
   const [name, setName] = useState("");
   const [house, setHouse] = useState<HogwartsHouse | undefined>(undefined);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const initGame = useInitGame();
+  const gameStart = useGameStart();
+  
+  const [gameResult, setGameResult] = useState<GameStartResult | null>(null);
+  const [showIntro, setShowIntro] = useState(false);
 
   const handleStart = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,8 +54,9 @@ export default function Landing() {
     }
 
     try {
-      const result = await initGame.mutateAsync({ playerName: name, house });
-      setLocation(`/game/${result.conversationId}`);
+      const result = await gameStart.mutateAsync({ playerName: name, house });
+      setGameResult(result);
+      setShowIntro(true);
     } catch (error: any) {
       toast({
         title: "Magic Failed",
@@ -50,6 +65,23 @@ export default function Landing() {
       });
     }
   };
+
+  const handleContinueToExplore = () => {
+    if (gameResult) {
+      setLocation(`/explore?profileId=${gameResult.profileId}`);
+    }
+  };
+
+  if (showIntro && gameResult) {
+    return (
+      <IntroScene
+        introText={gameResult.introText}
+        playerName={gameResult.playerData.playerName}
+        house={gameResult.playerData.house}
+        onContinue={handleContinueToExplore}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen min-h-[100dvh] flex items-center justify-center p-2 sm:p-4 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-indigo-900 via-purple-950 to-black overflow-auto">
@@ -68,10 +100,10 @@ export default function Landing() {
                 <img src={wandLogo} alt="Magical Wand" className="w-full h-full object-cover animate-float" />
               </div>
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-serif font-bold text-transparent bg-clip-text bg-gradient-to-b from-yellow-200 to-yellow-600 mb-1 landscape:mb-2">
-                Wizarding Sagas
+                Hogwarts Unlimited
               </h1>
               <p className="text-purple-200/80 font-serif text-xs sm:text-sm max-w-xs mx-auto leading-snug">
-                You've been chosen. A secret society lurks beneath Hogwarts, and your trials have already begun.
+                Explore the magical world of Hogwarts. Battle creatures, learn spells, and discover secrets.
               </p>
             </div>
 
@@ -123,12 +155,12 @@ export default function Landing() {
               <MagicalButton 
                 type="submit" 
                 className="w-full bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-black font-bold shadow-lg shadow-yellow-900/20 py-2 landscape:py-1.5 text-sm"
-                isLoading={initGame.isPending}
+                isLoading={gameStart.isPending}
                 data-testid="button-enter-world"
               >
-                {initGame.isPending ? "Casting Spells..." : (
+                {gameStart.isPending ? "Casting Spells..." : (
                   <span className="flex items-center justify-center gap-2">
-                    Enter World <Sparkles className="w-4 h-4" />
+                    Begin Adventure <Sparkles className="w-4 h-4" />
                   </span>
                 )}
               </MagicalButton>

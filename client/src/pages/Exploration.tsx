@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Heart, 
@@ -22,6 +22,7 @@ import { OverworldCanvas, OverworldCanvasRef, ExitPoint } from "@/components/gam
 import { useMapTransition } from "@/hooks/use-map-transition";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/queryClient";
+import { usePlayerProfile, useUpdateLocation } from "@/hooks/use-game-start";
 
 interface MapConnection {
   id: number;
@@ -131,8 +132,17 @@ function TouchControls({
 
 export default function Exploration() {
   const [, navigate] = useLocation();
+  const searchString = useSearch();
   const canvasRef = useRef<OverworldCanvasRef>(null);
-  const [currentLocation, setCurrentLocation] = useState("The Undercroft");
+  
+  const searchParams = new URLSearchParams(searchString);
+  const profileIdParam = searchParams.get("profileId");
+  const profileId = profileIdParam ? parseInt(profileIdParam, 10) : null;
+  
+  const { data: playerProfile, isLoading: profileLoading, isError: profileError, refetch: refetchProfile } = usePlayerProfile(profileId);
+  const updateLocationMutation = useUpdateLocation();
+  
+  const [currentLocation, setCurrentLocation] = useState("Great Hall");
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [transitionText, setTransitionText] = useState<string | null>(null);
   const [spawnPosition, setSpawnPosition] = useState<{ x: number; y: number } | null>(null);
@@ -143,6 +153,12 @@ export default function Exploration() {
   const [isMobile, setIsMobile] = useState(false);
   const [canvasSize, setCanvasSize] = useState({ width: 480, height: 360 });
   const lastPositionRef = useRef<{ x: number; y: number } | null>(null);
+  
+  useEffect(() => {
+    if (playerProfile?.currentLocation && playerProfile.currentLocation !== currentLocation) {
+      setCurrentLocation(playerProfile.currentLocation);
+    }
+  }, [playerProfile?.currentLocation]);
   
   const testMode = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("testMode") === "1";
   const forceCombat = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("forceCombat") === "1";
@@ -170,14 +186,13 @@ export default function Exploration() {
   
   // Handle starting a fight
   const handleFight = useCallback(() => {
-    // For now, use a hardcoded profile ID (1) - in production this would come from auth/session
-    // The enemy type comes from the random encounter
+    if (!profileId) return;
     startBattleMutation.mutate({
-      profileId: 1,
+      profileId,
       location: currentLocation,
       enemyType: combat.creatureName,
     });
-  }, [currentLocation, combat.creatureName, startBattleMutation]);
+  }, [profileId, currentLocation, combat.creatureName, startBattleMutation]);
   
   // Handle running from combat
   const handleRun = useCallback(() => {
@@ -198,8 +213,18 @@ export default function Exploration() {
   const [dialogue, setDialogue] = useState<DialogueState>({ isOpen: false, speaker: "", text: "", choices: [] });
   const [canvasNearbyExit, setCanvasNearbyExit] = useState<ExitPoint | null>(null);
   
-  const [playerStats] = useState({ health: 100, maxHealth: 100, level: 5, experience: 350, galleons: 75 });
-  const [inventory] = useState(["Wand", "Hogwarts Robes", "Potion", "Map"]);
+  const playerStats = useMemo(() => ({
+    health: playerProfile?.stats?.currentHp ?? 100,
+    maxHealth: playerProfile?.stats?.maxHp ?? 100,
+    level: playerProfile?.level ?? 1,
+    experience: playerProfile?.experience ?? 0,
+    galleons: playerProfile?.galleons ?? 50,
+  }), [playerProfile]);
+  
+  const inventory = useMemo(() => 
+    playerProfile?.knownSpells?.slice(0, 4) ?? ["Wand", "Hogwarts Robes"],
+    [playerProfile]
+  );
 
   const { data: connections = [] } = useQuery<MapConnection[]>({
     queryKey: ["/api/rpg/map-connections", currentLocation],
@@ -285,12 +310,16 @@ export default function Exploration() {
     setSpawnPosition(toPos || { x: canvasSize.width / 2, y: canvasSize.height - 64 });
     setStepsSinceEncounter(0);
     
+    if (profileId) {
+      updateLocationMutation.mutate({ profileId, location: destination });
+    }
+    
     setTimeout(() => {
       setIsTransitioning(false);
       setTransitionText(null);
       canvasRef.current?.resumeMovement();
     }, 400);
-  }, [canvasSize.width, canvasSize.height]);
+  }, [canvasSize.width, canvasSize.height, profileId, updateLocationMutation]);
 
   const { nearbyExit, initiateTransition } = useMapTransition({
     currentLocation,
@@ -414,6 +443,48 @@ export default function Exploration() {
       canvas?.focus();
     }, 100);
   };
+
+  if (!profileId) {
+    return (
+      <div className="min-h-screen bg-[#0a0a12] flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-[#8b6cc0] text-lg mb-4">No active game session found</p>
+          <Button onClick={() => navigate("/")} data-testid="button-return-home">
+            Return to Home
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (profileLoading) {
+    return (
+      <div className="min-h-screen bg-[#0a0a12] flex items-center justify-center">
+        <div className="flex items-center gap-3 text-[#8b6cc0]">
+          <Loader2 className="w-6 h-6 animate-spin" />
+          <span>Loading your adventure...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (profileError || !playerProfile) {
+    return (
+      <div className="min-h-screen bg-[#0a0a12] flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-400 text-lg mb-4">Failed to load your game data</p>
+          <div className="flex gap-3 justify-center">
+            <Button onClick={() => refetchProfile()} data-testid="button-retry-load">
+              Try Again
+            </Button>
+            <Button variant="outline" onClick={() => navigate("/")} data-testid="button-return-home-error">
+              Return Home
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen min-h-[100dvh] bg-[#0a0a12] flex flex-col landscape:flex-row lg:flex-row overflow-hidden">

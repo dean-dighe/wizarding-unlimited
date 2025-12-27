@@ -355,7 +355,90 @@ What do you do?
     }
   });
 
-  // Game Init Route
+  // ===== NEW EXPLORATION-FOCUSED GAME START =====
+  // Creates player_profile and returns brief intro - no conversation loop
+  app.post(api.game.start.path, async (req, res) => {
+    try {
+      const { playerName, house } = api.game.start.input.parse(req.body);
+
+      // 1. Create conversation (for session tracking)
+      const conversation = await chatStorage.createConversation(`Exploration: ${playerName}`);
+
+      // 2. Generate brief intro text (2-3 sentences, not a conversation)
+      const { generateGameIntro } = await import("./explorationAI");
+      const { introText, startingLocation } = await generateGameIntro(playerName, house);
+
+      // 3. Create player profile with RPG stats
+      const startingSpells = [
+        "Lumos", "Nox", "Wingardium Leviosa", "Alohomora", 
+        "Reparo", "Incendio", "Flipendo", "Expelliarmus"
+      ];
+      
+      const profile = await storage.createPlayerProfile({
+        conversationId: conversation.id,
+        playerName,
+        house,
+        level: 1,
+        experience: 0,
+        experienceToNext: 100,
+        galleons: 50,
+        stats: {
+          maxHp: 100,
+          currentHp: 100,
+          attack: 10,
+          defense: 10,
+          speed: 10,
+          accuracy: 90,
+          evasion: 5,
+          critChance: 5,
+        },
+        knownSpells: startingSpells,
+        equippedSpells: startingSpells.slice(0, 4), // First 4 as equipped
+        currentLocation: startingLocation,
+        trialSigils: 0,
+        playTime: 0,
+        battlesWon: 0,
+        creaturesDefeated: 0,
+      });
+
+      // 4. Generate character description in background (for sprites)
+      generateCharacterDescription(playerName, house)
+        .then(async (charDesc) => {
+          const sessionSpriteKey = `explore_${profile.id}_${playerName}`;
+          spriteService.getOrCreateSprite(sessionSpriteKey, charDesc, { isProtagonist: true })
+            .then((url: string) => console.log(`Generated explore sprite for ${playerName}: ${url}`))
+            .catch((err: Error) => console.error(`Sprite generation failed:`, err));
+        })
+        .catch(console.error);
+
+      res.status(201).json({
+        profileId: profile.id,
+        introText,
+        startingLocation,
+        playerData: {
+          playerName: profile.playerName,
+          house: profile.house || house,
+          level: profile.level || 1,
+          stats: {
+            maxHp: (profile.stats as any)?.maxHp || 100,
+            currentHp: (profile.stats as any)?.currentHp || 100,
+          },
+          equippedSpells: profile.equippedSpells || startingSpells.slice(0, 4),
+          currentLocation: profile.currentLocation || startingLocation,
+        },
+      });
+
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        res.status(400).json({ message: err.errors[0].message });
+      } else {
+        console.error(err);
+        res.status(500).json({ message: "Internal Server Error" });
+      }
+    }
+  });
+
+  // Game Init Route (Legacy - visual novel style)
   app.post(api.game.init.path, async (req, res) => {
     try {
       const { playerName, house } = api.game.init.input.parse(req.body);
@@ -795,6 +878,61 @@ The professor's voice echoes from the darkness ahead—calm, measured, utterly u
       playerSpriteGenerated: state.playerSpriteGenerated ?? false,
       decisionCount: state.decisionCount ?? 0,
     });
+  });
+
+  // Get Player Profile (for exploration mode)
+  app.get("/api/game/profile/:profileId", async (req, res) => {
+    const profileId = Number(req.params.profileId);
+    if (!Number.isInteger(profileId) || profileId <= 0) {
+      return res.status(400).json({ message: "Invalid profile ID" });
+    }
+
+    const profile = await storage.getPlayerProfileById(profileId);
+    if (!profile) {
+      return res.status(404).json({ message: "Profile not found" });
+    }
+
+    const stats = profile.stats as any || {
+      maxHp: 100, currentHp: 100, attack: 10, defense: 10,
+      speed: 10, accuracy: 90, evasion: 5, critChance: 5,
+    };
+
+    res.json({
+      id: profile.id,
+      playerName: profile.playerName,
+      house: profile.house,
+      level: profile.level || 1,
+      experience: profile.experience || 0,
+      experienceToNext: profile.experienceToNext || 100,
+      galleons: profile.galleons || 50,
+      stats,
+      knownSpells: profile.knownSpells || [],
+      equippedSpells: profile.equippedSpells || [],
+      currentLocation: profile.currentLocation || "Great Hall",
+      trialSigils: profile.trialSigils || 0,
+      battlesWon: profile.battlesWon || 0,
+    });
+  });
+
+  // Update Player Location (for map transitions)
+  app.patch("/api/game/profile/:profileId/location", async (req, res) => {
+    const profileId = Number(req.params.profileId);
+    if (!Number.isInteger(profileId) || profileId <= 0) {
+      return res.status(400).json({ message: "Invalid profile ID" });
+    }
+
+    const { location } = req.body;
+    if (!location || typeof location !== "string") {
+      return res.status(400).json({ message: "Location is required" });
+    }
+
+    const profile = await storage.getPlayerProfileById(profileId);
+    if (!profile) {
+      return res.status(404).json({ message: "Profile not found" });
+    }
+
+    await storage.updatePlayerProfile(profileId, { currentLocation: location });
+    res.json({ success: true, location });
   });
 
   // ===== RPG SYSTEM ROUTES =====

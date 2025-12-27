@@ -19,11 +19,39 @@ export const StoryArcSchema = z.object({
 
 export const api = {
   game: {
+    start: {
+      method: 'POST' as const,
+      path: '/api/game/start',
+      input: z.object({
+        playerName: z.string()
+          .min(1, "Name is required")
+          .max(50, "Name too long")
+          .regex(/^[a-zA-Z\s'-]+$/, "Name can only contain letters, spaces, hyphens, and apostrophes"),
+        house: z.enum(HogwartsHouses, { errorMap: () => ({ message: "Please choose a valid Hogwarts house" }) }),
+      }),
+      responses: {
+        201: z.object({
+          profileId: z.number(),
+          introText: z.string(),
+          startingLocation: z.string(),
+          playerData: z.object({
+            playerName: z.string(),
+            house: z.string(),
+            level: z.number(),
+            stats: z.object({
+              maxHp: z.number(),
+              currentHp: z.number(),
+            }),
+            equippedSpells: z.array(z.string()),
+            currentLocation: z.string(),
+          }),
+        }),
+      },
+    },
     init: {
       method: 'POST' as const,
       path: '/api/game/init',
       input: z.object({
-        // Max 50 chars, only letters, spaces, hyphens, apostrophes
         playerName: z.string()
           .min(1, "Name is required")
           .max(50, "Name too long")
@@ -33,7 +61,7 @@ export const api = {
       responses: {
         201: z.object({
           conversationId: z.number(),
-          message: z.string(), // Initial narrative
+          message: z.string(),
         }),
       },
     },
@@ -59,6 +87,48 @@ export const api = {
           playerSpriteGenerated: z.boolean().default(false),
           decisionCount: z.number(),
         }),
+        404: z.object({ message: z.string() }),
+      },
+    },
+    getProfile: {
+      method: 'GET' as const,
+      path: '/api/game/profile/:profileId',
+      responses: {
+        200: z.object({
+          id: z.number(),
+          playerName: z.string(),
+          house: z.string().nullable(),
+          level: z.number(),
+          experience: z.number(),
+          experienceToNext: z.number(),
+          galleons: z.number(),
+          stats: z.object({
+            maxHp: z.number(),
+            currentHp: z.number(),
+            attack: z.number(),
+            defense: z.number(),
+            speed: z.number(),
+            accuracy: z.number(),
+            evasion: z.number(),
+            critChance: z.number(),
+          }),
+          knownSpells: z.array(z.string()),
+          equippedSpells: z.array(z.string()),
+          currentLocation: z.string(),
+          trialSigils: z.number(),
+          battlesWon: z.number(),
+        }),
+        404: z.object({ message: z.string() }),
+      },
+    },
+    updateLocation: {
+      method: 'PATCH' as const,
+      path: '/api/game/profile/:profileId/location',
+      input: z.object({
+        location: z.string(),
+      }),
+      responses: {
+        200: z.object({ success: z.boolean(), location: z.string() }),
         404: z.object({ message: z.string() }),
       },
     },
