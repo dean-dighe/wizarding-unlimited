@@ -141,8 +141,19 @@ export default function Exploration() {
   const lastPositionRef = useRef<{ x: number; y: number } | null>(null);
   
   const testMode = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("testMode") === "1";
+  const forceCombat = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("forceCombat") === "1";
+  const forceCombatTriggeredRef = useRef(false);
 
   const [combat, setCombat] = useState<CombatState>({ active: false, creatureName: "", creatureLevel: 1 });
+  
+  useEffect(() => {
+    if (forceCombat && !combat.active && !forceCombatTriggeredRef.current) {
+      forceCombatTriggeredRef.current = true;
+      setTimeout(() => {
+        setCombat({ active: true, creatureName: "Test Creature", creatureLevel: 3 });
+      }, 1000);
+    }
+  }, [forceCombat, combat.active]);
   const [dialogue, setDialogue] = useState<DialogueState>({ isOpen: false, speaker: "", text: "", choices: [] });
   const [canvasNearbyExit, setCanvasNearbyExit] = useState<ExitPoint | null>(null);
   
