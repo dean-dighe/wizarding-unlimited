@@ -122,6 +122,7 @@ export interface IStorage {
   getMapConnections(fromLocation: string): Promise<MapConnection[]>;
   getAllMapConnections(): Promise<MapConnection[]>;
   createMapConnection(connection: InsertMapConnection): Promise<MapConnection>;
+  deleteMapConnection(id: number): Promise<void>;
   
   // Encounter methods
   getEncounterTable(locationName: string): Promise<EncounterTable[]>;
@@ -459,6 +460,10 @@ export class DatabaseStorage implements IStorage {
   async createMapConnection(connection: InsertMapConnection): Promise<MapConnection> {
     const [newConnection] = await db.insert(map_connections).values([connection]).returning();
     return newConnection;
+  }
+  
+  async deleteMapConnection(id: number): Promise<void> {
+    await db.delete(map_connections).where(eq(map_connections.id, id));
   }
 
   // ===== ENCOUNTER TABLE METHODS =====

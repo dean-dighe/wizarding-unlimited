@@ -1021,6 +1021,149 @@ The professor's voice echoes from the darkness ahead—calm, measured, utterly u
     }
   });
   
+  // Analyze map cohesion issues - ONLY adds missing reverse connections (no deletions)
+  app.post("/api/rpg/fix-map-cohesion", async (req, res) => {
+    try {
+      const { dryRun = true, addReverseOnly = true } = req.body || {};
+      const connections = await storage.getAllMapConnections();
+      const analysis: {
+        potentialDuplicates: Array<{ ids: number[]; fromTo: string; details: string }>;
+        missingReverse: Array<{ from: string; to: string; canAutoFix: boolean; reason?: string }>;
+      } = { potentialDuplicates: [], missingReverse: [] };
+      
+      // Build connection map for analysis
+      const connectionMap = new Map<string, typeof connections[0][]>();
+      const pairGroups = new Map<string, typeof connections[0][]>();
+      
+      for (const conn of connections) {
+        // Group by from/to pair
+        const pairKey = `${conn.fromLocation}|${conn.toLocation}`;
+        if (!pairGroups.has(pairKey)) {
+          pairGroups.set(pairKey, []);
+        }
+        pairGroups.get(pairKey)!.push(conn);
+        
+        // Build reverse lookup
+        if (!connectionMap.has(conn.fromLocation)) {
+          connectionMap.set(conn.fromLocation, []);
+        }
+        connectionMap.get(conn.fromLocation)!.push(conn);
+      }
+      
+      // Identify potential duplicates (same from/to) for REVIEW ONLY
+      for (const [pairKey, conns] of pairGroups) {
+        if (conns.length > 1) {
+          analysis.potentialDuplicates.push({
+            ids: conns.map(c => c.id),
+            fromTo: pairKey,
+            details: `${conns.length} connections between same locations - review manually if intentional parallel exits`
+          });
+        }
+      }
+      
+      // Find missing reverse connections
+      const toCreate: Array<{ from: string; to: string; original: typeof connections[0] }> = [];
+      
+      for (const conn of connections) {
+        if (conn.isOneWay) continue;
+        
+        const reverseConnections = connectionMap.get(conn.toLocation) || [];
+        const hasReverse = reverseConnections.some(rc => rc.toLocation === conn.fromLocation);
+        
+        if (!hasReverse) {
+          const canAutoFix = !!(conn.fromPosition && conn.toPosition);
+          analysis.missingReverse.push({
+            from: conn.toLocation,
+            to: conn.fromLocation,
+            canAutoFix,
+            reason: canAutoFix ? undefined : "Missing position data - requires manual setup"
+          });
+          
+          if (canAutoFix) {
+            toCreate.push({ from: conn.toLocation, to: conn.fromLocation, original: conn });
+          }
+        }
+      }
+      
+      // Dry run - report only
+      if (dryRun) {
+        return res.json({
+          dryRun: true,
+          message: "Analysis complete. Set dryRun: false to add missing reverse connections.",
+          analysis,
+          summary: {
+            potentialDuplicatesForReview: analysis.potentialDuplicates.length,
+            missingReverseTotal: analysis.missingReverse.length,
+            canAutoFix: toCreate.length,
+            requiresManualFix: analysis.missingReverse.filter(m => !m.canAutoFix).length,
+            currentTotal: connections.length
+          },
+          note: "Potential duplicates are listed for manual review only - this endpoint will NOT delete any connections."
+        });
+      }
+      
+      // Apply safe fixes only (adding reverse connections)
+      if (!addReverseOnly) {
+        return res.status(400).json({
+          error: "Only addReverseOnly=true is supported. This endpoint does not delete connections.",
+          message: "Use direct database queries for deletion after manual review."
+        });
+      }
+      
+      let added = 0;
+      for (const entry of toCreate) {
+        const orig = entry.original;
+        const reverseDirection = orig.direction === "north" ? "south" : 
+                                 orig.direction === "south" ? "north" :
+                                 orig.direction === "east" ? "west" :
+                                 orig.direction === "west" ? "east" : "south";
+        
+        await storage.createMapConnection({
+          fromLocation: entry.from,
+          toLocation: entry.to,
+          direction: reverseDirection,
+          isOneWay: false,
+          fromPosition: orig.toPosition,
+          toPosition: orig.fromPosition,
+          connectionType: orig.connectionType,
+          transitionText: orig.transitionText ? `Return to ${entry.to}` : undefined,
+        });
+        added++;
+      }
+      
+      // Re-validate
+      const updatedConnections = await storage.getAllMapConnections();
+      const updatedMap = new Map<string, Set<string>>();
+      for (const conn of updatedConnections) {
+        if (!updatedMap.has(conn.fromLocation)) {
+          updatedMap.set(conn.fromLocation, new Set());
+        }
+        updatedMap.get(conn.fromLocation)!.add(conn.toLocation);
+      }
+      
+      let remainingMissing = 0;
+      for (const conn of updatedConnections) {
+        if (conn.isOneWay) continue;
+        const hasReverse = updatedMap.get(conn.toLocation)?.has(conn.fromLocation);
+        if (!hasReverse) remainingMissing++;
+      }
+      
+      res.json({
+        dryRun: false,
+        success: true,
+        action: "Added missing reverse connections only (no deletions)",
+        reverseConnectionsAdded: added,
+        totalConnectionsNow: updatedConnections.length,
+        remainingMissingReverse: remainingMissing,
+        potentialDuplicatesForReview: analysis.potentialDuplicates.length,
+        note: "Potential duplicates are NOT touched - review manually if needed."
+      });
+    } catch (error: any) {
+      console.error("Error analyzing map cohesion:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
   // Get encounter table for a location
   app.get("/api/rpg/encounters/:location", async (req, res) => {
     try {
