@@ -461,3 +461,54 @@ export const CHARACTER_CATEGORIES = {
   portraits: CANON_CHARACTERS.filter(c => c.category === "portrait"),
   magicalObjects: CANON_CHARACTERS.filter(c => c.category === "magical_object"),
 };
+
+// NPC Sprite Service - wrapper for easy NPC sprite management
+export const npcSpriteService = {
+  spriteGenerator: new SpriteGenerationService(),
+  
+  async generateNpcSprite(
+    characterName: string, 
+    description: string, 
+    isCanon?: boolean
+  ): Promise<CharacterSprite | null> {
+    try {
+      // Check if it's a known canon character
+      const canonChar = CANON_CHARACTERS.find(
+        c => c.name.toLowerCase() === characterName.toLowerCase()
+      );
+      
+      const finalDescription = canonChar?.description || description;
+      const finalIsCanon = isCanon ?? !!canonChar;
+      
+      // Generate or retrieve sprite
+      const spriteUrl = await this.spriteGenerator.getOrCreateSprite(
+        characterName,
+        finalDescription,
+        { isCanon: finalIsCanon }
+      );
+      
+      // Return the sprite data from storage
+      const sprite = await storage.getCharacterSprite(characterName);
+      return sprite ?? null;
+    } catch (error) {
+      console.error(`[NpcSpriteService] Failed to generate sprite for ${characterName}:`, error);
+      return null;
+    }
+  },
+  
+  async getSprite(characterName: string): Promise<CharacterSprite | null> {
+    const sprite = await storage.getCharacterSprite(characterName);
+    return sprite ?? null;
+  },
+  
+  async getAllCanonCharacters() {
+    return CANON_CHARACTERS;
+  },
+  
+  getCanonCharacterDescription(characterName: string): string | null {
+    const canon = CANON_CHARACTERS.find(
+      c => c.name.toLowerCase() === characterName.toLowerCase()
+    );
+    return canon?.description || null;
+  }
+};

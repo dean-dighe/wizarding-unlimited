@@ -1,4 +1,4 @@
-export { SpriteGenerationService } from "./sprites";
+export { SpriteGenerationService, npcSpriteService, CANON_CHARACTERS, CHARACTER_CATEGORIES } from "./sprites";
 export { MapGenerationService } from "./maps";
 export { GameAssetStorageService, assetStorage } from "./storage";
 export { registerGameAssetRoutes } from "./routes";

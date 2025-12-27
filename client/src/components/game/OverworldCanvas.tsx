@@ -2,8 +2,15 @@ import { useEffect, useRef, useState, useCallback, useMemo, useImperativeHandle,
 import Phaser from "phaser";
 
 const TILE_SIZE = 32;
+const SUB_TILE = 8;
 const PLAYER_SPEED = 120;
 const PLAYER_RUN_SPEED = 180;
+
+const POKEMON_STYLE = {
+  outline: 0x000000,
+  highlight: 0xffffff,
+  shadow: 0x202020,
+};
 
 const UNDERCROFT_PALETTE = {
   black: 0x0a0a12,
@@ -82,6 +89,264 @@ const CORRIDOR_PALETTE = {
 };
 
 type LocationType = "undercroft" | "great_hall" | "classroom" | "dungeon" | "tower" | "courtyard" | "corridor";
+
+function drawSubTile(gfx: Phaser.GameObjects.Graphics, x: number, y: number, colors: number[], pattern: number[][]) {
+  for (let py = 0; py < pattern.length && py < 4; py++) {
+    for (let px = 0; px < pattern[py].length && px < 4; px++) {
+      const colorIndex = pattern[py][px];
+      if (colorIndex >= 0 && colorIndex < colors.length) {
+        gfx.fillStyle(colors[colorIndex], 1);
+        gfx.fillRect(x + px * 2, y + py * 2, 2, 2);
+      }
+    }
+  }
+}
+
+function drawPokemonBrick(gfx: Phaser.GameObjects.Graphics, x: number, y: number, baseColor: number, lightColor: number) {
+  gfx.fillStyle(baseColor, 1);
+  gfx.fillRect(x, y, SUB_TILE, SUB_TILE);
+  gfx.fillStyle(lightColor, 1);
+  gfx.fillRect(x, y, SUB_TILE, 1);
+  gfx.fillRect(x, y, 1, SUB_TILE);
+  gfx.fillStyle(POKEMON_STYLE.shadow, 0.5);
+  gfx.fillRect(x + SUB_TILE - 1, y, 1, SUB_TILE);
+  gfx.fillRect(x, y + SUB_TILE - 1, SUB_TILE, 1);
+}
+
+function drawPokemonFloor(gfx: Phaser.GameObjects.Graphics, x: number, y: number, color1: number, color2: number, variant: number) {
+  gfx.fillStyle(color1, 1);
+  gfx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+  for (let sy = 0; sy < 4; sy++) {
+    for (let sx = 0; sx < 4; sx++) {
+      if ((sx + sy + variant) % 2 === 0) {
+        gfx.fillStyle(color2, 0.3);
+        gfx.fillRect(x + sx * SUB_TILE, y + sy * SUB_TILE, SUB_TILE, SUB_TILE);
+      }
+    }
+  }
+  gfx.fillStyle(POKEMON_STYLE.outline, 0.15);
+  gfx.fillRect(x, y + TILE_SIZE - 1, TILE_SIZE, 1);
+  gfx.fillRect(x + TILE_SIZE - 1, y, 1, TILE_SIZE);
+}
+
+function drawPokemonWall(gfx: Phaser.GameObjects.Graphics, x: number, y: number, darkColor: number, mainColor: number, lightColor: number) {
+  gfx.fillStyle(darkColor, 1);
+  gfx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+  for (let row = 0; row < 4; row++) {
+    const offset = row % 2 === 0 ? 0 : SUB_TILE;
+    for (let col = 0; col < 3; col++) {
+      const bx = x + offset + col * SUB_TILE * 2 - (row % 2 === 1 ? SUB_TILE : 0);
+      if (bx >= x && bx < x + TILE_SIZE - SUB_TILE) {
+        drawPokemonBrick(gfx, bx, y + row * SUB_TILE, mainColor, lightColor);
+      }
+    }
+  }
+  gfx.fillStyle(POKEMON_STYLE.outline, 1);
+  gfx.fillRect(x, y + TILE_SIZE - 2, TILE_SIZE, 2);
+}
+
+function drawPokemonTable(gfx: Phaser.GameObjects.Graphics, x: number, y: number, w: number, h: number, woodDark: number, woodLight: number) {
+  gfx.fillStyle(POKEMON_STYLE.outline, 1);
+  gfx.fillRect(x - 1, y - 1, w + 2, h + 2);
+  gfx.fillStyle(woodDark, 1);
+  gfx.fillRect(x, y, w, h);
+  gfx.fillStyle(woodLight, 1);
+  gfx.fillRect(x, y, w, 2);
+  gfx.fillRect(x, y, 2, h);
+  gfx.fillStyle(POKEMON_STYLE.shadow, 0.6);
+  gfx.fillRect(x, y + h - 2, w, 2);
+  for (let i = SUB_TILE; i < w - SUB_TILE; i += SUB_TILE * 2) {
+    gfx.fillStyle(woodLight, 0.3);
+    gfx.fillRect(x + i, y + 2, 2, h - 4);
+  }
+}
+
+function drawPokemonCandle(gfx: Phaser.GameObjects.Graphics, x: number, y: number, glowColor: number) {
+  gfx.fillStyle(0x4a3a2a, 1);
+  gfx.fillRect(x + 6, y + 16, 4, 8);
+  gfx.fillStyle(POKEMON_STYLE.outline, 1);
+  gfx.fillRect(x + 5, y + 16, 1, 8);
+  gfx.fillRect(x + 10, y + 16, 1, 8);
+  gfx.fillStyle(0xccaa44, 1);
+  gfx.fillRect(x + 6, y + 12, 4, 6);
+  gfx.fillStyle(glowColor, 1);
+  gfx.fillRect(x + 7, y + 10, 2, 4);
+  gfx.fillStyle(glowColor, 0.4);
+  gfx.fillCircle(x + 8, y + 12, 10);
+  gfx.fillStyle(glowColor, 0.15);
+  gfx.fillCircle(x + 8, y + 12, 18);
+}
+
+function drawPokemonBanner(gfx: Phaser.GameObjects.Graphics, x: number, y: number, bannerColor: number, accentColor: number) {
+  gfx.fillStyle(POKEMON_STYLE.outline, 1);
+  gfx.fillRect(x + 4, y, 24, 30);
+  gfx.fillStyle(bannerColor, 1);
+  gfx.fillRect(x + 5, y + 1, 22, 28);
+  gfx.fillStyle(accentColor, 1);
+  gfx.fillRect(x + 5, y + 1, 22, 3);
+  gfx.fillRect(x + 13, y + 8, 6, 12);
+  gfx.fillStyle(POKEMON_STYLE.outline, 1);
+  gfx.fillRect(x + 6, y + 28, 8, 4);
+  gfx.fillRect(x + 18, y + 28, 8, 4);
+}
+
+function drawPokemonWindow(gfx: Phaser.GameObjects.Graphics, x: number, y: number, frameColor: number, glassColor: number, lightColor: number) {
+  gfx.fillStyle(POKEMON_STYLE.outline, 1);
+  gfx.fillRect(x + 2, y + 2, 28, 28);
+  gfx.fillStyle(frameColor, 1);
+  gfx.fillRect(x + 3, y + 3, 26, 26);
+  gfx.fillStyle(glassColor, 1);
+  gfx.fillRect(x + 5, y + 5, 10, 10);
+  gfx.fillRect(x + 17, y + 5, 10, 10);
+  gfx.fillRect(x + 5, y + 17, 10, 10);
+  gfx.fillRect(x + 17, y + 17, 10, 10);
+  gfx.fillStyle(lightColor, 0.5);
+  gfx.fillRect(x + 5, y + 5, 4, 4);
+  gfx.fillRect(x + 17, y + 5, 4, 4);
+}
+
+function drawPokemonChalkboard(gfx: Phaser.GameObjects.Graphics, x: number, y: number, w: number, frameColor: number) {
+  gfx.fillStyle(POKEMON_STYLE.outline, 1);
+  gfx.fillRect(x - 2, y, w + 4, 28);
+  gfx.fillStyle(frameColor, 1);
+  gfx.fillRect(x - 1, y + 1, w + 2, 26);
+  gfx.fillStyle(0x1a3020, 1);
+  gfx.fillRect(x + 2, y + 3, w - 4, 20);
+  gfx.fillStyle(0x88aa88, 0.4);
+  gfx.fillRect(x + 6, y + 8, w * 0.6, 2);
+  gfx.fillRect(x + 10, y + 14, w * 0.4, 2);
+}
+
+function drawPokemonDesk(gfx: Phaser.GameObjects.Graphics, x: number, y: number, woodColor: number, legColor: number) {
+  gfx.fillStyle(POKEMON_STYLE.outline, 1);
+  gfx.fillRect(x - 1, y, TILE_SIZE * 2 + 2, 22);
+  gfx.fillStyle(woodColor, 1);
+  gfx.fillRect(x, y + 1, TILE_SIZE * 2, 20);
+  gfx.fillStyle(legColor, 1);
+  gfx.fillRect(x, y + 1, TILE_SIZE * 2, 3);
+  gfx.fillStyle(POKEMON_STYLE.outline, 1);
+  gfx.fillRect(x + 4, y + 18, 4, 8);
+  gfx.fillRect(x + TILE_SIZE * 2 - 8, y + 18, 4, 8);
+}
+
+function drawPokemonTorch(gfx: Phaser.GameObjects.Graphics, x: number, y: number, flameColor: number) {
+  gfx.fillStyle(0x3a2a1a, 1);
+  gfx.fillRect(x + 12, y + 14, 8, 16);
+  gfx.fillStyle(POKEMON_STYLE.outline, 1);
+  gfx.fillRect(x + 11, y + 14, 1, 16);
+  gfx.fillRect(x + 20, y + 14, 1, 16);
+  gfx.fillStyle(flameColor, 1);
+  gfx.fillRect(x + 13, y + 8, 6, 8);
+  gfx.fillStyle(0xffee88, 1);
+  gfx.fillRect(x + 14, y + 10, 4, 4);
+  gfx.fillStyle(flameColor, 0.5);
+  gfx.fillCircle(x + 16, y + 12, 12);
+  gfx.fillStyle(flameColor, 0.2);
+  gfx.fillCircle(x + 16, y + 12, 20);
+}
+
+function drawPokemonPortrait(gfx: Phaser.GameObjects.Graphics, x: number, y: number, frameColor: number, canvasColor: number) {
+  gfx.fillStyle(POKEMON_STYLE.outline, 1);
+  gfx.fillRect(x + 2, y, 28, 28);
+  gfx.fillStyle(frameColor, 1);
+  gfx.fillRect(x + 3, y + 1, 26, 26);
+  gfx.fillStyle(canvasColor, 1);
+  gfx.fillRect(x + 6, y + 4, 20, 20);
+  gfx.fillStyle(0x8a6a5a, 1);
+  gfx.fillCircle(x + 16, y + 10, 5);
+  gfx.fillStyle(0x5a4a3a, 1);
+  gfx.fillRect(x + 12, y + 14, 8, 8);
+}
+
+function drawPokemonChain(gfx: Phaser.GameObjects.Graphics, x: number, y: number, h: number, chainColor: number) {
+  gfx.fillStyle(POKEMON_STYLE.outline, 1);
+  gfx.fillRect(x, y, 6, h);
+  for (let i = 0; i < h; i += 8) {
+    gfx.fillStyle(chainColor, 1);
+    gfx.fillRect(x + 1, y + i, 4, 6);
+    gfx.fillStyle(POKEMON_STYLE.highlight, 0.4);
+    gfx.fillRect(x + 1, y + i, 1, 4);
+  }
+}
+
+function drawPokemonFountain(gfx: Phaser.GameObjects.Graphics, cx: number, cy: number, stoneColor: number, waterColor: number) {
+  gfx.fillStyle(POKEMON_STYLE.outline, 1);
+  gfx.fillCircle(cx, cy, TILE_SIZE * 1.6);
+  gfx.fillStyle(stoneColor, 1);
+  gfx.fillCircle(cx, cy, TILE_SIZE * 1.5);
+  gfx.fillStyle(POKEMON_STYLE.outline, 1);
+  gfx.fillCircle(cx, cy, TILE_SIZE * 1.1);
+  gfx.fillStyle(waterColor, 1);
+  gfx.fillCircle(cx, cy, TILE_SIZE);
+  gfx.fillStyle(0x88bbff, 0.4);
+  gfx.fillCircle(cx - 6, cy - 6, TILE_SIZE * 0.5);
+  gfx.fillStyle(stoneColor, 1);
+  gfx.fillCircle(cx, cy, 8);
+  gfx.fillStyle(waterColor, 0.8);
+  gfx.fillRect(cx - 2, cy - 20, 4, 14);
+  gfx.fillCircle(cx, cy - 20, 6);
+}
+
+function drawPokemonGrass(gfx: Phaser.GameObjects.Graphics, x: number, y: number, grassDark: number, grassLight: number, variant: number) {
+  gfx.fillStyle(grassDark, 1);
+  gfx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+  for (let sy = 0; sy < 4; sy++) {
+    for (let sx = 0; sx < 4; sx++) {
+      if ((sx + sy + variant) % 3 === 0) {
+        gfx.fillStyle(grassLight, 0.5);
+        gfx.fillRect(x + sx * SUB_TILE + 2, y + sy * SUB_TILE + 2, 4, 4);
+      }
+      if ((sx * 3 + sy * 7 + variant) % 11 === 0) {
+        gfx.fillStyle(grassLight, 0.7);
+        gfx.fillRect(x + sx * SUB_TILE + 3, y + sy * SUB_TILE, 2, 6);
+      }
+    }
+  }
+}
+
+function drawPokemonFlower(gfx: Phaser.GameObjects.Graphics, x: number, y: number, petalColor: number, centerColor: number) {
+  gfx.fillStyle(0x2a5020, 1);
+  gfx.fillRect(x + 3, y + 4, 2, 4);
+  gfx.fillStyle(petalColor, 1);
+  gfx.fillRect(x + 1, y, 2, 3);
+  gfx.fillRect(x + 5, y, 2, 3);
+  gfx.fillRect(x, y + 2, 3, 2);
+  gfx.fillRect(x + 5, y + 2, 3, 2);
+  gfx.fillStyle(centerColor, 1);
+  gfx.fillRect(x + 3, y + 1, 2, 2);
+}
+
+function drawPokemonCarpet(gfx: Phaser.GameObjects.Graphics, x: number, y: number, carpetColor: number, borderColor: number, isEdgeLeft: boolean, isEdgeRight: boolean) {
+  gfx.fillStyle(carpetColor, 1);
+  gfx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+  if (isEdgeLeft) {
+    gfx.fillStyle(borderColor, 1);
+    gfx.fillRect(x, y, 4, TILE_SIZE);
+    gfx.fillStyle(POKEMON_STYLE.outline, 1);
+    gfx.fillRect(x, y, 1, TILE_SIZE);
+  }
+  if (isEdgeRight) {
+    gfx.fillStyle(borderColor, 1);
+    gfx.fillRect(x + TILE_SIZE - 4, y, 4, TILE_SIZE);
+    gfx.fillStyle(POKEMON_STYLE.outline, 1);
+    gfx.fillRect(x + TILE_SIZE - 1, y, 1, TILE_SIZE);
+  }
+  for (let i = SUB_TILE; i < TILE_SIZE - SUB_TILE; i += SUB_TILE * 2) {
+    gfx.fillStyle(borderColor, 0.3);
+    gfx.fillRect(x + 6, y + i, TILE_SIZE - 12, 2);
+  }
+}
+
+function drawPokemonSpiral(gfx: Phaser.GameObjects.Graphics, cx: number, cy: number, color: number, size: number) {
+  gfx.lineStyle(2, POKEMON_STYLE.outline, 1);
+  gfx.strokeCircle(cx, cy, size);
+  gfx.lineStyle(2, color, 0.6);
+  gfx.strokeCircle(cx, cy, size - 4);
+  gfx.fillStyle(color, 0.3);
+  gfx.fillCircle(cx, cy, size - 8);
+  gfx.fillStyle(color, 0.6);
+  gfx.fillCircle(cx, cy, 6);
+}
 
 function getLocationTypeFromName(name: string): LocationType {
   const lowerName = name.toLowerCase();
@@ -691,38 +956,22 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
           const isWall = x === 0 || x === tx - 1 || y === 0 || y === 1;
           
           if (isWall) {
-            gfx.fillStyle(GREAT_HALL_PALETTE.stone, 1);
-            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            drawPokemonWall(gfx, px, py, GREAT_HALL_PALETTE.black, GREAT_HALL_PALETTE.stone, GREAT_HALL_PALETTE.lightWood);
             if (y === 1 && x > 2 && x < tx - 3 && x % 4 === 0) {
-              gfx.fillStyle(GREAT_HALL_PALETTE.gold, 0.8);
-              gfx.fillRect(px + 10, py + 8, 12, 20);
-              gfx.fillStyle(GREAT_HALL_PALETTE.candleGlow, 0.4);
-              gfx.fillCircle(px + 16, py + 6, 8);
+              drawPokemonCandle(gfx, px, py, GREAT_HALL_PALETTE.candleGlow);
             }
             if (y === 0 && x > 1 && x < tx - 2 && x % 5 === 2) {
-              gfx.fillStyle(GREAT_HALL_PALETTE.banner, 1);
-              gfx.fillRect(px + 8, py + 4, 16, 28);
-              gfx.fillStyle(GREAT_HALL_PALETTE.gold, 0.6);
-              gfx.fillRect(px + 12, py + 10, 8, 12);
+              drawPokemonBanner(gfx, px, py, GREAT_HALL_PALETTE.banner, GREAT_HALL_PALETTE.gold);
             }
           } else {
-            gfx.fillStyle(GREAT_HALL_PALETTE.darkWood, 1);
-            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-            if ((x + y) % 2 === 0) {
-              gfx.fillStyle(GREAT_HALL_PALETTE.wood, 0.5);
-              gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-            }
-            gfx.fillStyle(GREAT_HALL_PALETTE.black, 0.1);
-            gfx.fillRect(px + TILE_SIZE - 1, py, 1, TILE_SIZE);
+            drawPokemonFloor(gfx, px, py, GREAT_HALL_PALETTE.darkWood, GREAT_HALL_PALETTE.wood, x + y);
           }
         }
       }
       for (let row = 0; row < 4; row++) {
         const tableY = TILE_SIZE * 3 + row * TILE_SIZE * 2;
-        gfx.fillStyle(GREAT_HALL_PALETTE.wood, 1);
-        gfx.fillRect(TILE_SIZE * 2, tableY, (tx - 4) * TILE_SIZE, TILE_SIZE - 4);
-        gfx.fillStyle(GREAT_HALL_PALETTE.lightWood, 0.5);
-        gfx.fillRect(TILE_SIZE * 2, tableY, (tx - 4) * TILE_SIZE, 4);
+        const tableW = (tx - 4) * TILE_SIZE;
+        drawPokemonTable(gfx, TILE_SIZE * 2, tableY, tableW, TILE_SIZE - 4, GREAT_HALL_PALETTE.wood, GREAT_HALL_PALETTE.lightWood);
       }
     }
 
@@ -734,22 +983,15 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
           const isWall = x === 0 || x === tx - 1 || y === 0 || y === 1;
           
           if (isWall) {
-            gfx.fillStyle(CLASSROOM_PALETTE.darkStone, 1);
-            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            drawPokemonWall(gfx, px, py, CLASSROOM_PALETTE.black, CLASSROOM_PALETTE.darkStone, CLASSROOM_PALETTE.lightStone);
             if (y === 1 && x >= 3 && x <= tx - 4) {
-              gfx.fillStyle(CLASSROOM_PALETTE.chalkboard, 1);
-              gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE - 4);
-              gfx.fillStyle(0xaabbaa, 0.3);
-              gfx.fillRect(px + 4, py + 4, TILE_SIZE - 8, 2);
-              gfx.fillRect(px + 8, py + 10, TILE_SIZE - 16, 2);
+              drawPokemonChalkboard(gfx, px, py + 2, TILE_SIZE, CLASSROOM_PALETTE.wood);
+            }
+            if (y === 1 && x === 2) {
+              drawPokemonCandle(gfx, px, py, CLASSROOM_PALETTE.candle);
             }
           } else {
-            gfx.fillStyle(CLASSROOM_PALETTE.stone, 1);
-            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-            if ((x + y) % 2 === 0) {
-              gfx.fillStyle(CLASSROOM_PALETTE.lightStone, 0.2);
-              gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-            }
+            drawPokemonFloor(gfx, px, py, CLASSROOM_PALETTE.stone, CLASSROOM_PALETTE.lightStone, x + y);
           }
         }
       }
@@ -757,10 +999,7 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
         for (let col = 0; col < 3; col++) {
           const deskX = TILE_SIZE * 2 + col * TILE_SIZE * 4;
           const deskY = TILE_SIZE * 4 + row * TILE_SIZE * 2;
-          gfx.fillStyle(CLASSROOM_PALETTE.wood, 1);
-          gfx.fillRect(deskX, deskY, TILE_SIZE * 2, TILE_SIZE - 6);
-          gfx.fillStyle(CLASSROOM_PALETTE.black, 0.3);
-          gfx.fillRect(deskX, deskY + TILE_SIZE - 8, TILE_SIZE * 2, 2);
+          drawPokemonDesk(gfx, deskX, deskY, CLASSROOM_PALETTE.wood, CLASSROOM_PALETTE.lightStone);
         }
       }
     }
@@ -774,45 +1013,32 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
           const isSecondWall = x === 1 || x === tx - 2 || y === 1;
           
           if (isWall) {
-            gfx.fillStyle(DUNGEON_PALETTE.black, 1);
-            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-            gfx.fillStyle(DUNGEON_PALETTE.darkStone, 1);
-            gfx.fillRect(px + 2, py + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+            drawPokemonWall(gfx, px, py, DUNGEON_PALETTE.black, DUNGEON_PALETTE.darkStone, DUNGEON_PALETTE.stone);
             if ((x + y) % 3 === 0) {
-              gfx.fillStyle(DUNGEON_PALETTE.moss, 0.4);
-              gfx.fillRect(px + 4, py + TILE_SIZE - 8, 8, 6);
+              gfx.fillStyle(DUNGEON_PALETTE.moss, 0.5);
+              gfx.fillRect(px + 4, py + TILE_SIZE - 10, 10, 8);
+              gfx.fillRect(px + 8, py + TILE_SIZE - 14, 6, 4);
             }
           } else if (isSecondWall) {
-            gfx.fillStyle(DUNGEON_PALETTE.stone, 1);
-            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            drawPokemonWall(gfx, px, py, DUNGEON_PALETTE.darkStone, DUNGEON_PALETTE.stone, DUNGEON_PALETTE.lightStone);
             if (y === 1 && x % 5 === 2) {
-              gfx.fillStyle(DUNGEON_PALETTE.torch, 0.8);
-              gfx.fillCircle(px + 16, py + 12, 6);
-              gfx.fillStyle(DUNGEON_PALETTE.torch, 0.3);
-              gfx.fillCircle(px + 16, py + 12, 12);
+              drawPokemonTorch(gfx, px, py, DUNGEON_PALETTE.torch);
             }
           } else {
-            gfx.fillStyle(DUNGEON_PALETTE.stone, 1);
-            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-            if ((x + y) % 2 === 0) {
-              gfx.fillStyle(DUNGEON_PALETTE.lightStone, 0.15);
-              gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-            }
-            gfx.fillStyle(DUNGEON_PALETTE.black, 0.1);
-            gfx.fillRect(px + TILE_SIZE - 1, py, 1, TILE_SIZE);
-            gfx.fillRect(px, py + TILE_SIZE - 1, TILE_SIZE, 1);
+            drawPokemonFloor(gfx, px, py, DUNGEON_PALETTE.stone, DUNGEON_PALETTE.lightStone, x + y);
           }
         }
       }
-      gfx.fillStyle(DUNGEON_PALETTE.chain, 0.6);
       for (let i = 0; i < 3; i++) {
         const chainX = TILE_SIZE * 3 + i * TILE_SIZE * 4;
-        gfx.fillRect(chainX, TILE_SIZE * 2, 4, TILE_SIZE * 2);
-        gfx.fillRect(chainX, TILE_SIZE * 2 + 8, 8, 4);
-        gfx.fillRect(chainX, TILE_SIZE * 3, 8, 4);
+        drawPokemonChain(gfx, chainX, TILE_SIZE * 2, TILE_SIZE * 2, DUNGEON_PALETTE.chain);
       }
-      gfx.fillStyle(DUNGEON_PALETTE.green, 0.4);
+      gfx.fillStyle(POKEMON_STYLE.outline, 1);
+      gfx.fillCircle(tx * TILE_SIZE / 2, ty * TILE_SIZE / 2, TILE_SIZE + 4);
+      gfx.fillStyle(DUNGEON_PALETTE.green, 0.6);
       gfx.fillCircle(tx * TILE_SIZE / 2, ty * TILE_SIZE / 2, TILE_SIZE);
+      gfx.fillStyle(0x4a8a5a, 0.4);
+      gfx.fillCircle(tx * TILE_SIZE / 2 - 8, ty * TILE_SIZE / 2 - 8, TILE_SIZE * 0.5);
     }
 
     function renderTower(gfx: Phaser.GameObjects.Graphics, tx: number, ty: number) {
@@ -824,32 +1050,20 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
           const isTopWall = y === 0 || y === 1;
           
           if (isWall) {
-            gfx.fillStyle(TOWER_PALETTE.darkStone, 1);
-            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            drawPokemonWall(gfx, px, py, TOWER_PALETTE.black, TOWER_PALETTE.darkStone, TOWER_PALETTE.stone);
             if (y % 3 === 1) {
-              gfx.fillStyle(TOWER_PALETTE.skyBlue, 0.6);
-              gfx.fillRect(px + 4, py + 4, TILE_SIZE - 8, TILE_SIZE - 8);
-              gfx.fillStyle(TOWER_PALETTE.starlight, 0.3);
-              gfx.fillCircle(px + 12, py + 10, 2);
-              gfx.fillCircle(px + 20, py + 18, 1);
+              drawPokemonWindow(gfx, px, py, TOWER_PALETTE.stone, TOWER_PALETTE.skyBlue, TOWER_PALETTE.starlight);
             }
           } else if (isTopWall) {
-            gfx.fillStyle(TOWER_PALETTE.stone, 1);
-            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            drawPokemonWall(gfx, px, py, TOWER_PALETTE.darkStone, TOWER_PALETTE.stone, TOWER_PALETTE.lightStone);
             if (y === 0 && x % 3 === 1) {
-              gfx.fillStyle(TOWER_PALETTE.gold, 0.7);
-              gfx.fillRect(px + 8, py + 12, 16, 20);
+              drawPokemonBanner(gfx, px, py, TOWER_PALETTE.accent, TOWER_PALETTE.gold);
             }
           } else {
-            gfx.fillStyle(TOWER_PALETTE.stone, 1);
-            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            drawPokemonFloor(gfx, px, py, TOWER_PALETTE.stone, TOWER_PALETTE.lightStone, x + y);
             const dist = Math.sqrt(Math.pow(x - tx/2, 2) + Math.pow(y - ty/2, 2));
             if (dist < 3) {
-              gfx.fillStyle(TOWER_PALETTE.accent, 0.2);
-              gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-            }
-            if ((x + y) % 2 === 0) {
-              gfx.fillStyle(TOWER_PALETTE.lightStone, 0.15);
+              gfx.fillStyle(TOWER_PALETTE.accent, 0.15);
               gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
             }
           }
@@ -857,10 +1071,7 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
       }
       const cx = tx * TILE_SIZE / 2;
       const cy = ty * TILE_SIZE / 2;
-      gfx.lineStyle(2, TOWER_PALETTE.accent, 0.5);
-      gfx.strokeCircle(cx, cy, TILE_SIZE * 1.5);
-      gfx.fillStyle(TOWER_PALETTE.starlight, 0.2);
-      gfx.fillCircle(cx, cy, TILE_SIZE);
+      drawPokemonSpiral(gfx, cx, cy, TOWER_PALETTE.accent, TILE_SIZE * 1.5);
     }
 
     function renderCourtyard(gfx: Phaser.GameObjects.Graphics, tx: number, ty: number) {
@@ -872,39 +1083,28 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
           const isPath = (x === Math.floor(tx/2) || y === Math.floor(ty/2)) && !isEdge;
           
           if (isEdge) {
-            gfx.fillStyle(COURTYARD_PALETTE.stone, 1);
-            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-            gfx.fillStyle(COURTYARD_PALETTE.lightStone, 0.3);
-            gfx.fillRect(px + 2, py + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+            drawPokemonFloor(gfx, px, py, COURTYARD_PALETTE.stone, COURTYARD_PALETTE.lightStone, x + y);
+            gfx.fillStyle(POKEMON_STYLE.outline, 1);
+            if (x === 0) gfx.fillRect(px, py, 2, TILE_SIZE);
+            if (x === tx - 1) gfx.fillRect(px + TILE_SIZE - 2, py, 2, TILE_SIZE);
+            if (y === 0) gfx.fillRect(px, py, TILE_SIZE, 2);
+            if (y === ty - 1) gfx.fillRect(px, py + TILE_SIZE - 2, TILE_SIZE, 2);
           } else if (isPath) {
-            gfx.fillStyle(COURTYARD_PALETTE.stone, 1);
-            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-            gfx.fillStyle(COURTYARD_PALETTE.lightStone, 0.2);
-            if ((x + y) % 2 === 0) {
-              gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-            }
+            drawPokemonFloor(gfx, px, py, COURTYARD_PALETTE.stone, COURTYARD_PALETTE.lightStone, x + y);
           } else {
-            gfx.fillStyle(COURTYARD_PALETTE.grass, 1);
-            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-            if ((x * 7 + y * 3) % 5 === 0) {
-              gfx.fillStyle(COURTYARD_PALETTE.lightGrass, 0.4);
-              gfx.fillRect(px + 4, py + 4, 8, 8);
-            }
+            drawPokemonGrass(gfx, px, py, COURTYARD_PALETTE.grass, COURTYARD_PALETTE.lightGrass, x * 3 + y * 7);
             if ((x * 3 + y * 11) % 17 === 0) {
-              gfx.fillStyle(COURTYARD_PALETTE.flower, 0.8);
-              gfx.fillCircle(px + 12, py + 12, 3);
+              drawPokemonFlower(gfx, px + 10, py + 10, COURTYARD_PALETTE.flower, 0xffff88);
+            }
+            if ((x * 7 + y * 5) % 23 === 0) {
+              drawPokemonFlower(gfx, px + 4, py + 20, 0x88aaff, 0xffffaa);
             }
           }
         }
       }
       const cx = tx * TILE_SIZE / 2;
       const cy = ty * TILE_SIZE / 2;
-      gfx.fillStyle(COURTYARD_PALETTE.stone, 1);
-      gfx.fillCircle(cx, cy, TILE_SIZE * 1.5);
-      gfx.fillStyle(COURTYARD_PALETTE.water, 0.8);
-      gfx.fillCircle(cx, cy, TILE_SIZE);
-      gfx.fillStyle(COURTYARD_PALETTE.water, 0.4);
-      gfx.fillCircle(cx - 4, cy - 4, TILE_SIZE * 0.6);
+      drawPokemonFountain(gfx, cx, cy, COURTYARD_PALETTE.stone, COURTYARD_PALETTE.water);
     }
 
     function renderCorridor(gfx: Phaser.GameObjects.Graphics, tx: number, ty: number) {
@@ -914,37 +1114,22 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
           const py = y * TILE_SIZE;
           const isWall = x === 0 || x === tx - 1 || y === 0 || y === 1;
           const isCarpetRow = y >= 4 && y <= ty - 3;
-          const isCarpet = isCarpetRow && x >= 2 && x <= tx - 3 && (x === 2 || x === tx - 3 || (x > 2 && x < tx - 3));
+          const isCarpet = isCarpetRow && x >= 2 && x <= tx - 3;
+          const isLeftEdge = x === 2;
+          const isRightEdge = x === tx - 3;
           
           if (isWall) {
-            gfx.fillStyle(CORRIDOR_PALETTE.darkStone, 1);
-            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            drawPokemonWall(gfx, px, py, CORRIDOR_PALETTE.black, CORRIDOR_PALETTE.darkStone, CORRIDOR_PALETTE.stone);
             if (y === 1 && x % 4 === 2 && x > 0 && x < tx - 1) {
-              gfx.fillStyle(CORRIDOR_PALETTE.portrait, 1);
-              gfx.fillRect(px + 4, py + 2, TILE_SIZE - 8, TILE_SIZE - 4);
-              gfx.fillStyle(CORRIDOR_PALETTE.gold, 0.6);
-              gfx.fillRect(px + 2, py, TILE_SIZE - 4, 2);
-              gfx.fillRect(px + 2, py + TILE_SIZE - 2, TILE_SIZE - 4, 2);
+              drawPokemonPortrait(gfx, px, py, CORRIDOR_PALETTE.gold, CORRIDOR_PALETTE.portrait);
             }
             if (y === 0 && x % 6 === 3) {
-              gfx.fillStyle(CORRIDOR_PALETTE.torch, 0.8);
-              gfx.fillCircle(px + 16, py + 20, 6);
-              gfx.fillStyle(CORRIDOR_PALETTE.torch, 0.3);
-              gfx.fillCircle(px + 16, py + 20, 12);
+              drawPokemonTorch(gfx, px, py, CORRIDOR_PALETTE.torch);
             }
           } else {
-            gfx.fillStyle(CORRIDOR_PALETTE.stone, 1);
-            gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-            if ((x + y) % 2 === 0) {
-              gfx.fillStyle(CORRIDOR_PALETTE.lightStone, 0.15);
-              gfx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-            }
+            drawPokemonFloor(gfx, px, py, CORRIDOR_PALETTE.stone, CORRIDOR_PALETTE.lightStone, x + y);
             if (isCarpet) {
-              gfx.fillStyle(CORRIDOR_PALETTE.carpet, 0.8);
-              gfx.fillRect(px + 2, py, TILE_SIZE - 4, TILE_SIZE);
-              gfx.fillStyle(CORRIDOR_PALETTE.gold, 0.4);
-              gfx.fillRect(px + 2, py, 2, TILE_SIZE);
-              gfx.fillRect(px + TILE_SIZE - 4, py, 2, TILE_SIZE);
+              drawPokemonCarpet(gfx, px, py, CORRIDOR_PALETTE.carpet, CORRIDOR_PALETTE.gold, isLeftEdge, isRightEdge);
             }
           }
         }

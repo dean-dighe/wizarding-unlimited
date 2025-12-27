@@ -1403,6 +1403,171 @@ The professor's voice echoes from the darkness ahead—calm, measured, utterly u
     }
   });
 
+  // ===== NPC LOCATION ROUTES =====
+  
+  // Get NPCs at a specific location for a player profile
+  app.get("/api/rpg/npcs/:location", async (req, res) => {
+    try {
+      const profileId = parseInt(req.query.profileId as string);
+      if (isNaN(profileId)) {
+        return res.status(400).json({ message: "profileId query parameter is required" });
+      }
+      
+      const npcs = await storage.getNpcLocations(profileId, req.params.location);
+      
+      // Fetch sprite data for each NPC
+      const npcsWithSprites = await Promise.all(npcs.map(async (npc) => {
+        const sprite = await storage.getCharacterSprite(npc.npcName);
+        return {
+          ...npc,
+          sprite: sprite || null,
+        };
+      }));
+      
+      res.json(npcsWithSprites);
+    } catch (error: any) {
+      console.error("Error fetching NPCs:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // Get all NPCs for a player profile
+  app.get("/api/rpg/npcs", async (req, res) => {
+    try {
+      const profileId = parseInt(req.query.profileId as string);
+      if (isNaN(profileId)) {
+        return res.status(400).json({ message: "profileId query parameter is required" });
+      }
+      
+      const npcs = await storage.getNpcLocations(profileId);
+      res.json(npcs);
+    } catch (error: any) {
+      console.error("Error fetching all NPCs:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // Spawn NPCs from AI story context
+  app.post("/api/rpg/npcs/spawn", async (req, res) => {
+    try {
+      const { profileId, location, npcs } = req.body;
+      
+      if (!profileId || !location || !Array.isArray(npcs)) {
+        return res.status(400).json({ 
+          message: "profileId, location, and npcs array are required" 
+        });
+      }
+      
+      // Standard canvas size for position calculations
+      const CANVAS_WIDTH = 480;
+      const CANVAS_HEIGHT = 360;
+      
+      const spawnedNpcs = await Promise.all(npcs.map(async (npc: { 
+        name: string; 
+        description?: string; 
+        x?: number; 
+        y?: number;
+      }) => {
+        // Check if sprite exists, if not queue for generation
+        let sprite = await storage.getCharacterSprite(npc.name);
+        
+        if (!sprite && npc.description) {
+          // Mark for sprite generation
+          const { npcSpriteService } = await import("./replit_integrations/game_assets");
+          const generatedSprite = await npcSpriteService.generateNpcSprite(npc.name, npc.description);
+          sprite = generatedSprite ?? undefined;
+        }
+        
+        // Set NPC location with spawn position in pixel coordinates
+        // Default to walkable area (avoiding walls at edges)
+        const npcLocation = await storage.setNpcLocation({
+          profileId,
+          npcName: npc.name,
+          currentLocation: location,
+          spawnPosition: {
+            x: npc.x ?? Math.floor(Math.random() * (CANVAS_WIDTH * 0.6) + CANVAS_WIDTH * 0.2),
+            y: npc.y ?? Math.floor(Math.random() * (CANVAS_HEIGHT * 0.4) + CANVAS_HEIGHT * 0.3),
+          },
+        });
+        
+        return {
+          ...npcLocation,
+          sprite: sprite || null,
+        };
+      }));
+      
+      res.json(spawnedNpcs);
+    } catch (error: any) {
+      console.error("Error spawning NPCs:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // Move an NPC to a new location or position
+  app.patch("/api/rpg/npcs/:npcName", async (req, res) => {
+    try {
+      const { profileId, location, x, y } = req.body;
+      
+      if (!profileId) {
+        return res.status(400).json({ message: "profileId is required" });
+      }
+      
+      const existingNpc = await storage.getNpcLocation(profileId, req.params.npcName);
+      if (!existingNpc) {
+        return res.status(404).json({ message: "NPC not found" });
+      }
+      
+      const currentPos = existingNpc.spawnPosition ?? { x: 0, y: 0 };
+      const updated = await storage.updateNpcLocation(existingNpc.id, {
+        currentLocation: location ?? existingNpc.currentLocation,
+        spawnPosition: (x !== undefined || y !== undefined) ? {
+          x: x ?? currentPos.x,
+          y: y ?? currentPos.y,
+        } : existingNpc.spawnPosition,
+      });
+      
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating NPC:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // Get character sprite by name
+  app.get("/api/rpg/sprites/:characterName", async (req, res) => {
+    try {
+      const sprite = await storage.getCharacterSprite(req.params.characterName);
+      if (!sprite) {
+        return res.status(404).json({ message: "Sprite not found" });
+      }
+      res.json(sprite);
+    } catch (error: any) {
+      console.error("Error fetching sprite:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // Generate or regenerate a character sprite
+  app.post("/api/rpg/sprites/generate", async (req, res) => {
+    try {
+      const { characterName, description, isCanon } = req.body;
+      
+      if (!characterName || !description) {
+        return res.status(400).json({ 
+          message: "characterName and description are required" 
+        });
+      }
+      
+      const { npcSpriteService } = await import("./replit_integrations/game_assets");
+      const sprite = await npcSpriteService.generateNpcSprite(characterName, description, isCanon ?? false);
+      
+      res.json(sprite);
+    } catch (error: any) {
+      console.error("Error generating sprite:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // ===== COMBAT ROUTES =====
   
   // Start a new battle encounter

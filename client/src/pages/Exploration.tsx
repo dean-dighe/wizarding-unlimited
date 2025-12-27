@@ -315,9 +315,67 @@ export default function Exploration() {
     enabled: !!currentLocation,
   });
 
+  // Map preloading cache for seamless transitions
+  const preloadedMapsRef = useRef<Set<string>>(new Set());
+  const [preloadingMaps, setPreloadingMaps] = useState<string[]>([]);
+
+  // Preload adjacent map data when connections change
+  useEffect(() => {
+    if (connections.length === 0) return;
+    
+    const adjacentLocations = connections
+      .map(conn => conn.toLocation)
+      .filter(loc => !preloadedMapsRef.current.has(loc));
+    
+    if (adjacentLocations.length === 0) return;
+    
+    setPreloadingMaps(adjacentLocations);
+    
+    // Preload map connections for adjacent locations
+    const preloadPromises = adjacentLocations.map(async (location) => {
+      try {
+        // Preload connections for next map
+        await fetch(`/api/rpg/map-connections/${encodeURIComponent(location)}`);
+        
+        // Preload NPCs for next map if we have a profile
+        if (profileId) {
+          await fetch(`/api/rpg/npcs/${encodeURIComponent(location)}?profileId=${profileId}`);
+        }
+        
+        preloadedMapsRef.current.add(location);
+      } catch (error) {
+        console.warn(`Failed to preload map: ${location}`, error);
+      }
+    });
+    
+    Promise.all(preloadPromises).then(() => {
+      setPreloadingMaps([]);
+    });
+  }, [connections, profileId]);
+
   const { data: encounters = [] } = useQuery<EncounterEntry[]>({
     queryKey: ["/api/rpg/encounters", currentLocation],
     enabled: !!currentLocation && !combat.active,
+  });
+
+  // Dynamic NPC loading from database
+  interface NpcLocationData {
+    id: number;
+    npcName: string;
+    currentLocation: string;
+    spawnPosition: { x: number; y: number } | null;
+    sprite: { spriteSheetUrl: string; characterName: string } | null;
+  }
+  
+  const { data: dynamicNPCs = [] } = useQuery<NpcLocationData[]>({
+    queryKey: ["/api/rpg/npcs", currentLocation, profileId],
+    queryFn: async () => {
+      if (!profileId) return [];
+      const res = await fetch(`/api/rpg/npcs/${encodeURIComponent(currentLocation)}?profileId=${profileId}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!currentLocation && !!profileId,
   });
 
   const exitPoints: ExitPoint[] = useMemo(() => 
@@ -335,6 +393,29 @@ export default function Exploration() {
   );
 
   const locationNPCs: InteractiveObject[] = useMemo(() => {
+    // Use dynamic NPCs from database if available
+    if (dynamicNPCs.length > 0) {
+      return dynamicNPCs.map((npc, index) => {
+        // spawnPosition stores pixel coordinates directly (matches canvas size)
+        const pos = npc.spawnPosition 
+          ? { x: npc.spawnPosition.x, y: npc.spawnPosition.y }
+          : { 
+              x: canvasSize.width * 0.3 + (index * canvasSize.width * 0.2),
+              y: canvasSize.height * 0.4
+            };
+        return {
+          id: `npc-db-${npc.id}`,
+          name: npc.npcName,
+          type: "npc" as const,
+          x: pos.x,
+          y: pos.y,
+          dialogue: `Greetings, young wizard. How may I help you today?`,
+          spriteUrl: npc.sprite?.spriteSheetUrl,
+        };
+      });
+    }
+    
+    // Fallback to static NPCs for locations without database entries
     const npcs = LOCATION_NPCS[currentLocation] || [];
     return npcs.map((npc, index) => {
       const pos = npc.positionFn(canvasSize.width, canvasSize.height);
@@ -347,7 +428,7 @@ export default function Exploration() {
         dialogue: npc.dialogue,
       };
     });
-  }, [currentLocation, canvasSize]);
+  }, [currentLocation, canvasSize, dynamicNPCs]);
 
   const handleNPCInteraction = useCallback((object: InteractiveObject) => {
     if (object.type === "npc" && object.dialogue) {
