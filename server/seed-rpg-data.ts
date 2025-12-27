@@ -215,11 +215,11 @@ const MAP_CONNECTION_DATA: Array<{
   isHidden?: boolean;
 }> = [
   // The Undercroft (starting location) - hidden chamber beneath Hogwarts
-  { fromLocation: "The Undercroft", toLocation: "Dungeons", connectionType: "hidden", fromPosition: { x: 240, y: 48 }, toPosition: { x: 320, y: 272 }, transitionText: "You slip through the hidden passage..." },
-  { fromLocation: "The Undercroft", toLocation: "Slytherin Common Room", connectionType: "hidden", fromPosition: { x: 440, y: 180 }, toPosition: { x: 80, y: 160 }, transitionText: "A secret passage leads to Slytherin territory...", isHidden: true },
+  { fromLocation: "The Undercroft", toLocation: "Dungeons", connectionType: "hidden", fromPosition: { x: 240, y: 48 }, toPosition: { x: 320, y: 200 }, transitionText: "You slip through the hidden passage..." },
+  { fromLocation: "The Undercroft", toLocation: "Slytherin Common Room", connectionType: "hidden", fromPosition: { x: 440, y: 180 }, toPosition: { x: 160, y: 160 }, transitionText: "A secret passage leads to Slytherin territory...", isHidden: true },
   
   // Dungeons to Undercroft (return path)
-  { fromLocation: "Dungeons", toLocation: "The Undercroft", connectionType: "hidden", fromPosition: { x: 320, y: 272 }, toPosition: { x: 240, y: 48 }, transitionText: "You descend into the hidden chamber...", isHidden: true },
+  { fromLocation: "Dungeons", toLocation: "The Undercroft", connectionType: "hidden", fromPosition: { x: 320, y: 272 }, toPosition: { x: 240, y: 120 }, transitionText: "You descend into the hidden chamber...", isHidden: true },
   
   // Great Hall connections
   { fromLocation: "Great Hall", toLocation: "Entrance Hall", connectionType: "door", fromPosition: { x: 320, y: 48 }, toPosition: { x: 320, y: 272 }, transitionText: "You leave the Great Hall..." },

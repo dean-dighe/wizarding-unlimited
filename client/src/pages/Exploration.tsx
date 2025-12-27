@@ -267,14 +267,24 @@ export default function Exploration() {
 
   useEffect(() => {
     if (combat.active || isTransitioning || encounters.length === 0) return;
-    const minSteps = testMode ? 2 : 5;
+    
+    const EXIT_SAFE_ZONE = 60;
+    const isNearExit = playerPosition && exitPoints.some(exit => {
+      const dx = playerPosition.x - exit.x;
+      const dy = playerPosition.y - exit.y;
+      return Math.sqrt(dx * dx + dy * dy) < EXIT_SAFE_ZONE;
+    });
+    
+    if (isNearExit) return;
+    
+    const minSteps = testMode ? 8 : 5;
     if (stepsSinceEncounter < minSteps) return;
 
     let totalRate = 0;
     for (const enc of encounters) totalRate += enc.encounterRate;
     
     const roll = Math.random() * 100;
-    const baseThreshold = testMode ? 50 : Math.min(totalRate / 10, 15);
+    const baseThreshold = testMode ? 15 : Math.min(totalRate / 10, 15);
     const threshold = baseThreshold;
     
     if (roll < threshold) {
@@ -292,7 +302,7 @@ export default function Exploration() {
         }
       }
     }
-  }, [stepsSinceEncounter, encounters, combat.active, isTransitioning, testMode]);
+  }, [stepsSinceEncounter, encounters, combat.active, isTransitioning, testMode, playerPosition, exitPoints]);
 
   const handleExitApproach = useCallback((exit: ExitPoint | null) => {
     setCanvasNearbyExit(exit);
@@ -347,6 +357,10 @@ export default function Exploration() {
   const closeCombat = () => {
     setCombat({ active: false, creatureName: "", creatureLevel: 1 });
     canvasRef.current?.resumeMovement();
+    setTimeout(() => {
+      const canvas = document.querySelector('[data-testid="exploration-canvas"] canvas') as HTMLCanvasElement;
+      canvas?.focus();
+    }, 100);
   };
 
   return (
