@@ -512,5 +512,149 @@ The professor's voice echoes from the darkness ahead—calm, measured, utterly u
     });
   });
 
+  // ===== RPG SYSTEM ROUTES =====
+  
+  // Seed RPG data (admin only)
+  app.post("/api/rpg/seed", async (req, res) => {
+    try {
+      const { seedRPGData } = await import("./seed-rpg-data");
+      await seedRPGData();
+      res.json({ success: true, message: "RPG data seeded successfully" });
+    } catch (error: any) {
+      console.error("Error seeding RPG data:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+  
+  // Get all combat spells
+  app.get("/api/rpg/spells", async (req, res) => {
+    try {
+      const spells = await storage.getAllCombatSpells();
+      res.json(spells);
+    } catch (error: any) {
+      console.error("Error fetching spells:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // Get a specific combat spell
+  app.get("/api/rpg/spells/:spellName", async (req, res) => {
+    try {
+      const spell = await storage.getCombatSpell(req.params.spellName);
+      if (!spell) {
+        return res.status(404).json({ message: "Spell not found" });
+      }
+      res.json(spell);
+    } catch (error: any) {
+      console.error("Error fetching spell:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // Get all items
+  app.get("/api/rpg/items", async (req, res) => {
+    try {
+      const items = await storage.getAllItems();
+      res.json(items);
+    } catch (error: any) {
+      console.error("Error fetching items:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // Get a specific item
+  app.get("/api/rpg/items/:itemId", async (req, res) => {
+    try {
+      const item = await storage.getItem(req.params.itemId);
+      if (!item) {
+        return res.status(404).json({ message: "Item not found" });
+      }
+      res.json(item);
+    } catch (error: any) {
+      console.error("Error fetching item:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // Get all companions
+  app.get("/api/rpg/companions", async (req, res) => {
+    try {
+      const companions = await storage.getAllCompanions();
+      res.json(companions);
+    } catch (error: any) {
+      console.error("Error fetching companions:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // Get all quests
+  app.get("/api/rpg/quests", async (req, res) => {
+    try {
+      const quests = await storage.getAllQuests();
+      res.json(quests);
+    } catch (error: any) {
+      console.error("Error fetching quests:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // Get map connections for a location
+  app.get("/api/rpg/map-connections/:location", async (req, res) => {
+    try {
+      const connections = await storage.getMapConnections(req.params.location);
+      res.json(connections);
+    } catch (error: any) {
+      console.error("Error fetching map connections:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // Get all map connections
+  app.get("/api/rpg/map-connections", async (req, res) => {
+    try {
+      const connections = await storage.getAllMapConnections();
+      res.json(connections);
+    } catch (error: any) {
+      console.error("Error fetching all map connections:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // Get encounter table for a location
+  app.get("/api/rpg/encounters/:location", async (req, res) => {
+    try {
+      const encounters = await storage.getEncounterTable(req.params.location);
+      res.json(encounters);
+    } catch (error: any) {
+      console.error("Error fetching encounters:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // Get creature stats
+  app.get("/api/rpg/creatures", async (req, res) => {
+    try {
+      const creatures = await storage.getAllCreatureStats();
+      res.json(creatures);
+    } catch (error: any) {
+      console.error("Error fetching creatures:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // Get specific creature stats
+  app.get("/api/rpg/creatures/:creatureName", async (req, res) => {
+    try {
+      const creature = await storage.getCreatureStats(req.params.creatureName);
+      if (!creature) {
+        return res.status(404).json({ message: "Creature not found" });
+      }
+      res.json(creature);
+    } catch (error: any) {
+      console.error("Error fetching creature:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   return httpServer;
 }
