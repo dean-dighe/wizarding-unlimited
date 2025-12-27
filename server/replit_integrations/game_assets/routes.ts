@@ -1,5 +1,5 @@
 import type { Express } from "express";
-import { SpriteGenerationService, CANON_CHARACTERS } from "./sprites";
+import { SpriteGenerationService, CANON_CHARACTERS, CHARACTER_CATEGORIES } from "./sprites";
 import { MapGenerationService, HARRY_POTTER_LOCATIONS } from "./maps";
 import { environmentAssetService, ENVIRONMENT_ASSETS } from "./environment";
 import { backgroundSceneService, HARRY_POTTER_BACKGROUND_LOCATIONS } from "./backgrounds";
