@@ -59,7 +59,8 @@ export default function Battle() {
   
   const profileId = 1;
   
-  const { data: initialBattle, isLoading, error } = useQuery<{ battle: BattleStateResponse } | null>({
+  // Query for active battle (when no battleId in URL)
+  const { data: activeBattle, isLoading: activeLoading, error: activeError } = useQuery<{ battle: BattleStateResponse } | null>({
     queryKey: ["/api/combat/active", profileId],
     queryFn: async () => {
       try {
@@ -73,9 +74,29 @@ export default function Battle() {
     },
     enabled: !params.battleId,
   });
+  
+  // Query for specific battle by ID (when battleId in URL)
+  const { data: specificBattle, isLoading: specificLoading, error: specificError } = useQuery<{ battle: BattleStateResponse } | null>({
+    queryKey: ["/api/combat/battle", params.battleId],
+    queryFn: async () => {
+      try {
+        const response = await fetch(`/api/combat/battle/${params.battleId}`);
+        if (response.status === 404) return null;
+        if (!response.ok) throw new Error("Failed to fetch battle");
+        return response.json();
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!params.battleId,
+  });
+  
+  const initialBattle = params.battleId ? specificBattle : activeBattle;
+  const isLoading = params.battleId ? specificLoading : activeLoading;
+  const error = params.battleId ? specificError : activeError;
 
   const { data: spellsData } = useQuery<CombatSpell[]>({
-    queryKey: ["/api/rpg/combat-spells"],
+    queryKey: ["/api/rpg/spells"],
     enabled: !!battleState,
   });
 

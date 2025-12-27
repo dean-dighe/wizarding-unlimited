@@ -1400,16 +1400,18 @@ The professor's voice echoes from the darkness ahead—calm, measured, utterly u
       const logs = await storage.getBattleLogsForBattle(req.params.battleId);
       
       res.json({
-        battleId: battleState.battleId,
-        playerState: battleState.playerState,
-        enemyState: battleState.enemyState,
-        companionStates: battleState.companionStates || [],
-        turnOrder: battleState.currentTurnOrder || [],
-        currentTurn: battleState.turnNumber || 1,
-        phase: battleState.phase,
-        logs,
-        locationName: battleState.locationName,
-        canFlee: battleState.canFlee,
+        battle: {
+          battleId: battleState.battleId,
+          playerState: battleState.playerState,
+          enemyState: battleState.enemyState,
+          companionStates: battleState.companionStates || [],
+          turnOrder: battleState.currentTurnOrder || [],
+          currentTurn: battleState.turnNumber || 1,
+          phase: battleState.phase,
+          logs,
+          locationName: battleState.locationName,
+          canFlee: battleState.canFlee,
+        }
       });
     } catch (error: any) {
       console.error("Error fetching battle:", error);
@@ -1424,13 +1426,13 @@ The professor's voice echoes from the darkness ahead—calm, measured, utterly u
       const battleState = await storage.getActiveBattleForPlayer(profileId);
       
       if (!battleState) {
-        return res.json({ activeBattle: null });
+        return res.json({ battle: null });
       }
       
       const logs = await storage.getBattleLogsForBattle(battleState.battleId);
       
       res.json({
-        activeBattle: {
+        battle: {
           battleId: battleState.battleId,
           playerState: battleState.playerState,
           enemyState: battleState.enemyState,

@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Heart, 
@@ -15,10 +16,12 @@ import {
   ChevronRight,
   CircleDot,
   Swords,
+  Loader2,
 } from "lucide-react";
 import { OverworldCanvas, OverworldCanvasRef, ExitPoint } from "@/components/game/OverworldCanvas";
 import { useMapTransition } from "@/hooks/use-map-transition";
 import { Button } from "@/components/ui/button";
+import { apiRequest } from "@/lib/queryClient";
 
 interface MapConnection {
   id: number;
@@ -127,6 +130,7 @@ function TouchControls({
 }
 
 export default function Exploration() {
+  const [, navigate] = useLocation();
   const canvasRef = useRef<OverworldCanvasRef>(null);
   const [currentLocation, setCurrentLocation] = useState("The Undercroft");
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -145,6 +149,43 @@ export default function Exploration() {
   const forceCombatTriggeredRef = useRef(false);
 
   const [combat, setCombat] = useState<CombatState>({ active: false, creatureName: "", creatureLevel: 1 });
+  
+  // Combat encounter mutation - starts a battle via the API
+  const startBattleMutation = useMutation({
+    mutationFn: async ({ profileId, location, enemyType }: { profileId: number; location: string; enemyType?: string }) => {
+      const response = await apiRequest("POST", "/api/combat/encounter", { profileId, location, enemyType });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      if (data.battle?.battleId) {
+        navigate(`/battle/${data.battle.battleId}`);
+      }
+    },
+    onError: (error) => {
+      console.error("Failed to start battle:", error);
+      setCombat({ active: false, creatureName: "", creatureLevel: 1 });
+      canvasRef.current?.resumeMovement();
+    },
+  });
+  
+  // Handle starting a fight
+  const handleFight = useCallback(() => {
+    // For now, use a hardcoded profile ID (1) - in production this would come from auth/session
+    // The enemy type comes from the random encounter
+    startBattleMutation.mutate({
+      profileId: 1,
+      location: currentLocation,
+      enemyType: combat.creatureName,
+    });
+  }, [currentLocation, combat.creatureName, startBattleMutation]);
+  
+  // Handle running from combat
+  const handleRun = useCallback(() => {
+    // Close combat and reset state - player successfully fled
+    setCombat({ active: false, creatureName: "", creatureLevel: 1 });
+    setStepsSinceEncounter(0);
+    canvasRef.current?.resumeMovement();
+  }, []);
   
   useEffect(() => {
     if (forceCombat && !combat.active && !forceCombatTriggeredRef.current) {
@@ -454,15 +495,30 @@ export default function Exploration() {
                     <p className="text-lg text-[#8b6cc0] mb-1">{combat.creatureName}</p>
                     <p className="text-sm text-[#6b4c9a] mb-6">Level {combat.creatureLevel}</p>
                     <div className="flex gap-3 justify-center flex-wrap">
-                      <Button variant="outline" className="border-red-500 text-red-400" onClick={closeCombat} data-testid="button-fight">
-                        <Wand2 className="w-4 h-4 mr-2" />
-                        Fight
+                      <Button 
+                        variant="outline" 
+                        className="border-red-500 text-red-400" 
+                        onClick={handleFight} 
+                        disabled={startBattleMutation.isPending}
+                        data-testid="button-fight"
+                      >
+                        {startBattleMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Wand2 className="w-4 h-4 mr-2" />
+                        )}
+                        {startBattleMutation.isPending ? "Starting..." : "Fight"}
                       </Button>
-                      <Button variant="outline" className="border-yellow-500 text-yellow-400" onClick={closeCombat} data-testid="button-run">
+                      <Button 
+                        variant="outline" 
+                        className="border-yellow-500 text-yellow-400" 
+                        onClick={handleRun} 
+                        disabled={startBattleMutation.isPending}
+                        data-testid="button-run"
+                      >
                         Run Away
                       </Button>
                     </div>
-                    <p className="text-xs text-[#4a4a6a] mt-4">(Combat system coming soon)</p>
                   </div>
                 </motion.div>
               )}

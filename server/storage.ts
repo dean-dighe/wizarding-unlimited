@@ -574,7 +574,7 @@ export class DatabaseStorage implements IStorage {
           notInArray(battle_states.phase, terminalPhases)
         )
       )
-      .orderBy(desc(battle_states.createdAt))
+      .orderBy(desc(battle_states.startedAt))
       .limit(1);
     return state;
   }
