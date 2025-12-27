@@ -416,6 +416,13 @@ interface OverworldCanvasProps {
   isPaused?: boolean;
   isRunning?: boolean;
   spawnPosition?: { x: number; y: number };
+  playerStats?: {
+    health: number;
+    maxHealth: number;
+    level: number;
+  };
+  spells?: string[];
+  inventory?: string[];
 }
 
 export interface OverworldCanvasRef {
@@ -441,15 +448,18 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
   isPaused = false,
   isRunning = false,
   spawnPosition,
+  playerStats,
+  spells = [],
+  inventory = [],
 }, ref) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
   const sceneRef = useRef<Phaser.Scene | null>(null);
   const playerRef = useRef<Phaser.Physics.Arcade.Sprite | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [interactionPrompt, setInteractionPrompt] = useState<string | null>(null);
   const pausedRef = useRef(isPaused);
   const runningRef = useRef(isRunning);
-  const interactionPromptRef = useRef<Phaser.GameObjects.Container | null>(null);
   const nearbyObjectRef = useRef<InteractiveObject | null>(null);
   const playerDirectionRef = useRef<"down" | "up" | "left" | "right">("down");
   const exitMarkersRef = useRef<Phaser.GameObjects.Container[]>([]);
@@ -519,18 +529,10 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
       return null;
     },
     showInteractionPrompt: (text: string) => {
-      if (sceneRef.current && interactionPromptRef.current) {
-        const textObj = interactionPromptRef.current.getByName("promptText") as Phaser.GameObjects.Text;
-        if (textObj) {
-          textObj.setText(text);
-        }
-        interactionPromptRef.current.setVisible(true);
-      }
+      setInteractionPrompt(text);
     },
     hideInteractionPrompt: () => {
-      if (interactionPromptRef.current) {
-        interactionPromptRef.current.setVisible(false);
-      }
+      setInteractionPrompt(null);
     },
     setTouchDirection: (direction: "up" | "down" | "left" | "right" | null) => {
       touchDirectionRef.current = direction;
@@ -608,19 +610,6 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
           objectSprites.set(obj.id, objSprite);
         }
       });
-
-      const promptBg = this.add.rectangle(0, 0, 120, 24, 0x1a1a2e, 0.9);
-      promptBg.setStrokeStyle(1, UNDERCROFT_PALETTE.accent);
-      const promptText = this.add.text(0, 0, "[E] Interact", {
-        fontFamily: "monospace",
-        fontSize: "10px",
-        color: "#8b6cc0",
-      }).setOrigin(0.5).setName("promptText");
-      
-      const promptContainer = this.add.container(width / 2, height - 30, [promptBg, promptText]);
-      promptContainer.setDepth(100);
-      promptContainer.setVisible(false);
-      interactionPromptRef.current = promptContainer;
 
       const cursors = this.input.keyboard?.createCursorKeys();
       const wasd = this.input.keyboard?.addKeys({
@@ -806,32 +795,23 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
         onExitApproachRef.current?.(closestExit);
       }
 
-      if (interactionPromptRef.current) {
-        if (closestExit) {
-          const textObj = interactionPromptRef.current.getByName("promptText") as Phaser.GameObjects.Text;
-          if (textObj) {
-            const typeLabel = closestExit.connectionType === "stairs" ? "Climb to" :
-                              closestExit.connectionType === "door" ? "Enter" :
-                              closestExit.connectionType === "hidden" ? "Secret to" :
-                              closestExit.connectionType === "path" ? "Go to" : "To";
-            textObj.setText(`[E] ${typeLabel} ${closestExit.toLocation}`);
-          }
-          interactionPromptRef.current.setVisible(true);
-        } else if (closestObjResult) {
-          const textObj = interactionPromptRef.current.getByName("promptText") as Phaser.GameObjects.Text;
-          if (textObj) {
-            const objType = closestObjResult.type;
-            const objName = closestObjResult.name;
-            const label = objType === "npc" ? `[E] Talk to ${objName}` :
-                          objType === "item" ? `[E] Pick up ${objName}` :
-                          objType === "examine" ? `[E] Examine ${objName}` :
-                          `[E] ${objName}`;
-            textObj.setText(label);
-          }
-          interactionPromptRef.current.setVisible(true);
-        } else {
-          interactionPromptRef.current.setVisible(false);
-        }
+      // Update interaction prompt
+      if (closestExit) {
+        const typeLabel = closestExit.connectionType === "stairs" ? "Climb to" :
+                          closestExit.connectionType === "door" ? "Enter" :
+                          closestExit.connectionType === "hidden" ? "Secret to" :
+                          closestExit.connectionType === "path" ? "Go to" : "To";
+        setInteractionPrompt(`[E] ${typeLabel} ${closestExit.toLocation}`);
+      } else if (closestObjResult) {
+        const objType = closestObjResult.type;
+        const objName = closestObjResult.name;
+        const label = objType === "npc" ? `[E] Talk to ${objName}` :
+                      objType === "item" ? `[E] Pick up ${objName}` :
+                      objType === "examine" ? `[E] Examine ${objName}` :
+                      `[E] ${objName}`;
+        setInteractionPrompt(label);
+      } else {
+        setInteractionPrompt(null);
       }
     }
 
@@ -1435,10 +1415,15 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
           })
           .then(spriteData => {
             if (spriteData.spriteSheetUrl && scene && !scene.textures.exists(npcSpriteKey)) {
-              scene.load.image(npcSpriteKey, spriteData.spriteSheetUrl);
+              // Load as spritesheet (96x128 with 12 frames: 4 rows x 3 columns)
+              scene.load.spritesheet(npcSpriteKey, spriteData.spriteSheetUrl, {
+                frameWidth: 32,
+                frameHeight: 32,
+              });
               scene.load.once('complete', () => {
                 if (sprite && sprite.active) {
-                  sprite.setTexture(npcSpriteKey);
+                  // Use frame 1 (down idle - second frame of first row)
+                  sprite.setTexture(npcSpriteKey, 1);
                   sprite.setDisplaySize(32, 32);
                 }
               });
@@ -1489,27 +1474,81 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
   }, [locationName, width, height, tilesX, tilesY]);
 
   return (
-    <div className="relative">
-      {isLoading && (
-        <div 
-          className="absolute inset-0 flex items-center justify-center bg-[#0a0a12] z-10 rounded"
-          data-testid="overworld-loading"
-        >
-          <div className="flex flex-col items-center gap-2">
-            <div className="w-4 h-4 border-2 border-[#8b6cc0] border-t-transparent rounded-full animate-spin" />
-            <p className="text-xs text-[#8b6cc0] font-mono">Entering the Undercroft...</p>
+    <div className="flex flex-col gap-2">
+      <div className="relative">
+        {isLoading && (
+          <div
+            className="absolute inset-0 flex items-center justify-center bg-[#0a0a12] z-10 rounded"
+            data-testid="overworld-loading"
+          >
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-4 h-4 border-2 border-[#8b6cc0] border-t-transparent rounded-full animate-spin" />
+              <p className="text-xs text-[#8b6cc0] font-mono">Entering the Undercroft...</p>
+            </div>
+          </div>
+        )}
+        <div
+          ref={canvasRef}
+          className="rounded border-2 border-[#4a4a6a] shadow-[0_0_20px_rgba(107,76,154,0.3)]"
+          style={{ width, height, imageRendering: "pixelated" }}
+          data-testid="overworld-canvas"
+        />
+        <div className="absolute bottom-2 left-2 text-[10px] text-[#6b4c9a] font-mono opacity-70">
+          WASD to move | E to interact
+        </div>
+      </div>
+
+      {/* Interaction prompt below canvas */}
+      {interactionPrompt && (
+        <div className="bg-[#1a1a2e] border border-[#8b6cc0] rounded px-3 py-1.5 text-center">
+          <p className="text-xs text-[#8b6cc0] font-mono">{interactionPrompt}</p>
+        </div>
+      )}
+
+      {/* HUD below controls */}
+      {playerStats && (
+        <div className="bg-[#1a1a2e]/90 border border-[#4a4a6a] rounded p-2">
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            {/* Health & Level */}
+            <div className="space-y-1">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[#6b4c9a] font-mono">HP:</span>
+                <div className="flex-1 bg-[#0a0a12] rounded-full h-3 overflow-hidden border border-[#2d2d44]">
+                  <div
+                    className="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-300"
+                    style={{ width: `${(playerStats.health / playerStats.maxHealth) * 100}%` }}
+                  />
+                </div>
+                <span className="text-red-400 font-mono text-[10px]">
+                  {playerStats.health}/{playerStats.maxHealth}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[#6b4c9a] font-mono">LVL:</span>
+                <span className="text-yellow-400 font-mono">{playerStats.level}</span>
+              </div>
+            </div>
+
+            {/* Spells */}
+            <div className="space-y-1">
+              <div className="text-[#6b4c9a] font-mono text-[10px]">SPELLS:</div>
+              <div className="flex flex-wrap gap-1">
+                {spells.slice(0, 4).map((spell, i) => (
+                  <span
+                    key={i}
+                    className="text-[9px] bg-[#2d2d44] text-[#8b6cc0] px-1.5 py-0.5 rounded border border-[#4a4a6a]"
+                  >
+                    {spell.length > 8 ? spell.substring(0, 8) + "..." : spell}
+                  </span>
+                ))}
+                {spells.length > 4 && (
+                  <span className="text-[9px] text-[#6b4c9a]">+{spells.length - 4}</span>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
-      <div 
-        ref={canvasRef} 
-        className="rounded border-2 border-[#4a4a6a] shadow-[0_0_20px_rgba(107,76,154,0.3)]"
-        style={{ width, height, imageRendering: "pixelated" }}
-        data-testid="overworld-canvas"
-      />
-      <div className="absolute bottom-2 left-2 text-[10px] text-[#6b4c9a] font-mono opacity-70">
-        WASD to move | E to interact
-      </div>
     </div>
   );
 });

@@ -701,6 +701,7 @@ export default function Exploration() {
               ref={canvasRef}
               locationName={currentLocation}
               playerName="Wizard"
+              playerSpriteUrl={playerProfile?.spriteUrl}
               width={canvasSize.width}
               height={canvasSize.height}
               objects={locationNPCs}
@@ -711,6 +712,9 @@ export default function Exploration() {
               isPaused={isTransitioning || combat.active || dialogue.isOpen}
               isRunning={isRunning}
               spawnPosition={spawnPosition || undefined}
+              playerStats={playerStats}
+              spells={playerProfile?.knownSpells || []}
+              inventory={inventory}
             />
 
             <AnimatePresence>
@@ -878,17 +882,6 @@ export default function Exploration() {
             </div>
           )}
 
-          <div className="mt-2 flex gap-2 text-xs text-[#4a4a6a]">
-            <span>Exits: {exitPoints.length}</span>
-            <span>|</span>
-            <span>Steps: {stepsSinceEncounter}</span>
-            {encounters.length > 0 && (
-              <>
-                <span>|</span>
-                <span>Encounters: {encounters.length} types</span>
-              </>
-            )}
-          </div>
         </div>
 
         <AnimatePresence>
