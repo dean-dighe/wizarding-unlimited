@@ -212,7 +212,15 @@ const MAP_CONNECTION_DATA: Array<{
   fromPosition?: { x: number; y: number };
   toPosition?: { x: number; y: number };
   transitionText?: string;
+  isHidden?: boolean;
 }> = [
+  // The Undercroft (starting location) - hidden chamber beneath Hogwarts
+  { fromLocation: "The Undercroft", toLocation: "Dungeons", connectionType: "hidden", fromPosition: { x: 240, y: 48 }, toPosition: { x: 320, y: 272 }, transitionText: "You slip through the hidden passage..." },
+  { fromLocation: "The Undercroft", toLocation: "Slytherin Common Room", connectionType: "hidden", fromPosition: { x: 440, y: 180 }, toPosition: { x: 80, y: 160 }, transitionText: "A secret passage leads to Slytherin territory...", isHidden: true },
+  
+  // Dungeons to Undercroft (return path)
+  { fromLocation: "Dungeons", toLocation: "The Undercroft", connectionType: "hidden", fromPosition: { x: 320, y: 272 }, toPosition: { x: 240, y: 48 }, transitionText: "You descend into the hidden chamber...", isHidden: true },
+  
   // Great Hall connections
   { fromLocation: "Great Hall", toLocation: "Entrance Hall", connectionType: "door", fromPosition: { x: 320, y: 48 }, toPosition: { x: 320, y: 272 }, transitionText: "You leave the Great Hall..." },
   
@@ -268,6 +276,10 @@ const ENCOUNTER_DATA: Array<{
   maxLevel: number;
   isRare?: boolean;
 }> = [
+  // The Undercroft (starting area - low encounter rate, easier creatures)
+  { locationName: "The Undercroft", creatureName: "Cornish Pixie", encounterType: "wild", encounterRate: 10, minLevel: 1, maxLevel: 3 },
+  { locationName: "The Undercroft", creatureName: "Boggart", encounterType: "wild", encounterRate: 5, minLevel: 3, maxLevel: 5, isRare: true },
+  
   // Forbidden Forest
   { locationName: "Forbidden Forest", creatureName: "Acromantula", encounterType: "wild", encounterRate: 15, minLevel: 8, maxLevel: 15 },
   { locationName: "Forbidden Forest", creatureName: "Centaur", encounterType: "wild", encounterRate: 5, minLevel: 10, maxLevel: 18, isRare: true },

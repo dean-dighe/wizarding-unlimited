@@ -18,12 +18,21 @@ const UNDERCROFT_PALETTE = {
 interface InteractiveObject {
   id: string;
   name: string;
-  type: "npc" | "item" | "examine" | "trigger";
+  type: "npc" | "item" | "examine" | "trigger" | "exit";
   x: number;
   y: number;
   spriteKey?: string;
   dialogue?: string;
   onInteract?: () => void;
+}
+
+export interface ExitPoint {
+  id: string;
+  toLocation: string;
+  connectionType: string;
+  x: number;
+  y: number;
+  isHidden?: boolean;
 }
 
 interface OverworldCanvasProps {
@@ -33,10 +42,13 @@ interface OverworldCanvasProps {
   width?: number;
   height?: number;
   objects?: InteractiveObject[];
+  exitPoints?: ExitPoint[];
   onInteraction?: (object: InteractiveObject) => void;
   onPlayerMove?: (position: { x: number; y: number }) => void;
+  onExitApproach?: (exit: ExitPoint | null) => void;
   isPaused?: boolean;
   isRunning?: boolean;
+  spawnPosition?: { x: number; y: number };
 }
 
 export interface OverworldCanvasRef {
@@ -54,10 +66,13 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
   width = 480,
   height = 360,
   objects = [],
+  exitPoints = [],
   onInteraction,
   onPlayerMove,
+  onExitApproach,
   isPaused = false,
   isRunning = false,
+  spawnPosition,
 }, ref) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
@@ -69,10 +84,15 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
   const interactionPromptRef = useRef<Phaser.GameObjects.Container | null>(null);
   const nearbyObjectRef = useRef<InteractiveObject | null>(null);
   const playerDirectionRef = useRef<"down" | "up" | "left" | "right">("down");
+  const exitMarkersRef = useRef<Phaser.GameObjects.Container[]>([]);
+  const nearbyExitRef = useRef<ExitPoint | null>(null);
   
   const objectsRef = useRef(objects);
+  const exitPointsRef = useRef(exitPoints);
   const onInteractionRef = useRef(onInteraction);
   const onPlayerMoveRef = useRef(onPlayerMove);
+  const onExitApproachRef = useRef(onExitApproach);
+  const spawnPositionRef = useRef(spawnPosition);
 
   const tilesX = useMemo(() => Math.ceil(width / TILE_SIZE), [width]);
   const tilesY = useMemo(() => Math.ceil(height / TILE_SIZE), [height]);
@@ -96,6 +116,18 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
   useEffect(() => {
     onPlayerMoveRef.current = onPlayerMove;
   }, [onPlayerMove]);
+  
+  useEffect(() => {
+    exitPointsRef.current = exitPoints;
+  }, [exitPoints]);
+  
+  useEffect(() => {
+    onExitApproachRef.current = onExitApproach;
+  }, [onExitApproach]);
+  
+  useEffect(() => {
+    spawnPositionRef.current = spawnPosition;
+  }, [spawnPosition]);
 
   useImperativeHandle(ref, () => ({
     pauseMovement: () => {
@@ -249,7 +281,72 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
         strokeThickness: 2,
       }).setOrigin(0.5).setDepth(100);
 
+      exitMarkersRef.current.forEach(m => m.destroy());
+      exitMarkersRef.current = [];
+      
+      exitPointsRef.current.forEach((exit) => {
+        const exitMarker = createExitMarker(this, exit);
+        if (exitMarker) {
+          exitMarkersRef.current.push(exitMarker);
+        }
+      });
+
+      if (spawnPositionRef.current && player) {
+        player.setPosition(spawnPositionRef.current.x, spawnPositionRef.current.y);
+      }
+
       setIsLoading(false);
+    }
+
+    function createExitMarker(scene: Phaser.Scene, exit: ExitPoint): Phaser.GameObjects.Container {
+      const container = scene.add.container(exit.x, exit.y);
+      container.setDepth(5);
+      
+      const gfx = scene.add.graphics();
+      
+      if (exit.isHidden) {
+        gfx.lineStyle(2, UNDERCROFT_PALETTE.accent, 0.4);
+        gfx.strokeCircle(0, 0, 12);
+        gfx.fillStyle(UNDERCROFT_PALETTE.glow, 0.1);
+        gfx.fillCircle(0, 0, 10);
+      } else {
+        const exitTypeColors: Record<string, number> = {
+          door: 0x8b6cc0,
+          stairs: 0x6b8cc0,
+          path: 0x6bc08b,
+          hidden: 0xc08b6b,
+          portal: 0xc06bc0,
+        };
+        const color = exitTypeColors[exit.connectionType] || UNDERCROFT_PALETTE.glow;
+        
+        gfx.lineStyle(2, color, 0.7);
+        gfx.strokeRect(-14, -14, 28, 28);
+        gfx.fillStyle(color, 0.15);
+        gfx.fillRect(-12, -12, 24, 24);
+        
+        if (exit.connectionType === "stairs") {
+          gfx.lineStyle(1, color, 0.5);
+          for (let i = 0; i < 3; i++) {
+            gfx.strokeRect(-8 + i * 2, -6 + i * 4, 16 - i * 4, 2);
+          }
+        } else if (exit.connectionType === "door") {
+          gfx.fillStyle(color, 0.4);
+          gfx.fillRect(-4, -10, 8, 18);
+        }
+      }
+      
+      container.add(gfx);
+      
+      scene.tweens.add({
+        targets: gfx,
+        alpha: { from: 1, to: 0.5 },
+        duration: 1200,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+      
+      return container;
     }
 
     function updateScene(this: Phaser.Scene) {
@@ -318,8 +415,34 @@ export const OverworldCanvas = forwardRef<OverworldCanvasRef, OverworldCanvasPro
 
       nearbyObjectRef.current = closestObjResult;
 
+      let closestExit: ExitPoint | null = null;
+      let closestExitDist = 40;
+
+      for (const exit of exitPointsRef.current) {
+        const dist = Phaser.Math.Distance.Between(player.x, player.y, exit.x, exit.y);
+        if (dist < closestExitDist) {
+          closestExitDist = dist;
+          closestExit = exit;
+        }
+      }
+
+      if (closestExit !== nearbyExitRef.current) {
+        nearbyExitRef.current = closestExit;
+        onExitApproachRef.current?.(closestExit);
+      }
+
       if (interactionPromptRef.current) {
-        if (closestObjResult) {
+        if (closestExit) {
+          const textObj = interactionPromptRef.current.getByName("promptText") as Phaser.GameObjects.Text;
+          if (textObj) {
+            const typeLabel = closestExit.connectionType === "stairs" ? "Climb to" :
+                              closestExit.connectionType === "door" ? "Enter" :
+                              closestExit.connectionType === "hidden" ? "Secret to" :
+                              closestExit.connectionType === "path" ? "Go to" : "To";
+            textObj.setText(`[E] ${typeLabel} ${closestExit.toLocation}`);
+          }
+          interactionPromptRef.current.setVisible(true);
+        } else if (closestObjResult) {
           const textObj = interactionPromptRef.current.getByName("promptText") as Phaser.GameObjects.Text;
           if (textObj) {
             const objType = closestObjResult.type;

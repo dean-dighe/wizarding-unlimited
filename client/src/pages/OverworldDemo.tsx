@@ -7,7 +7,7 @@ import { Heart, Backpack, Wand2, X, ChevronUp, ChevronDown, ChevronLeft, Chevron
 interface InteractiveObject {
   id: string;
   name: string;
-  type: "npc" | "item" | "examine" | "trigger";
+  type: "npc" | "item" | "examine" | "trigger" | "exit";
   x: number;
   y: number;
   dialogue?: string;
