@@ -900,7 +900,7 @@ export default function Game() {
   }
 
   return (
-    <div className="h-screen flex flex-col lg:flex-row bg-[#0d0618] text-[#fdfbf7] overflow-hidden relative">
+    <div className="h-screen h-[100dvh] flex flex-col landscape:flex-row lg:flex-row bg-[#0d0618] text-[#fdfbf7] overflow-hidden relative">
       
       {/* Coordinated Mode Loading Overlay - shows while preparing all-at-once reveal */}
       <AnimatePresence>
@@ -927,7 +927,7 @@ export default function Game() {
       </AnimatePresence>
       
       {/* LEFT PANEL - Canvas & Stats (Desktop) / Top Section (Mobile) */}
-      <div className="lg:w-[520px] lg:h-full lg:flex-shrink-0 lg:border-r lg:border-purple-500/20 flex flex-col">
+      <div className="landscape:w-[45%] lg:w-[520px] landscape:h-full lg:h-full landscape:flex-shrink-0 lg:flex-shrink-0 landscape:border-r lg:border-r landscape:border-purple-500/20 lg:border-purple-500/20 flex flex-col">
         
         {/* Header Bar */}
         <div className="flex items-center justify-between px-3 py-2 bg-[#080410] border-b border-purple-500/20">
@@ -1038,8 +1038,8 @@ export default function Game() {
           </div>
         )}
 
-        {/* Desktop: Stats Panel below canvas */}
-        <div className="hidden lg:block border-t border-purple-500/20 bg-[#080410] p-3 space-y-3">
+        {/* Desktop & Landscape: Stats Panel below canvas */}
+        <div className="hidden landscape:block lg:block border-t border-purple-500/20 bg-[#080410] p-2 landscape:p-1.5 lg:p-3 space-y-2 landscape:space-y-1 lg:space-y-3 landscape:overflow-y-auto landscape:max-h-[30%]">
           {/* Inventory & Spells */}
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -1099,10 +1099,10 @@ export default function Game() {
       {/* RIGHT PANEL - Story & Choices (Desktop) / Just Choices (Mobile) */}
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
         
-        {/* Story Scroll Area - Desktop Only */}
+        {/* Story Scroll Area - Desktop & Landscape */}
         <div 
           ref={scrollRef}
-          className="hidden lg:block flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6 space-y-4"
+          className="hidden landscape:block lg:block flex-1 overflow-y-auto p-3 landscape:p-2 sm:p-4 lg:p-6 space-y-4 landscape:space-y-2"
         >
           {readyMessages.map((message, i) => (
             <motion.div
@@ -1185,9 +1185,9 @@ export default function Game() {
           )}
         </div>
 
-        {/* Mobile Story Section - Shows latest story inline */}
+        {/* Mobile Portrait Story Section - Shows latest story inline */}
         {/* Bottom padding accounts for sticky ChoicePanel which can be up to 40vh + padding */}
-        <div className="lg:hidden flex-1 overflow-y-auto min-h-0 pb-[45vh]">
+        <div className="landscape:hidden lg:hidden flex-1 overflow-y-auto min-h-0 pb-[45vh]">
           <div className="p-3 space-y-3">
             {readyMessages.length > 0 && (
               <>

@@ -169,14 +169,23 @@ export default function OverworldDemo() {
   useEffect(() => {
     const checkMobile = () => {
       const mobile = window.innerWidth < 1024;
+      const isLandscape = window.innerWidth > window.innerHeight;
       setIsMobile(mobile);
       
       if (mobile) {
-        const maxWidth = Math.min(window.innerWidth - 16, 480);
-        const aspectRatio = 4 / 3;
-        const height = Math.min(maxWidth / aspectRatio, window.innerHeight * 0.45);
-        const width = height * aspectRatio;
-        setCanvasSize({ width: Math.floor(width), height: Math.floor(height) });
+        if (isLandscape) {
+          const maxHeight = window.innerHeight - 80;
+          const aspectRatio = 4 / 3;
+          const height = Math.min(maxHeight, 300);
+          const width = height * aspectRatio;
+          setCanvasSize({ width: Math.floor(width), height: Math.floor(height) });
+        } else {
+          const maxWidth = Math.min(window.innerWidth - 16, 480);
+          const aspectRatio = 4 / 3;
+          const height = Math.min(maxWidth / aspectRatio, window.innerHeight * 0.45);
+          const width = height * aspectRatio;
+          setCanvasSize({ width: Math.floor(width), height: Math.floor(height) });
+        }
       } else {
         setCanvasSize({ width: 480, height: 360 });
       }
@@ -184,7 +193,11 @@ export default function OverworldDemo() {
 
     checkMobile();
     window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
+    window.addEventListener("orientationchange", checkMobile);
+    return () => {
+      window.removeEventListener("resize", checkMobile);
+      window.removeEventListener("orientationchange", checkMobile);
+    };
   }, []);
 
   useEffect(() => {
@@ -356,9 +369,9 @@ export default function OverworldDemo() {
   };
 
   return (
-    <div className="min-h-screen min-h-[100dvh] bg-[#0a0a12] flex flex-col lg:flex-row overflow-hidden">
-      <div className="flex-1 flex flex-col lg:flex-row">
-        <div className="flex-shrink-0 flex flex-col items-center justify-center p-2 lg:p-4">
+    <div className="min-h-screen min-h-[100dvh] bg-[#0a0a12] flex flex-col landscape:flex-row lg:flex-row overflow-hidden">
+      <div className="flex-1 flex flex-col landscape:flex-row lg:flex-row">
+        <div className="flex-shrink-0 flex flex-col items-center justify-center p-2 landscape:p-2 lg:p-4">
           <div className="flex items-center justify-between w-full max-w-[480px] px-2 mb-2">
             <h1 className="text-[#8b6cc0] font-serif text-sm lg:text-lg truncate">{currentLocation}</h1>
             <div className="flex items-center gap-2 lg:gap-4">
@@ -467,7 +480,7 @@ export default function OverworldDemo() {
           )}
         </div>
 
-        <div className={`flex-1 flex flex-col p-2 lg:p-4 lg:max-w-xs border-t lg:border-t-0 lg:border-l border-[#4a4a6a]/30 ${showMenu ? 'block' : 'hidden lg:block'}`}>
+        <div className={`flex-1 flex flex-col p-2 landscape:p-2 lg:p-4 landscape:max-w-[180px] lg:max-w-xs border-t landscape:border-t-0 lg:border-t-0 landscape:border-l lg:border-l border-[#4a4a6a]/30 overflow-y-auto max-h-[40vh] landscape:max-h-full ${showMenu ? 'block' : 'hidden landscape:block lg:block'}`}>
           <div className="bg-[#1a1a2e]/50 rounded-lg border border-[#4a4a6a]/30 p-3 mb-3">
             <div className="flex items-center gap-2 mb-2">
               <Backpack className="w-4 h-4 text-[#8b6cc0]" />
