@@ -781,3 +781,111 @@ export const npc_states = pgTable("npc_states", {
   lastDialogue: text("last_dialogue"),
   flags: jsonb("flags").$type<Record<string, boolean>>().default({}), // Custom per-NPC flags
 });
+
+// ===== BATTLE STATE SYSTEM =====
+
+// Battle phase tracking
+export type BattlePhase = 
+  | "intro"          // Battle starting animation
+  | "player_turn"    // Player selecting action
+  | "enemy_turn"     // Enemy AI deciding
+  | "action_resolve" // Executing actions
+  | "status_tick"    // Status effects resolving
+  | "victory"        // Player won
+  | "defeat"         // Player lost
+  | "flee"           // Player escaped
+  | "capture";       // Creature pact formed
+
+// Combatant state (player or enemy)
+export interface CombatantState {
+  name: string;
+  isPlayer: boolean;
+  currentHp: number;
+  maxHp: number;
+  currentPp: Record<string, number>; // PP per spell
+  stats: PlayerStats;
+  equippedSpells: string[];
+  statusEffects: { effect: StatusEffect; turnsRemaining: number }[];
+  level: number;
+  discipline?: MagicalDiscipline;
+}
+
+// Active battle tracking
+export const battle_states = pgTable("battle_states", {
+  id: serial("id").primaryKey(),
+  profileId: integer("profile_id").notNull().references(() => player_profiles.id, { onDelete: "cascade" }),
+  battleId: text("battle_id").notNull().unique(), // UUID for this battle
+  phase: text("phase").$type<BattlePhase>().default("intro"),
+  turnNumber: integer("turn_number").default(1),
+  playerState: jsonb("player_state").$type<CombatantState>(),
+  enemyState: jsonb("enemy_state").$type<CombatantState>(),
+  companionStates: jsonb("companion_states").$type<CombatantState[]>().default([]),
+  currentTurnOrder: text("current_turn_order").array().default([]), // Names in turn order
+  locationName: text("location_name"),
+  encounterType: text("encounter_type").$type<EncounterType>().default("wild"),
+  canFlee: boolean("can_flee").default(true),
+  weatherEffect: text("weather_effect"), // Special battle conditions
+  backgroundUrl: text("background_url"), // Battle scene background
+  startedAt: timestamp("started_at").defaultNow(),
+  lastActionAt: timestamp("last_action_at").defaultNow(),
+});
+
+export const insertBattleStateSchema = createInsertSchema(battle_states).omit({
+  id: true,
+  startedAt: true,
+  lastActionAt: true,
+});
+
+export type BattleState = typeof battle_states.$inferSelect;
+export type InsertBattleState = z.infer<typeof insertBattleStateSchema>;
+
+// Battle action log
+export const battle_logs = pgTable("battle_logs", {
+  id: serial("id").primaryKey(),
+  battleId: text("battle_id").notNull(),
+  turnNumber: integer("turn_number").notNull(),
+  actorName: text("actor_name").notNull(),
+  actionType: text("action_type").notNull(), // "spell", "item", "flee", "switch"
+  actionTarget: text("action_target"),
+  spellUsed: text("spell_used"),
+  itemUsed: text("item_used"),
+  damage: integer("damage").default(0),
+  healing: integer("healing").default(0),
+  statusApplied: text("status_applied").$type<StatusEffect>(),
+  isCritical: boolean("is_critical").default(false),
+  isMiss: boolean("is_miss").default(false),
+  message: text("message"), // Narration text
+  timestamp: timestamp("timestamp").defaultNow(),
+});
+
+export const insertBattleLogSchema = createInsertSchema(battle_logs).omit({
+  id: true,
+  timestamp: true,
+});
+
+export type BattleLog = typeof battle_logs.$inferSelect;
+export type InsertBattleLog = z.infer<typeof insertBattleLogSchema>;
+
+// ===== BATTLE BACKGROUNDS =====
+
+// Pre-generated battle scene backgrounds
+export const battle_backgrounds = pgTable("battle_backgrounds", {
+  id: serial("id").primaryKey(),
+  backgroundId: text("background_id").notNull().unique(), // e.g., "forest_day", "dungeon_dark"
+  locationCategory: text("location_category").notNull(), // "forest", "castle", "dungeon", "field"
+  timeOfDay: text("time_of_day").default("day"),
+  weather: text("weather").default("clear"),
+  imageUrl: text("image_url"),
+  promptUsed: text("prompt_used"),
+  generationStatus: text("generation_status").$type<BackgroundStatus>().default("pending"),
+  generationError: text("generation_error"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertBattleBackgroundSchema = createInsertSchema(battle_backgrounds).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type BattleBackground = typeof battle_backgrounds.$inferSelect;
+export type InsertBattleBackground = z.infer<typeof insertBattleBackgroundSchema>;

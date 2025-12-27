@@ -811,6 +811,71 @@ The professor's voice echoes from the darkness ahead—calm, measured, utterly u
     }
   });
   
+  // Seed combat assets (spells, creatures, items, companions, backgrounds)
+  app.post("/api/rpg/seed-combat", async (req, res) => {
+    try {
+      const { seedCombatAssets } = await import("./seed-combat-assets");
+      const results = await seedCombatAssets();
+      res.json({ 
+        success: true, 
+        message: "Combat assets seeded successfully",
+        seeded: results
+      });
+    } catch (error: any) {
+      console.error("Error seeding combat assets:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+  
+  // Preload combat assets - generate battle backgrounds via xAI
+  app.post("/api/rpg/preload-assets", async (req, res) => {
+    try {
+      const { battleBackgroundService } = await import("./replit_integrations/game_assets");
+      const { concurrency = 2 } = req.body || {};
+      
+      // Generate pending battle backgrounds
+      const bgResults = await battleBackgroundService.pregenerateAll(concurrency);
+      
+      res.json({
+        success: true,
+        message: "Asset preloading initiated",
+        battleBackgrounds: bgResults,
+      });
+    } catch (error: any) {
+      console.error("Error preloading assets:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+  
+  // Get all battle backgrounds
+  app.get("/api/rpg/battle-backgrounds", async (req, res) => {
+    try {
+      const { battleBackgroundService } = await import("./replit_integrations/game_assets");
+      const backgrounds = await battleBackgroundService.getAllBackgrounds();
+      res.json(backgrounds);
+    } catch (error: any) {
+      console.error("Error fetching battle backgrounds:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // Get battle background for a location
+  app.get("/api/rpg/battle-backgrounds/:location", async (req, res) => {
+    try {
+      const { battleBackgroundService } = await import("./replit_integrations/game_assets");
+      const timeOfDay = (req.query.time as string) || "day";
+      const bg = await battleBackgroundService.getBackgroundForLocation(req.params.location, timeOfDay);
+      
+      if (!bg) {
+        return res.status(404).json({ message: "No battle background found for this location" });
+      }
+      res.json(bg);
+    } catch (error: any) {
+      console.error("Error fetching battle background:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
   // Get all combat spells
   app.get("/api/rpg/spells", async (req, res) => {
     try {
