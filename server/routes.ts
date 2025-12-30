@@ -359,7 +359,7 @@ What do you do?
       const { playerName, house } = api.game.start.input.parse(req.body);
 
       // 1. Create conversation (for session tracking)
-      const conversation = await chatStorage.createConversation(`Exploration: ${playerName}`);
+      const conversation = await storage.createConversation(`Exploration: ${playerName}`);
 
       // 2. Generate brief intro text (2-3 sentences, not a conversation)
       const { generateGameIntro } = await import("./explorationAI");
